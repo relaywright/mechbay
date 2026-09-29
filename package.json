@@ -1,7 +1,7 @@
 {
   "name": "mechbay",
   "version": "1.4.0",
-  "description": "A BattleTech-inspired command bay for AI coding agents — deploy Claude, Codex, or any CLI agent as mechs into your real project directories",
+  "description": "A BattleTech-inspired command bay for AI coding agents \u2014 deploy Claude, Codex, or any CLI agent as mechs into your real project directories",
   "main": "./out/main/index.js",
   "author": "Sam Albanese <samalbanesedev@gmail.com>",
   "homepage": "https://github.com/samalbanese/mechbay",
@@ -29,7 +29,8 @@
     "test:watch": "vitest",
     "capture:demo": "node scripts/capture-demo.mjs",
     "capture:portfolio": "npm run build && node --experimental-strip-types scripts/capture-portfolio.ts && node --experimental-strip-types scripts/export-portfolio.ts",
-    "chromakey": "node --experimental-strip-types scripts/chromakey.ts assets/mechs && node --experimental-strip-types scripts/chromakey.ts assets/facilities"
+    "chromakey": "node --experimental-strip-types scripts/chromakey.ts assets/mechs && node --experimental-strip-types scripts/chromakey.ts assets/facilities",
+    "forge:sprites": "node --experimental-strip-types scripts/sprite-forge.ts"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
