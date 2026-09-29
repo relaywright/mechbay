@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import {
   computeFacingFlipX,
-  computeWalkBob,
-  computeWalkFrame,
-  DEFAULT_WALK_BOB,
+  computeGait,
+  GAITS,
+  stereoPan,
+  walkDurationMs,
   WALK_FRAME_COUNT,
-  WALK_FRAME_MS
+  WALK_MAX_MS,
+  WALK_MIN_MS
 } from '../../src/renderer/src/game/bay-animation'
 
 describe('computeFacingFlipX', () => {
@@ -27,62 +29,77 @@ describe('computeFacingFlipX', () => {
   })
 })
 
-describe('computeWalkBob', () => {
-  it('starts a fresh walk leg at zero vertical offset', () => {
-    const bob = computeWalkBob(0)
-    expect(bob.yOffset).toBeCloseTo(0, 5)
+describe('computeGait', () => {
+  const gait = GAITS.atlas
+
+  it('starts a walk on frame 0, at rest height, with no footfalls yet', () => {
+    const pose = computeGait(0, gait, 1)
+    expect(pose.frame).toBe(0)
+    expect(pose.yOffset).toBeCloseTo(0, 5)
+    expect(pose.step).toBe(0)
   })
 
-  it('reaches peak amplitude a quarter of the way through one bob cycle', () => {
-    const quarterPeriodMs = (1000 / DEFAULT_WALK_BOB.frequencyHz) / 4
-    const bob = computeWalkBob(quarterPeriodMs)
-    expect(bob.yOffset).toBeCloseTo(DEFAULT_WALK_BOB.amplitudePx, 5)
+  it('advances one frame per frameMs and wraps the cycle', () => {
+    expect(computeGait(gait.frameMs, gait, 1).frame).toBe(1)
+    expect(computeGait(gait.frameMs * 3, gait, 1).frame).toBe(3)
+    expect(computeGait(gait.frameMs * WALK_FRAME_COUNT, gait, 1).frame).toBe(0)
   })
 
-  it('never exceeds the configured amplitude or sway bounds', () => {
-    for (let ms = 0; ms < 5000; ms += 37) {
-      const bob = computeWalkBob(ms)
-      expect(Math.abs(bob.yOffset)).toBeLessThanOrEqual(DEFAULT_WALK_BOB.amplitudePx + 1e-9)
-      expect(Math.abs(bob.angleDeg)).toBeLessThanOrEqual(DEFAULT_WALK_BOB.swayDeg + 1e-9)
+  it('counts a footfall every two frames', () => {
+    expect(computeGait(gait.frameMs * 2 - 1, gait, 1).step).toBe(0)
+    expect(computeGait(gait.frameMs * 2, gait, 1).step).toBe(1)
+    expect(computeGait(gait.frameMs * 9, gait, 1).step).toBe(4)
+  })
+
+  it('rises to the full bob height mid-stride and sits lowest on contact', () => {
+    expect(computeGait(gait.frameMs, gait, 1).yOffset).toBeCloseTo(-gait.bobPx, 5)
+    expect(computeGait(gait.frameMs * 2, gait, 1).yOffset).toBeCloseTo(0, 5)
+    for (let ms = 0; ms < 4000; ms += 23) {
+      const y = computeGait(ms, gait, 1).yOffset
+      expect(y).toBeLessThanOrEqual(1e-9)
+      expect(y).toBeGreaterThanOrEqual(-gait.bobPx - 1e-9)
     }
   })
 
-  it('degrades to a flat zero offset when frequency is zero (edge case)', () => {
-    const bob = computeWalkBob(1234, { amplitudePx: 3, frequencyHz: 0, swayDeg: 1 })
-    expect(bob.yOffset).toBeCloseTo(0, 5)
+  it('leans into the direction of travel once the lean has ramped in', () => {
+    const contact = gait.frameMs * 4 // on contact, roll is zero
+    expect(computeGait(contact, gait, 1).angleDeg).toBeCloseTo(gait.leanDeg, 5)
+    expect(computeGait(contact, gait, -1).angleDeg).toBeCloseTo(-gait.leanDeg, 5)
+  })
+
+  it('treats negative elapsed time as the start of the walk', () => {
+    expect(computeGait(-50, gait, 1)).toEqual(computeGait(0, gait, 1))
+  })
+
+  it('makes heavier mechs slower and heavier-stepping than scouts', () => {
+    expect(GAITS.atlas.speedPxPerSec).toBeLessThan(GAITS.locust.speedPxPerSec)
+    expect(GAITS.atlas.frameMs).toBeGreaterThan(GAITS.locust.frameMs)
+    expect(GAITS.atlas.shake).toBeGreaterThan(0)
+    expect(GAITS.locust.shake).toBe(0)
   })
 })
 
-describe('computeWalkFrame', () => {
-  it('starts a walk on frame 0', () => {
-    expect(computeWalkFrame(0)).toBe(0)
+describe('walkDurationMs', () => {
+  it('scales with distance at the gait speed', () => {
+    const gait = GAITS.marauder
+    expect(walkDurationMs(gait.speedPxPerSec * 2, gait)).toBeCloseTo(2000, 5)
   })
 
-  it('advances one frame per frame-duration window', () => {
-    expect(computeWalkFrame(WALK_FRAME_MS)).toBe(1)
-    expect(computeWalkFrame(WALK_FRAME_MS * 2)).toBe(2)
-    expect(computeWalkFrame(WALK_FRAME_MS * 3)).toBe(3)
+  it('clamps very short and very long walks', () => {
+    expect(walkDurationMs(1, GAITS.atlas)).toBe(WALK_MIN_MS)
+    expect(walkDurationMs(1e6, GAITS.atlas)).toBe(WALK_MAX_MS)
+  })
+})
+
+describe('stereoPan', () => {
+  it('centres a point in the middle of the view and softens the edges', () => {
+    expect(stereoPan(500, 0, 1000)).toBeCloseTo(0, 5)
+    expect(stereoPan(0, 0, 1000)).toBeCloseTo(-0.6, 5)
+    expect(stereoPan(1000, 0, 1000)).toBeCloseTo(0.6, 5)
   })
 
-  it('wraps back to frame 0 after a full cycle', () => {
-    expect(computeWalkFrame(WALK_FRAME_MS * WALK_FRAME_COUNT)).toBe(0)
-    expect(computeWalkFrame(WALK_FRAME_MS * (WALK_FRAME_COUNT * 5 + 2))).toBe(2)
-  })
-
-  it('stays on the current frame within a frame-duration window', () => {
-    expect(computeWalkFrame(WALK_FRAME_MS - 1)).toBe(0)
-    expect(computeWalkFrame(WALK_FRAME_MS * 2 - 1)).toBe(1)
-  })
-
-  it('clamps negative elapsed time to frame 0 instead of a negative index (edge case)', () => {
-    expect(computeWalkFrame(-50)).toBe(0)
-  })
-
-  it('always returns a valid frame index across a long walk', () => {
-    for (let ms = 0; ms < 20000; ms += 33) {
-      const frame = computeWalkFrame(ms)
-      expect(frame).toBeGreaterThanOrEqual(0)
-      expect(frame).toBeLessThan(WALK_FRAME_COUNT)
-    }
+  it('clamps points outside the view and handles an empty view', () => {
+    expect(stereoPan(-5000, 0, 1000)).toBeCloseTo(-0.6, 5)
+    expect(stereoPan(10, 0, 0)).toBe(0)
   })
 })

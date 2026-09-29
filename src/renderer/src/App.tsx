@@ -25,6 +25,9 @@ import { resolveSoundSettings } from '../../shared/sound-settings'
 
 type SidebarTab = 'operations' | 'log' | 'files' | 'journal'
 
+/** Pause between a mission completing and its debrief opening. */
+const DEBRIEF_DELAY_MS = 1500
+
 function App(): React.JSX.Element {
   const [state, setState] = useState<AppState | null>(null)
   const [selectedCompanionId, setSelectedCompanionId] = useState<string | null>(null)
@@ -79,11 +82,16 @@ function App(): React.JSX.Element {
           .map((deployment) => deployment.id)
 
         if (completedIds.length > 0) {
-          setDebriefQueue((queue) => {
-            const queuedIds = new Set(queue)
-            const newIds = completedIds.filter((id) => !queuedIds.has(id))
-            return newIds.length > 0 ? [...queue, ...newIds] : queue
-          })
+          const enqueue = (): void =>
+            setDebriefQueue((queue) => {
+              const queuedIds = new Set(queue)
+              const newIds = completedIds.filter((id) => !queuedIds.has(id))
+              return newIds.length > 0 ? [...queue, ...newIds] : queue
+            })
+          // Let the bay's mission-complete beat (shockwave, light pillar)
+          // play before the debrief covers the field.
+          if (nextState.settings.reduceMotion) enqueue()
+          else window.setTimeout(enqueue, DEBRIEF_DELAY_MS)
         }
       }
       previousStateRef.current = nextState
@@ -124,6 +132,9 @@ function App(): React.JSX.Element {
       type: Phaser.AUTO,
       parent,
       backgroundColor: '#0a0805',
+      // All sound is synthesized by audio/sfx.ts; Phaser's own audio system
+      // would only hold an idle AudioContext open.
+      audio: { noAudio: true },
       scene,
       scale: {
         mode: Phaser.Scale.FIT,
