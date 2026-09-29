@@ -6,10 +6,16 @@ const FADE_DURATION_MS = 400
 
 interface BootSplashProps {
   reduceMotion: boolean
+  /** Fires as the splash starts fading, so the HUD can begin revealing beneath it. */
+  onReveal?: () => void
   onComplete: () => void
 }
 
-export function BootSplash({ reduceMotion, onComplete }: BootSplashProps): React.JSX.Element {
+export function BootSplash({
+  reduceMotion,
+  onReveal,
+  onComplete
+}: BootSplashProps): React.JSX.Element {
   const [visibleCharacters, setVisibleCharacters] = useState(reduceMotion ? Infinity : 0)
   const [fading, setFading] = useState(false)
 
@@ -35,6 +41,7 @@ export function BootSplash({ reduceMotion, onComplete }: BootSplashProps): React
           if (intervalId) clearInterval(intervalId)
           setVisibleCharacters(totalCharacters)
           setFading(true)
+          onReveal?.()
           completionId = setTimeout(onComplete, timings.fadeDuration)
         }
       }, 16)
@@ -52,7 +59,7 @@ export function BootSplash({ reduceMotion, onComplete }: BootSplashProps): React
       clearTimeout(completionId)
       window.removeEventListener('keydown', skip, true)
     }
-  }, [onComplete, reduceMotion])
+  }, [onComplete, onReveal, reduceMotion])
 
   return (
     <div

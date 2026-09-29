@@ -1,10 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Companion, Deployment, Facility } from '../../../shared/types'
+import { sfx } from '../audio/sfx'
+import { useCountUp } from '../motion'
 import { colors, type } from '../theme'
 import { DiffViewer } from './DiffViewer'
 
 const TASK_LIMIT = 200
 const FILE_LIMIT = 20
+/** When the stamp lands (matches .debrief-stamp's animation delay in command.css). */
+const STAMP_AT_MS = 260
+/** Stat count-up starts once the hologram panel has finished projecting. */
+const COUNT_DELAY_MS = 160
 
 function truncateTask(task: string): string {
   return task.length > TASK_LIMIT ? `${task.slice(0, TASK_LIMIT)}…` : task
@@ -17,6 +23,39 @@ function formatDuration(deployment: Deployment): string {
   const seconds = totalSeconds % 60
 
   return minutes > 0 ? `${minutes}m ${seconds.toString().padStart(2, '0')}s` : `${seconds}s`
+}
+
+const STAMP_TEXT: Partial<Record<Deployment['status'], string>> = {
+  completed: 'MISSION COMPLETE',
+  failed: 'MISSION FAILED',
+  cancelled: 'MISSION SCRUBBED'
+}
+
+/** After-action numbers roll up from zero once, as the report projects in. */
+function DebriefSummary({
+  stats
+}: {
+  stats: NonNullable<Deployment['diffStats']>
+}): React.JSX.Element {
+  const files = useCountUp(stats.filesChanged, 420, COUNT_DELAY_MS)
+  const insertions = useCountUp(stats.insertions, 520, COUNT_DELAY_MS)
+  const deletions = useCountUp(stats.deletions, 520, COUNT_DELAY_MS)
+  return (
+    <div className="debrief-summary" aria-label="Change summary">
+      <div>
+        <strong>{files.toString().padStart(2, '0')}</strong>
+        <span>FILES CHANGED</span>
+      </div>
+      <div>
+        <strong>+{insertions}</strong>
+        <span>LINES ADDED</span>
+      </div>
+      <div>
+        <strong>−{deletions}</strong>
+        <span>LINES REMOVED</span>
+      </div>
+    </div>
+  )
 }
 
 export function DebriefModal(props: {
@@ -38,33 +77,57 @@ export function DebriefModal(props: {
   )
 
   const { onDismiss } = props
+  const handleDismiss = useCallback(() => {
+    sfx.play('ui-close')
+    onDismiss()
+  }, [onDismiss])
   useEffect(() => {
     dismissButtonRef.current?.focus()
     const onKey = (event: KeyboardEvent): void => {
       // Escape-only: file rows are focusable and Enter selects one, so
       // dismissing the whole modal on Enter would fight that interaction.
-      if (event.key === 'Escape') onDismiss()
+      if (event.key === 'Escape') handleDismiss()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onDismiss])
+  }, [handleDismiss])
+
+  // Projector hum on open, then the outcome sting as the stamp lands.
+  // Timers (not immediate calls) so StrictMode's double mount plays once.
+  const outcome = deployment.status
+  useEffect(() => {
+    const open = setTimeout(() => sfx.play('ui-open'), 0)
+    const sting = setTimeout(() => {
+      if (outcome === 'completed') sfx.play('complete')
+      else if (outcome === 'failed') sfx.play('fail')
+    }, STAMP_AT_MS)
+    return () => {
+      clearTimeout(open)
+      clearTimeout(sting)
+    }
+  }, [outcome])
+  const stamp = STAMP_TEXT[outcome]
 
   return (
-    <div style={backdropStyle}>
+    <div style={backdropStyle} className="holo-backdrop">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="mission-debrief-title"
         style={panelStyle}
+        className="holo-panel"
       >
         <div className="debrief-banner">
           <div>
             <div className="eyebrow">MISSION DEBRIEF / AFTER-ACTION REPORT</div>
             <h2 className="dialog-heading">Objective complete.</h2>
           </div>
-          <span className="debrief-check" aria-hidden="true">
-            ✓
-          </span>
+          <div className="debrief-banner-marks">
+            {stamp && <span className={`debrief-stamp stamp-${outcome}`}>{stamp}</span>}
+            <span className="debrief-check" aria-hidden="true">
+              ✓
+            </span>
+          </div>
         </div>
         <div id="mission-debrief-title" style={titleStyle}>
           ■ MISSION DEBRIEF / {props.companion.name.toUpperCase()} ←{' '}
@@ -72,22 +135,7 @@ export function DebriefModal(props: {
         </div>
         <div style={subtitleStyle}>AFTER-ACTION TELEMETRY</div>
 
-        {deployment.diffStats && (
-          <div className="debrief-summary" aria-label="Change summary">
-            <div>
-              <strong>{deployment.diffStats.filesChanged.toString().padStart(2, '0')}</strong>
-              <span>FILES CHANGED</span>
-            </div>
-            <div>
-              <strong>+{deployment.diffStats.insertions}</strong>
-              <span>LINES ADDED</span>
-            </div>
-            <div>
-              <strong>−{deployment.diffStats.deletions}</strong>
-              <span>LINES REMOVED</span>
-            </div>
-          </div>
-        )}
+        {deployment.diffStats && <DebriefSummary stats={deployment.diffStats} />}
 
         <dl style={detailListStyle}>
           <div style={detailRowStyle}>
@@ -177,8 +225,9 @@ export function DebriefModal(props: {
           <button
             ref={dismissButtonRef}
             type="button"
-            onClick={props.onDismiss}
+            onClick={handleDismiss}
             style={dismissButtonStyle}
+            className="cta-sheen"
           >
             ACKNOWLEDGED
           </button>

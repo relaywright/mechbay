@@ -17,6 +17,9 @@ import { SettingsModal } from './components/SettingsModal'
 import { BootSplash } from './components/BootSplash'
 import { CrtOverlay } from './components/CrtOverlay'
 import { CrewRoster } from './components/CrewRoster'
+import { CommsFeed } from './components/CommsFeed'
+import { TabInk } from './components/TabInk'
+import { TelemetryStrip } from './components/TelemetryStrip'
 import { MissionBoard } from './components/MissionBoard'
 import { fleetTelemetry, isActiveMission, STATUS_LABELS } from './operations'
 import { colors, type } from './theme'
@@ -47,6 +50,9 @@ function App(): React.JSX.Element {
   const [debriefQueue, setDebriefQueue] = useState<string[]>([])
   const [bootDone, setBootDone] = useState(false)
   const handleBootDone = useCallback(() => setBootDone(true), [])
+  // Flips as the splash starts fading, so the HUD's staggered reveal overlaps it.
+  const [bootRevealed, setBootRevealed] = useState(false)
+  const handleBootReveal = useCallback(() => setBootRevealed(true), [])
 
   const canvasParentRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<BayScene | null>(null)
@@ -332,7 +338,11 @@ function App(): React.JSX.Element {
   const activeMech = state?.companions.find((c) => c.id === activeMission?.companionId)
 
   return (
-    <div className="command-shell" data-reduce-motion={state?.settings.reduceMotion ?? false}>
+    <div
+      className="command-shell"
+      data-reduce-motion={state?.settings.reduceMotion ?? false}
+      data-boot={bootDone || bootRevealed ? 'revealed' : 'pending'}
+    >
       <HudHeader
         state={state}
         demo={demo}
@@ -352,26 +362,7 @@ function App(): React.JSX.Element {
                 <br className="compact-break" /> entire crew.
               </h2>
             </div>
-            <div className="telemetry-strip" aria-label="Fleet telemetry">
-              <div>
-                <strong>{String(telemetry?.ready ?? 0).padStart(2, '0')}</strong>
-                <span>READY</span>
-              </div>
-              <div>
-                <strong className="amber-value">
-                  {String(telemetry?.active ?? 0).padStart(2, '0')}
-                </strong>
-                <span>ACTIVE</span>
-              </div>
-              <div>
-                <strong>{String(telemetry?.completed ?? 0).padStart(2, '0')}</strong>
-                <span>COMPLETE</span>
-              </div>
-              <div>
-                <strong>{String(telemetry?.queued ?? 0).padStart(2, '0')}</strong>
-                <span>QUEUED</span>
-              </div>
-            </div>
+            <TelemetryStrip telemetry={telemetry} />
           </div>
           <div className="bay-viewport">
             <div className="map-corner map-top-left">
@@ -428,6 +419,7 @@ function App(): React.JSX.Element {
                 </button>
               )}
             </div>
+            <CommsFeed />
             <div className="map-scale" aria-hidden="true">
               <i />
               <span>BAY 01 / LOCAL</span>
@@ -504,6 +496,7 @@ function App(): React.JSX.Element {
               >
                 JOURNAL
               </button>
+              <TabInk activeKey={`${activeTab}:${browsingFacilityId ?? ''}`} />
             </div>
 
             {activeTab === 'operations' && state && (
@@ -626,6 +619,7 @@ function App(): React.JSX.Element {
         <BootSplash
           key={state?.settings.reduceMotion ? 'reduced' : 'full'}
           reduceMotion={state?.settings.reduceMotion ?? false}
+          onReveal={handleBootReveal}
           onComplete={handleBootDone}
         />
       )}

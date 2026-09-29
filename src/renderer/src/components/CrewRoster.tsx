@@ -1,4 +1,6 @@
 import type { AppState } from '../../../shared/types'
+import { sfx } from '../audio/sfx'
+import { RADIO_RATE } from '../comms'
 import { CREW, RUNTIME_NAMES } from '../crew'
 import { currentMission, STATUS_LABELS } from '../operations'
 import { computeServiceRecord } from '../service-record'
@@ -36,10 +38,14 @@ export function CrewRoster({
         {state?.companions.map((companion, index) => {
           const profile = CREW[companion.mechClass]
           const mission = currentMission(companion.id, state.deployments)
+          const missionFacility =
+            mission && state.facilities.find((f) => f.id === mission.facilityId)
+          const selected = selectedId === companion.id
           const record = computeServiceRecord(companion.id, state.deployments)
           const { rank } = record
-          const statLine =
-            record.sorties === 0
+          const statLine = mission
+            ? `→ ${missionFacility?.name ?? 'Objective'}`
+            : record.sorties === 0
               ? 'NO SORTIES YET'
               : `${record.sorties} SORTIE${record.sorties === 1 ? '' : 'S'}${
                   record.successRate === null ? '' : ` · ${Math.round(record.successRate * 100)}%`
@@ -50,13 +56,35 @@ export function CrewRoster({
           return (
             <button
               key={companion.id}
-              className={`crew-card ${selectedId === companion.id ? 'is-selected' : ''}`}
-              aria-pressed={selectedId === companion.id}
-              onClick={() => onSelect(companion.id)}
+              className={[
+                'crew-card',
+                selected ? 'is-selected' : '',
+                mission ? `is-deployed mission-${mission.status}` : ''
+              ].join(' ')}
+              aria-pressed={selected}
+              onClick={() => {
+                // Unit-select chirp, pitched per chassis like its radio.
+                if (!selected) sfx.play('select', { rate: RADIO_RATE[companion.mechClass] })
+                onSelect(companion.id)
+              }}
               aria-label={`Select ${companion.name}`}
             >
+              {mission && <span className="crew-deploy-strip" aria-hidden="true" />}
+              {selected && (
+                <span className="crew-brackets" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              )}
               <span className="crew-number">
                 0{index + 1} / {profile.code}
+                {mission && (
+                  <b className="crew-deployed-tag">
+                    {mission.status === 'queued' ? 'QUEUED' : 'DEPLOYED'}
+                  </b>
+                )}
               </span>
               <img src={profile.image} alt="" className="crew-portrait" />
               <span className="crew-name">{companion.name.replace(/-Prime$/i, '')}</span>

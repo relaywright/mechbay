@@ -1,5 +1,33 @@
+import { useEffect, useState } from 'react'
 import type { AppState } from '../../../shared/types'
-import { fleetTelemetry } from '../operations'
+import { fleetTelemetry, STATUS_LABELS } from '../operations'
+
+const TICKER_INTERVAL_MS = 4000
+
+/**
+ * Rotating header readouts. Every entry is read straight from persisted
+ * state: counts, the newest finished sortie, and any mech waiting on input.
+ */
+function tickerItems(state: AppState | null): string[] {
+  if (!state) return []
+  const telemetry = fleetTelemetry(state)
+  const name = (companionId: string): string =>
+    state.companions.find((c) => c.id === companionId)?.name.toUpperCase() ?? 'ARCHIVED MECH'
+  const items: string[] = state.deployments
+    .filter((d) => d.status === 'awaiting-input')
+    .map((d) => `${name(d.companionId)} NEEDS INPUT`)
+  items.push(`${String(telemetry.queued).padStart(2, '0')} QUEUED`)
+  items.push(`${telemetry.linked} PROJECT${telemetry.linked === 1 ? '' : 'S'} LINKED`)
+  const finished = state.deployments
+    .filter((d) => ['completed', 'failed', 'cancelled'].includes(d.status))
+    .sort((a, b) => (b.completedAt ?? b.startedAt) - (a.completedAt ?? a.startedAt))[0]
+  if (finished) {
+    items.push(
+      `LAST SORTIE ${name(finished.companionId)} · ${STATUS_LABELS[finished.status].toUpperCase()}`
+    )
+  }
+  return items
+}
 
 export function HudHeader({
   state,
@@ -13,6 +41,18 @@ export function HudHeader({
   onSettingsClick: () => void
 }): React.JSX.Element {
   const telemetry = state && fleetTelemetry(state)
+  const items = tickerItems(state)
+  const [tick, setTick] = useState(0)
+  // Count state broadcasts so the LINK lamp blinks on each real update.
+  const [link, setLink] = useState({ state, received: 0 })
+  if (link.state !== state) setLink({ state, received: link.received + 1 })
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick((value) => value + 1), TICKER_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [])
+
+  const tickerText = items.length > 0 ? items[tick % items.length] : null
   return (
     <header className="command-header">
       <div className="brand-lockup">
@@ -36,6 +76,21 @@ export function HudHeader({
         <span>
           {telemetry?.active ?? 0} OF {state?.settings.concurrencyCap ?? 3} ACTIVE
         </span>
+        <span className="header-separator">/</span>
+        <span className="link-indicator" title="Blinks when the bay receives a state update">
+          <i key={link.received} className="link-lamp" aria-hidden="true" />
+          LINK
+        </span>
+        {tickerText && (
+          <>
+            <span className="header-separator">/</span>
+            <span className="header-ticker" aria-live="off">
+              <span key={`${tick}:${tickerText}`} className="header-ticker-item">
+                {tickerText}
+              </span>
+            </span>
+          </>
+        )}
       </div>
       <nav aria-label="Bay configuration">
         <button className="secondary-action" onClick={onBulkImportClick}>
