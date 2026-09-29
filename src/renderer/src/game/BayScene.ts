@@ -1766,6 +1766,9 @@ export class BayScene extends Phaser.Scene {
       this.squashTweens.set(companionId, crouch)
     }
 
+    // Frame 0 is the idle pose; everything after it is the walk cycle, so
+    // longer forged cycles (e.g. 8 frames) are picked up automatically.
+    const walkFrames = Math.max(1, this.textures.get(MECH_SHEET_KEY[mechClass]).frameTotal - 2)
     const progress = { t: 0 }
     let lastStep = 0
     let currentFrame = -1
@@ -1790,7 +1793,7 @@ export class BayScene extends Phaser.Scene {
           sprite.y = groundY
           return
         }
-        const pose = computeGait(tween.elapsed - anticipationMs, gait, direction)
+        const pose = computeGait(tween.elapsed - anticipationMs, gait, direction, walkFrames)
         if (pose.frame !== currentFrame) {
           currentFrame = pose.frame
           sprite.setFrame(MECH_WALK_FIRST_FRAME + pose.frame)
@@ -1863,7 +1866,7 @@ export class BayScene extends Phaser.Scene {
     const recover = this.tweens.add({
       targets: sprite,
       scaleY: base,
-      duration: gait.frameMs * 0.8,
+      duration: gait.stepMs * 0.4,
       ease: 'Quad.easeOut'
     })
     this.squashTweens.set(companionId, recover)

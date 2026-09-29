@@ -39,21 +39,29 @@ describe('computeGait', () => {
     expect(pose.step).toBe(0)
   })
 
-  it('advances one frame per frameMs and wraps the cycle', () => {
-    expect(computeGait(gait.frameMs, gait, 1).frame).toBe(1)
-    expect(computeGait(gait.frameMs * 3, gait, 1).frame).toBe(3)
-    expect(computeGait(gait.frameMs * WALK_FRAME_COUNT, gait, 1).frame).toBe(0)
+  it('spreads the frames over a two-step cycle and wraps', () => {
+    const frameMs = (gait.stepMs * 2) / WALK_FRAME_COUNT
+    expect(computeGait(frameMs, gait, 1).frame).toBe(1)
+    expect(computeGait(frameMs * 3, gait, 1).frame).toBe(3)
+    expect(computeGait(gait.stepMs * 2, gait, 1).frame).toBe(0)
+  })
+
+  it('keeps stride timing when a sheet has more frames', () => {
+    // An 8-frame sheet shows frame 4 at the same moment a 4-frame one shows frame 2.
+    expect(computeGait(gait.stepMs, gait, 1, 8).frame).toBe(4)
+    expect(computeGait(gait.stepMs, gait, 1, 4).frame).toBe(2)
+    expect(computeGait(gait.stepMs, gait, 1, 8).step).toBe(1)
   })
 
   it('counts a footfall every two frames', () => {
-    expect(computeGait(gait.frameMs * 2 - 1, gait, 1).step).toBe(0)
-    expect(computeGait(gait.frameMs * 2, gait, 1).step).toBe(1)
-    expect(computeGait(gait.frameMs * 9, gait, 1).step).toBe(4)
+    expect(computeGait(gait.stepMs - 1, gait, 1).step).toBe(0)
+    expect(computeGait(gait.stepMs, gait, 1).step).toBe(1)
+    expect(computeGait(gait.stepMs * 4.5, gait, 1).step).toBe(4)
   })
 
   it('rises to the full bob height mid-stride and sits lowest on contact', () => {
-    expect(computeGait(gait.frameMs, gait, 1).yOffset).toBeCloseTo(-gait.bobPx, 5)
-    expect(computeGait(gait.frameMs * 2, gait, 1).yOffset).toBeCloseTo(0, 5)
+    expect(computeGait(gait.stepMs / 2, gait, 1).yOffset).toBeCloseTo(-gait.bobPx, 5)
+    expect(computeGait(gait.stepMs, gait, 1).yOffset).toBeCloseTo(0, 5)
     for (let ms = 0; ms < 4000; ms += 23) {
       const y = computeGait(ms, gait, 1).yOffset
       expect(y).toBeLessThanOrEqual(1e-9)
@@ -62,7 +70,7 @@ describe('computeGait', () => {
   })
 
   it('leans into the direction of travel once the lean has ramped in', () => {
-    const contact = gait.frameMs * 4 // on contact, roll is zero
+    const contact = gait.stepMs * 2 // on contact, roll is zero
     expect(computeGait(contact, gait, 1).angleDeg).toBeCloseTo(gait.leanDeg, 5)
     expect(computeGait(contact, gait, -1).angleDeg).toBeCloseTo(-gait.leanDeg, 5)
   })
@@ -73,7 +81,7 @@ describe('computeGait', () => {
 
   it('makes heavier mechs slower and heavier-stepping than scouts', () => {
     expect(GAITS.atlas.speedPxPerSec).toBeLessThan(GAITS.locust.speedPxPerSec)
-    expect(GAITS.atlas.frameMs).toBeGreaterThan(GAITS.locust.frameMs)
+    expect(GAITS.atlas.stepMs).toBeGreaterThan(GAITS.locust.stepMs)
     expect(GAITS.atlas.shake).toBeGreaterThan(0)
     expect(GAITS.locust.shake).toBe(0)
   })

@@ -10,7 +10,7 @@
  * moment they start walking.
  *
  * This script normalises all of it into one sheet per mech:
- *   assets/mechs/sheets/<class>.png    5 cells of 256×256: idle, walk 0..3
+ *   assets/mechs/sheets/<class>.png    256×256 cells: idle, then the walk cycle
  *   assets/mechs/portraits/<class>.png tight-cropped idle art for the HUD
  * Every cell is right-facing, feet on a shared baseline, and sized by the
  * mech's weight class, so the bay can place any frame at one fixed scale.
@@ -30,7 +30,6 @@ export interface Pixels {
 export const CELL = 256
 /** Screen-space y of the feet inside every cell (a few px of floor margin). */
 export const BASELINE_Y = 250
-export const SHEET_FRAMES = ['idle', 'walk0', 'walk1', 'walk2', 'walk3'] as const
 
 /** Dark outline tone of the art; semi-transparent edge pixels are pulled toward it. */
 const OUTLINE = { r: 18, g: 16, b: 14 }
@@ -318,8 +317,11 @@ interface MechSpec {
   height: number
   /** Source idle art faces left and must be mirrored. */
   flipIdle: boolean
-  /** Per walk frame: source faces left and must be mirrored. */
-  flipWalk: [boolean, boolean, boolean, boolean]
+  /**
+   * Walk frames whose source faces left and must be mirrored: one flag for
+   * the whole strip, or one per frame when a generator mixed facings.
+   */
+  flipWalk: boolean | boolean[]
 }
 
 /**
@@ -327,11 +329,11 @@ interface MechSpec {
  * scout. Raven is light but tall (antenna mast), so it sits between.
  */
 export const MECH_SPECS: Record<MechClass, MechSpec> = {
-  atlas: { height: 236, flipIdle: false, flipWalk: [false, false, false, false] },
-  marauder: { height: 214, flipIdle: true, flipWalk: [true, true, true, true] },
+  atlas: { height: 236, flipIdle: false, flipWalk: false },
+  marauder: { height: 214, flipIdle: true, flipWalk: true },
   raven: { height: 214, flipIdle: false, flipWalk: [false, false, false, true] },
-  catapult: { height: 190, flipIdle: true, flipWalk: [true, true, true, true] },
-  locust: { height: 166, flipIdle: true, flipWalk: [true, true, true, true] }
+  catapult: { height: 190, flipIdle: true, flipWalk: true },
+  locust: { height: 166, flipIdle: true, flipWalk: true }
 }
 
 type JimpImage = Awaited<ReturnType<typeof Jimp.read>>
@@ -364,12 +366,20 @@ async function forgeMech(root: string, mech: MechClass): Promise<void> {
   const spec = MECH_SPECS[mech]
   const idle = await Jimp.read(join(root, 'assets/mechs', `${mech}-poc.png`))
   const walkSheet = await Jimp.read(join(root, 'assets/mechs/walk', `${mech}-walk.png`))
+  // Walk strips are square cells side by side; any frame count works (the
+  // bay reads the cycle length from the forged sheet).
   const walkCell = walkSheet.bitmap.height
+  const walkCount = Math.floor(walkSheet.bitmap.width / walkCell)
   const frames: JimpImage[] = [idle]
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < walkCount; i++) {
     frames.push(walkSheet.clone().crop({ x: i * walkCell, y: 0, w: walkCell, h: walkCell }))
   }
-  const flips = [spec.flipIdle, ...spec.flipWalk]
+  const flips = [
+    spec.flipIdle,
+    ...Array.from({ length: walkCount }, (_, i) =>
+      typeof spec.flipWalk === 'boolean' ? spec.flipWalk : (spec.flipWalk[i] ?? false)
+    )
+  ]
   frames.forEach((frame, i) =>
     cleanFrame(toPixels(frame), flips[i], i === 0 ? (POCKETS[`${mech}-poc`] ?? []) : [])
   )
@@ -388,10 +398,12 @@ async function forgeMech(root: string, mech: MechClass): Promise<void> {
     .slice(1)
     .map(heightOf)
     .sort((a, b) => a - b)
-  const walkMedian = (walkHeights[1] + walkHeights[2]) / 2
+  const mid = walkHeights.length >> 1
+  const walkMedian =
+    walkHeights.length % 2 === 0 ? (walkHeights[mid - 1] + walkHeights[mid]) / 2 : walkHeights[mid]
   const scales = bounds.map((b, i) => spec.height / (i === 0 ? heightOf(b) : walkMedian))
 
-  const sheet = new Jimp({ width: CELL * SHEET_FRAMES.length, height: CELL, color: 0x00000000 })
+  const sheet = new Jimp({ width: CELL * frames.length, height: CELL, color: 0x00000000 })
   frames.forEach((frame, i) => {
     const b = bounds[i]
     const anchor = footAnchorX(toPixels(frame), b)
@@ -425,7 +437,7 @@ async function forgeMech(root: string, mech: MechClass): Promise<void> {
 }
 
 function frameName(index: number): string {
-  return SHEET_FRAMES[index] ?? String(index)
+  return index === 0 ? 'idle' : `walk${index - 1}`
 }
 
 if (process.argv[1]?.endsWith('sprite-forge.ts')) {

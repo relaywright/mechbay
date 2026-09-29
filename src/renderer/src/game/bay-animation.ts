@@ -17,7 +17,8 @@ export function computeFacingFlipX(currentFlipX: boolean, deltaX: number): boole
   return currentFlipX
 }
 
-/** Frames per walk cycle in the forged sheets (sheet frames 1..4). */
+/** Frames per walk cycle in the current forged sheets (sheet frames 1..4). Sheets
+ * with longer cycles work too — BayScene passes each sheet's real count. */
 export const WALK_FRAME_COUNT = 4
 
 export type FootstepSound = 'footstep-heavy' | 'footstep-medium' | 'footstep-light'
@@ -29,8 +30,8 @@ export type FootstepSound = 'footstep-heavy' | 'footstep-medium' | 'footstep-lig
 export interface GaitProfile {
   /** Ground speed in world px per second. */
   speedPxPerSec: number
-  /** How long each walk frame is held; one step spans two frames. */
-  frameMs: number
+  /** Time per footfall; a walk cycle is two steps, whatever its frame count. */
+  stepMs: number
   /** How far the body rises between footfalls (px). */
   bobPx: number
   /** Forward lean into the direction of travel (degrees). */
@@ -51,7 +52,7 @@ export interface GaitProfile {
 export const GAITS: Record<MechClass, GaitProfile> = {
   atlas: {
     speedPxPerSec: 96,
-    frameMs: 190,
+    stepMs: 380,
     bobPx: 3.6,
     leanDeg: 2,
     swayDeg: 1.2,
@@ -63,7 +64,7 @@ export const GAITS: Record<MechClass, GaitProfile> = {
   },
   marauder: {
     speedPxPerSec: 118,
-    frameMs: 155,
+    stepMs: 310,
     bobPx: 3,
     leanDeg: 2.6,
     swayDeg: 1,
@@ -75,7 +76,7 @@ export const GAITS: Record<MechClass, GaitProfile> = {
   },
   catapult: {
     speedPxPerSec: 108,
-    frameMs: 165,
+    stepMs: 330,
     bobPx: 2.8,
     leanDeg: 1.6,
     swayDeg: 1.4,
@@ -87,7 +88,7 @@ export const GAITS: Record<MechClass, GaitProfile> = {
   },
   raven: {
     speedPxPerSec: 158,
-    frameMs: 118,
+    stepMs: 236,
     bobPx: 2.2,
     leanDeg: 3.6,
     swayDeg: 0.8,
@@ -99,7 +100,7 @@ export const GAITS: Record<MechClass, GaitProfile> = {
   },
   locust: {
     speedPxPerSec: 190,
-    frameMs: 92,
+    stepMs: 184,
     bobPx: 1.7,
     leanDeg: 4.5,
     swayDeg: 0.6,
@@ -122,7 +123,7 @@ export function walkDurationMs(distancePx: number, gait: GaitProfile): number {
 }
 
 export interface GaitPose {
-  /** Walk-cycle frame, 0..WALK_FRAME_COUNT-1. */
+  /** Walk-cycle frame, 0..frameCount-1. */
   frame: number
   /** Vertical offset in px (≤ 0: the body rises between footfalls). */
   yOffset: number
@@ -136,22 +137,28 @@ export interface GaitPose {
 const LEAN_RAMP_MS = 260
 
 /**
- * Pose at `elapsedMs` into a walk. Each step lasts two frames: the body
- * sits lowest at the moment of contact and rises mid-stride (|sin| arc,
- * which reads as weight far better than a plain sine bob), the roll
- * alternates direction every step, and the lean eases in so a mech doesn't
- * snap forward. `direction` is +1 walking right, -1 walking left.
+ * Pose at `elapsedMs` into a walk. A cycle is two steps spread over the
+ * sheet's frames: the body sits lowest at the moment of contact and rises
+ * mid-stride (|sin| arc, which reads as weight far better than a plain sine
+ * bob), the roll alternates direction every step, and the lean eases in so
+ * a mech doesn't snap forward. `direction` is +1 walking right, -1 left.
  */
-export function computeGait(elapsedMs: number, gait: GaitProfile, direction: 1 | -1): GaitPose {
+export function computeGait(
+  elapsedMs: number,
+  gait: GaitProfile,
+  direction: 1 | -1,
+  frameCount = WALK_FRAME_COUNT
+): GaitPose {
   const t = Math.max(0, elapsedMs)
-  const stepMs = gait.frameMs * 2
+  const stepMs = gait.stepMs
+  const frameMs = (stepMs * 2) / Math.max(1, frameCount)
   const step = Math.floor(t / stepMs)
   const phase = (t % stepMs) / stepMs
   const lift = Math.sin(Math.PI * phase)
   const roll = (step % 2 === 0 ? 1 : -1) * gait.swayDeg * lift
   const lean = direction * gait.leanDeg * Math.min(1, t / LEAN_RAMP_MS)
   return {
-    frame: Math.floor(t / gait.frameMs) % WALK_FRAME_COUNT,
+    frame: Math.floor(t / frameMs) % Math.max(1, frameCount),
     yOffset: -gait.bobPx * lift,
     angleDeg: lean + roll,
     step
