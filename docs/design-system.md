@@ -24,6 +24,21 @@ Counts come from persisted state. A queued mech is assigned but does not consume
 
 Use a subtle status pulse, short panel reveal, and restrained portrait hover movement alongside the existing Phaser animation. Honor reduced motion for HTML and the app's motion setting for the bay. Scale the canvas against both the actual parent's width and height after layout changes; assert that it fits during capture. Below 900px, stack the command views. Narrow screens use a scrollable crew roster.
 
+## Bay motion and feedback
+
+The tactical field should feel like an RTS map, but every read-out comes from real state.
+
+- **Weight through timing.** Each chassis has a gait in `game/bay-animation.ts`: step time, bob, lean, roll, camera shake, and footstep sound. Heavier mechs walk slower, stride longer, and shake the camera; scouts skitter. Walks open with a short crouch-and-spool and end with a landing squash.
+- **Sprites** come from `npm run forge:sprites`: right-facing, feet on a shared baseline, sized by weight class. The sprite origin is the feet, so a mech's position is where it stands. `docs/art-brief.md` covers new frames.
+- **Command feedback.** Hover glows amber; selection glows cyan with an iso ring. Unit plates show callsign, rank chevrons, XP, and live status. Markers flag awaiting-input and queued mechs. Overlays keep a constant on-screen size at any zoom.
+- **Mission beats.** Deploy: target lock and a marching route line. Working: hologram ring, weld sparks, data link. Complete: light pillar and shockwave, then the debrief after 1.5 seconds. Failure: flash, sparks, debris, and a smoking hull with a blinking damage light.
+- **Ambience** (radar sweep, haze, searchlights, rim chase, beacons) stays low-alpha, so glow still means activity.
+- **Reduced motion** (the in-app setting) removes all movement: no gait, dust, shake, sparks, sweep, or pulses. Status stays visible as static rings, markers, and plates.
+
+## Sound
+
+All audio is synthesized at runtime (`src/renderer/src/audio/`); no sound files ship. UI sounds are short and soft, and most energy stays under 3 kHz. Mech sounds are panned to the mech's screen position. Heavy cues are voice-limited and pass through a compressor and soft clipper. Sound is on by default at 60% volume, with a toggle and slider in Settings.
+
 ## Portfolio evidence
 
 Capture the running Electron build in a separate temporary profile with simulation enabled. Never use the user's active bay for automated captures. Keep actual file-change evidence, use no credentials, and do not label recorded output as a live feed. Export three full-size screenshots, a poster, and a 24-second accelerated recording. See `portfolio-refresh.md`.
