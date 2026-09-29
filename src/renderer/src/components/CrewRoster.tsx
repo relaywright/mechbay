@@ -1,6 +1,4 @@
 import type { AppState } from '../../../shared/types'
-import { sfx } from '../audio/sfx'
-import { RADIO_RATE } from '../comms'
 import { CREW, RUNTIME_NAMES } from '../crew'
 import { currentMission, STATUS_LABELS } from '../operations'
 import { computeServiceRecord } from '../service-record'
@@ -62,11 +60,9 @@ export function CrewRoster({
                 mission ? `is-deployed mission-${mission.status}` : ''
               ].join(' ')}
               aria-pressed={selected}
-              onClick={() => {
-                // Unit-select chirp, pitched per chassis like its radio.
-                if (!selected) sfx.play('select', { rate: RADIO_RATE[companion.mechClass] })
-                onSelect(companion.id)
-              }}
+              // The bay plays the pitched unit-select chirp when the selection
+              // reaches it (BayScene.setSelectedCompanion), so no sound here.
+              onClick={() => onSelect(companion.id)}
               aria-label={`Select ${companion.name}`}
             >
               {mission && <span className="crew-deploy-strip" aria-hidden="true" />}
