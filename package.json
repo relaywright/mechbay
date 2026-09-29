@@ -1,6 +1,6 @@
 {
   "name": "mechbay",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A BattleTech-inspired command bay for AI coding agents — deploy Claude, Codex, or any CLI agent as mechs into your real project directories",
   "main": "./out/main/index.js",
   "author": "Sam Albanese <samalbanesedev@gmail.com>",
