@@ -35,6 +35,18 @@ The tactical field should feel like an RTS map, but every read-out comes from re
 - **Ambience** (radar sweep, haze, searchlights, rim chase, beacons) stays low-alpha, so glow still means activity.
 - **Reduced motion** (the in-app setting) removes all movement: no gait, dust, shake, sparks, sweep, or pulses. Status stays visible as static rings, markers, and plates.
 
+## MechWarrior 2 cockpit layer
+
+The original inspiration is MechWarrior 2. Its signatures sit on top of the command deck, and the deck palette stays as it is. Everything here is an original take; no logos, audio, or art from the game are used.
+
+- **Phosphor green (`--phosphor`, `#7dff9a`) belongs to the cockpit instruments only:** the compass tape, computer callouts, the heat gauge, target boxes, the radar minimap, and wireframes. Amber still means orders and actions. Warnings turn amber and critical alerts turn red.
+- **Cockpit computer** (`cockpit.ts`, `CockpitHud.tsx`): terse all-caps system callouts at the top of the field, one at a time, each with a data chirp. For example: TARGET LOCKED, LANCE AT CAPACITY, INPUT REQUIRED, OBJECTIVE COMPLETE, WARNING · UNIT DOWN, NAV POINT ONLINE, ALL UNITS STANDING BY. Every callout comes from a real state change. The mechs keep talking on the radio (comms feed); the computer speaks for the lance as a whole.
+- **Compass tape:** the selected mech's real heading. It updates when the mech sets off, and new selections show their last heading.
+- **Heat gauge:** active missions against the concurrency cap. It goes amber one slot from the cap and red at the cap.
+- **Target box:** static phosphor brackets with a lock pip and a `NAV ▸ FACILITY` tag, pulsing while the mech walks. Drag lock-on uses the same green.
+- **Wireframes:** `npm run forge:sprites` traces a schematic from each mech's art. Crew cards swap to it on hover or keyboard focus, like the Mech Lab.
+- **Boot:** a cockpit start-up checklist (reactor, sensors, comms, memory) that ends with ALL SYSTEMS NOMINAL.
+
 ## Sound
 
 All audio is synthesized at runtime (`src/renderer/src/audio/`); no sound files ship. UI sounds are short and soft, and most energy stays under 3 kHz. Mech sounds are panned to the mech's screen position. Heavy cues are voice-limited and pass through a compressor and soft clipper. Sound is on by default at 60% volume, with a toggle and slider in Settings.

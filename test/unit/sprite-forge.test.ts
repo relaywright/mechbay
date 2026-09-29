@@ -7,6 +7,7 @@ import {
   footAnchorX,
   inkEdges,
   removeSpecks,
+  schematicFrom,
   type Pixels
 } from '../../scripts/sprite-forge'
 
@@ -134,5 +135,26 @@ describe('clearPockets', () => {
     expect(get(px, 5, 5)[3]).toBe(255)
     expect(get(px, 0, 0)[3]).toBe(255)
     expect(cleared).toBe(34)
+  })
+})
+
+describe('schematicFrom', () => {
+  it('traces the silhouette brightly, ghosts the interior, and leaves the outside clear', () => {
+    const px = blank(20, 20)
+    fillRect(px, 4, 4, 12, 12, [80, 80, 80, 255])
+    const out = schematicFrom(px)
+    expect(get(out, 4, 10)[3]).toBe(255) // rim
+    expect(get(out, 10, 10)[3]).toBe(22) // flat interior: ghost fill only
+    expect(get(out, 1, 1)[3]).toBe(0) // outside
+    expect(get(out, 4, 10).slice(0, 3)).toEqual([125, 255, 154])
+  })
+
+  it('draws internal panel edges where brightness changes sharply', () => {
+    const px = blank(20, 20)
+    fillRect(px, 2, 2, 16, 16, [40, 40, 40, 255])
+    fillRect(px, 10, 2, 8, 16, [220, 220, 220, 255])
+    const out = schematicFrom(px)
+    expect(get(out, 10, 10)[3]).toBeGreaterThan(90)
+    expect(get(out, 6, 10)[3]).toBe(22)
   })
 })

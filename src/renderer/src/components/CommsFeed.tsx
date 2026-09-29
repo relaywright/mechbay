@@ -33,15 +33,15 @@ interface ScheduledMessage extends CommsMessage {
 }
 
 /**
- * Head/torso crop per chassis, as a focus point in the idle art (percent of
- * the image) and a zoom factor relative to the portrait frame's height.
+ * Head/torso crop per chassis, as a focus point in the forged portrait
+ * (percent of the image) and a zoom factor relative to the frame's height.
  */
 const PORTRAIT_CROP: Record<MechClass, { x: number; y: number; zoom: number }> = {
-  atlas: { x: 52, y: 30, zoom: 1.75 },
-  marauder: { x: 50, y: 23, zoom: 2 },
-  raven: { x: 56, y: 36, zoom: 1.8 },
-  catapult: { x: 49, y: 36, zoom: 1.7 },
-  locust: { x: 48, y: 35, zoom: 2.1 }
+  atlas: { x: 55, y: 19, zoom: 2.3 },
+  marauder: { x: 42, y: 15, zoom: 2.4 },
+  raven: { x: 60, y: 36, zoom: 2.3 },
+  catapult: { x: 52, y: 30, zoom: 2 },
+  locust: { x: 50, y: 24, zoom: 2.2 }
 }
 
 /**

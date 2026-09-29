@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppState } from '../../../shared/types'
+import { lanceHeat } from '../cockpit'
 import { fleetTelemetry, STATUS_LABELS } from '../operations'
 
 const TICKER_INTERVAL_MS = 4000
@@ -29,6 +30,37 @@ function tickerItems(state: AppState | null): string[] {
   return items
 }
 
+/**
+ * Cockpit-style heat gauge for the lance: one segment per concurrency slot,
+ * lit per active mission, running hot when every slot is taken.
+ */
+function LanceGauge({ state }: { state: AppState | null }): React.JSX.Element {
+  const heat = state ? lanceHeat(state) : null
+  const cap = heat?.cap ?? state?.settings.concurrencyCap ?? 3
+  const active = heat?.active ?? 0
+  return (
+    <span
+      className={`lance-gauge band-${heat?.band ?? 'cool'}`}
+      role="meter"
+      aria-label={`Lance heat: ${active} of ${cap} slots active${heat?.queued ? `, ${heat.queued} queued` : ''}`}
+      aria-valuemin={0}
+      aria-valuemax={cap}
+      aria-valuenow={active}
+    >
+      <span className="lance-gauge-label">HEAT</span>
+      <span className="lance-gauge-cells" aria-hidden="true">
+        {Array.from({ length: cap }, (_, i) => (
+          <i key={i} className={i < active ? 'is-lit' : ''} />
+        ))}
+      </span>
+      <span aria-hidden="true">
+        {active} OF {cap} ACTIVE
+        {heat?.queued ? ` +${heat.queued}Q` : ''}
+      </span>
+    </span>
+  )
+}
+
 export function HudHeader({
   state,
   demo,
@@ -40,7 +72,6 @@ export function HudHeader({
   onBulkImportClick: () => void
   onSettingsClick: () => void
 }): React.JSX.Element {
-  const telemetry = state && fleetTelemetry(state)
   const items = tickerItems(state)
   const [tick, setTick] = useState(0)
   // Count state broadcasts so the LINK lamp blinks on each real update.
@@ -73,9 +104,7 @@ export function HudHeader({
         <span className="status-dot" />
         <span>{demo ? 'SIMULATION ONLINE' : 'LOCAL COMMAND ONLINE'}</span>
         <span className="header-separator">/</span>
-        <span>
-          {telemetry?.active ?? 0} OF {state?.settings.concurrencyCap ?? 3} ACTIVE
-        </span>
+        <LanceGauge state={state} />
         <span className="header-separator">/</span>
         <span className="link-indicator" title="Blinks when the bay receives a state update">
           <i key={link.received} className="link-lamp" aria-hidden="true" />

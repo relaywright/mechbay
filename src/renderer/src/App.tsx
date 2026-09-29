@@ -17,6 +17,7 @@ import { SettingsModal } from './components/SettingsModal'
 import { BootSplash } from './components/BootSplash'
 import { CrtOverlay } from './components/CrtOverlay'
 import { CrewRoster } from './components/CrewRoster'
+import { CockpitHud } from './components/CockpitHud'
 import { CommsFeed } from './components/CommsFeed'
 import { TabInk } from './components/TabInk'
 import { TelemetryStrip } from './components/TelemetryStrip'
@@ -386,6 +387,7 @@ function App(): React.JSX.Element {
                 RECENTER
               </button>
             </div>
+            <CockpitHud />
             <div className="map-corner map-top-right">
               {telemetry?.linked ?? 0} PROJECTS CONNECTED
             </div>

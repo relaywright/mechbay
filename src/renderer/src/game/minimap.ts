@@ -1,13 +1,19 @@
 import Phaser from 'phaser'
 
 /**
- * RTS minimap: a second camera in a corner of the canvas looking at a
+ * RTS minimap styled as a MechWarrior cockpit radar: a second camera in a corner of the canvas looking at a
  * schematic of the bay drawn far away from the playfield (so the main
  * camera never sees it and nothing needs per-object ignore lists). The
  * schematic reuses world coordinates 1:1, offset by ORIGIN, so a world
  * point maps to the minimap by a single translation.
  */
 const ORIGIN = { x: -60000, y: -60000 }
+
+/** Cockpit-radar phosphor (theme.ts `phosphor`) and its dim trace. */
+const PHOSPHOR = 0x7dff9a
+const PHOSPHOR_DIM = 0x2f6b3e
+/** One radar sweep revolution. */
+const SWEEP_MS = 3600
 
 /** Minimap size in logical (1100×640 design-viewport) pixels. */
 const LOGICAL_W = 176
@@ -36,7 +42,7 @@ export class Minimap {
     private readonly reducedMotion: () => boolean
   ) {
     this.camera = scene.cameras.add(0, 0, 10, 10, false, 'minimap')
-    this.camera.setBackgroundColor('rgba(9, 12, 8, 0.86)')
+    this.camera.setBackgroundColor('rgba(4, 9, 5, 0.9)')
     this.base = scene.add.graphics().setDepth(0)
     this.overlay = scene.add.graphics().setDepth(1)
     // Each camera only draws its own world: the main camera never renders
@@ -84,9 +90,9 @@ export class Minimap {
     const g = this.base
     g.clear()
     const pts = this.diamond.map((p) => ({ x: p.x + ORIGIN.x, y: p.y + ORIGIN.y }))
-    g.fillStyle(0x1a2116, 0.95)
+    g.fillStyle(0x07140a, 0.95)
     g.fillPoints(pts, true)
-    g.lineStyle(this.px(1), 0x3f4a33, 1)
+    g.lineStyle(this.px(1), PHOSPHOR_DIM, 0.8)
     // Quarter grid, matching the field's own survey lines.
     for (let i = 1; i < 4; i++) {
       const t = i / 4
@@ -97,16 +103,16 @@ export class Minimap {
       const d = lerp(pts[3], pts[2], t)
       g.lineBetween(c.x, c.y, d.x, d.y)
     }
-    g.lineStyle(this.px(1.2), 0xd1ba72, 0.7)
+    g.lineStyle(this.px(1.2), PHOSPHOR, 0.75)
     g.strokePoints(pts, true)
 
     // Frame: a hairline border plus amber corner ticks around the viewport.
     const view = this.camera.worldView
     const inset = this.px(0.5)
-    g.lineStyle(this.px(1), 0x404b36, 1)
+    g.lineStyle(this.px(1), PHOSPHOR_DIM, 1)
     g.strokeRect(view.x + inset, view.y + inset, view.width - inset * 2, view.height - inset * 2)
     const tick = this.px(7)
-    g.lineStyle(this.px(1.5), 0xefc36d, 0.9)
+    g.lineStyle(this.px(1.5), PHOSPHOR, 0.9)
     for (const [cx, cy, sx, sy] of [
       [view.left, view.top, 1, 1],
       [view.right, view.top, -1, 1],
@@ -124,7 +130,9 @@ export class Minimap {
   update(blips: MinimapBlip[], mainView: Phaser.Geom.Rectangle, timeMs: number): void {
     const g = this.overlay
     g.clear()
-    const pulse = this.reducedMotion() ? 1 : 0.55 + 0.45 * Math.sin(timeMs / 260)
+    const reduced = this.reducedMotion()
+    const pulse = reduced ? 1 : 0.55 + 0.45 * Math.sin(timeMs / 260)
+    if (!reduced) this.drawSweep(g, timeMs)
     for (const blip of blips) {
       const x = blip.x + ORIGIN.x
       const y = blip.y + ORIGIN.y
@@ -162,8 +170,27 @@ export class Minimap {
     const right = Math.min(view.right - this.px(1), mainView.right + ORIGIN.x)
     const bottom = Math.min(view.bottom - this.px(1), mainView.bottom + ORIGIN.y)
     if (right > left && bottom > top) {
-      g.lineStyle(this.px(1), 0xecece2, 0.55)
+      g.lineStyle(this.px(1), PHOSPHOR, 0.6)
       g.strokeRect(left, top, right - left, bottom - top)
+    }
+  }
+
+  /**
+   * Radar sweep: a line rotating about the deck's centre with a fading
+   * trail, flattened to the iso plane like the schematic it passes over.
+   */
+  private drawSweep(g: Phaser.GameObjects.Graphics, timeMs: number): void {
+    const xs = this.diamond.map((p) => p.x)
+    const ys = this.diamond.map((p) => p.y)
+    const cx = ORIGIN.x + (Math.min(...xs) + Math.max(...xs)) / 2
+    const cy = ORIGIN.y + (Math.min(...ys) + Math.max(...ys)) / 2
+    const rx = (Math.max(...xs) - Math.min(...xs)) / 2
+    const ry = (Math.max(...ys) - Math.min(...ys)) / 2
+    const head = ((timeMs % SWEEP_MS) / SWEEP_MS) * Math.PI * 2
+    for (let i = 0; i < 10; i++) {
+      const a = head - i * 0.06
+      g.lineStyle(this.px(i === 0 ? 1.4 : 1), PHOSPHOR, i === 0 ? 0.7 : 0.28 * (1 - i / 10))
+      g.lineBetween(cx, cy, cx + Math.cos(a) * rx, cy + Math.sin(a) * ry)
     }
   }
 

@@ -17,6 +17,7 @@ import { computeDeploymentActions } from './deployment-transitions'
 import { deckTile, conduitPath, clampZoom, clampPan, panBounds } from './bay-environment'
 import { FX, generateFxTextures } from './fx-textures'
 import { Minimap, type MinimapBlip } from './minimap'
+import { headingFromDelta } from '../cockpit'
 
 import atlasSheetUrl from '../../../../assets/mechs/sheets/atlas.png?url'
 import marauderSheetUrl from '../../../../assets/mechs/sheets/marauder.png?url'
@@ -161,6 +162,8 @@ const AMBER = hex(colors.amber)
 const CYAN = hex(colors.cyan)
 const RED = hex(colors.statusFailed)
 const READY_GREEN = 0xb2ce8c
+/** Cockpit-instrument green (MechWarrior HUD): targeting, nav, radar. */
+const PHOSPHOR = hex(colors.phosphor)
 
 function isoToScreen(tile: { x: number; y: number }): { x: number; y: number } {
   return {
@@ -287,7 +290,11 @@ export class BayScene extends Phaser.Scene {
   // lifecycle points as the effects above.
   private walkReticles = new Map<
     string,
-    { ring: Phaser.GameObjects.Graphics; tween: Phaser.Tweens.Tween | null }
+    {
+      ring: Phaser.GameObjects.Graphics
+      tween: Phaser.Tweens.Tween | null
+      label: Phaser.GameObjects.Text | null
+    }
   >()
   private routeLines = new Map<
     string,
@@ -728,7 +735,7 @@ export class BayScene extends Phaser.Scene {
         kind: 'facility',
         x: s.x,
         y: s.y,
-        color: facility.path ? AMBER : 0x5b6150,
+        color: facility.path ? PHOSPHOR : 0x2f6b3e,
         ring: workingFacilities.has(facility.id)
       })
     }
@@ -1628,7 +1635,7 @@ export class BayScene extends Phaser.Scene {
         .graphics()
         .setPosition(sprite.x, sprite.y)
         .setDepth(sprite.depth + 1)
-      this.drawBrackets(g, FACILITY_DISPLAY_W * 0.42, AMBER, 0.28)
+      this.drawBrackets(g, FACILITY_DISPLAY_W * 0.42, PHOSPHOR, 0.28)
       this.dragBrackets.set(facilityId, g)
     }
   }
@@ -1652,14 +1659,14 @@ export class BayScene extends Phaser.Scene {
       if (prev) this.setGlow(prev, null)
       if (this.dragTargetFacilityId) {
         const g = this.dragBrackets.get(this.dragTargetFacilityId)
-        if (g) this.drawBrackets(g, FACILITY_DISPLAY_W * 0.42, AMBER, 0.28)
+        if (g) this.drawBrackets(g, FACILITY_DISPLAY_W * 0.42, PHOSPHOR, 0.28)
       }
       this.dragTargetFacilityId = nextId
       if (nextId) {
         const next = this.facilitySprites.get(nextId)
-        if (next) this.setGlow(next, AMBER, 4)
+        if (next) this.setGlow(next, PHOSPHOR, 4)
         const g = this.dragBrackets.get(nextId)
-        if (g) this.drawBrackets(g, FACILITY_DISPLAY_W * 0.36, AMBER, 0.95)
+        if (g) this.drawBrackets(g, FACILITY_DISPLAY_W * 0.36, PHOSPHOR, 0.95)
         sfx.play('target-lock', { volume: 0.8 })
       }
     }
@@ -1695,12 +1702,13 @@ export class BayScene extends Phaser.Scene {
     g: Phaser.GameObjects.Graphics,
     size: number,
     color: number,
-    alpha: number
+    alpha: number,
+    width = 2
   ): void {
     const half = size / 2
     const len = size * 0.26
     g.clear()
-    g.lineStyle(2, color, alpha)
+    g.lineStyle(width, color, alpha)
     for (const [cx, cy, dx, dy] of [
       [-half, -half, 1, 1],
       [half, -half, -1, 1],
@@ -1776,6 +1784,9 @@ export class BayScene extends Phaser.Scene {
 
     sprite.setFlipX(computeFacingFlipX(sprite.flipX, target.x - startX))
     const direction: 1 | -1 = sprite.flipX ? -1 : 1
+    if (target.x !== startX || target.y !== startY) {
+      this.setMechHeading(companionId, headingFromDelta(target.x - startX, target.y - startY))
+    }
 
     // A mech that's about to walk is no longer idle — stop the breathing
     // loop and reset scaleY so squash tweens always start from the baseline.
@@ -1868,6 +1879,23 @@ export class BayScene extends Phaser.Scene {
       cancelled: false
     })
     return promise
+  }
+
+  /**
+   * Remember a mech's compass heading and, if it's the selected mech, feed
+   * the cockpit compass tape. A mech that hasn't moved yet faces the way its
+   * art does: front-right, down the iso +x axis.
+   */
+  private setMechHeading(companionId: string, heading: number): void {
+    this.mechSprites.get(companionId)?.setData('heading', heading)
+    if (companionId === this.selectedCompanionId) bus.emit('mechHeading', { companionId, heading })
+  }
+
+  private mechHeading(companionId: string): number {
+    const sprite = this.mechSprites.get(companionId)
+    const stored = sprite?.getData('heading') as number | undefined
+    if (stored !== undefined) return stored
+    return headingFromDelta(sprite?.flipX ? -TILE_W / 2 : TILE_W / 2, TILE_H / 2)
   }
 
   /** Stereo position of a world x within the main camera's current view. */
@@ -2235,47 +2263,78 @@ export class BayScene extends Phaser.Scene {
   }
 
   /**
-   * Rotating amber corner-bracket reticle over a facility, scaling in from
-   * 1.6x to 1x — the "target lock" while a mech walks toward it. Under
-   * reduced motion it's drawn once, static, at a fixed alpha.
+   * MechWarrior-style target box over the destination: phosphor corner
+   * brackets that lock in from 1.6x, a NAV tag naming the facility, and a
+   * slow lock pulse while the mech walks. Static under reduced motion.
    */
   private showReticle(companionId: string, facilityTile: { x: number; y: number }): void {
     this.hideReticleImmediately(companionId)
     const s = isoToScreen(facilityTile)
+    const cy = s.y - FACILITY_DISPLAY_H * 0.3
     const ring = this.add
       .graphics()
-      .setPosition(s.x, s.y - FACILITY_DISPLAY_H * 0.3)
+      .setPosition(s.x, cy)
       .setDepth(60 + s.y)
     const size = FACILITY_DISPLAY_W * 0.4
+    this.drawBrackets(ring, size, PHOSPHOR, 0.95, 3.5)
+    // Centre pip, like the lock diamond inside a cockpit target box.
+    ring.lineStyle(1.5, PHOSPHOR, 0.9)
+    ring.strokePoints(
+      [
+        { x: 0, y: -5 },
+        { x: 5, y: 0 },
+        { x: 0, y: 5 },
+        { x: -5, y: 0 }
+      ],
+      true
+    )
+    const name = this.state?.facilities.find(
+      (f) => f.tile.x === facilityTile.x && f.tile.y === facilityTile.y
+    )?.name
+    const label = name
+      ? this.add
+          .text(s.x, cy + size / 2 + 6, `NAV ▸ ${name.toUpperCase()}`, {
+            fontFamily: type.mono,
+            fontSize: '12px',
+            color: colors.phosphor,
+            backgroundColor: 'rgba(7,10,6,0.8)',
+            padding: { x: 5, y: 1 },
+            resolution: 2
+          })
+          .setOrigin(0.5, 0)
+          .setDepth(OVERLAY_DEPTH - 2)
+          .setScale(this.overlayScale())
+      : null
 
     if (this.reducedMotion) {
-      this.drawBrackets(ring, size, AMBER, 0.8)
-      this.walkReticles.set(companionId, { ring, tween: null })
+      this.walkReticles.set(companionId, { ring, tween: null, label })
       return
     }
 
     ring.setScale(1.6)
     ring.setAlpha(0)
-    this.drawBrackets(ring, size, AMBER, 0.85)
+    label?.setAlpha(0)
     sfx.play('target-lock', { volume: 0.7, pan: this.panFor(s.x) })
     const introTween = this.tweens.add({
-      targets: ring,
-      scale: 1,
-      alpha: 0.85,
+      targets: [ring, ...(label ? [label] : [])],
+      alpha: 1,
       duration: 260,
       ease: 'Quad.Out',
+      onUpdate: () => ring.setScale(1 + 0.6 * (1 - ring.alpha)),
       onComplete: () => {
-        const spinTween = this.tweens.add({
+        ring.setScale(1)
+        const pulse = this.tweens.add({
           targets: ring,
-          angle: 360,
-          duration: 6000,
+          alpha: 0.45,
+          duration: 700,
+          yoyo: true,
           repeat: -1,
-          ease: 'Linear'
+          ease: 'Sine.easeInOut'
         })
-        this.walkReticles.set(companionId, { ring, tween: spinTween })
+        this.walkReticles.set(companionId, { ring, tween: pulse, label })
       }
     })
-    this.walkReticles.set(companionId, { ring, tween: introTween })
+    this.walkReticles.set(companionId, { ring, tween: introTween, label })
   }
 
   private hideReticleImmediately(companionId: string): void {
@@ -2284,6 +2343,7 @@ export class BayScene extends Phaser.Scene {
     this.walkReticles.delete(companionId)
     entry.tween?.stop()
     entry.ring.destroy()
+    entry.label?.destroy()
   }
 
   /** Flash the reticle once on arrival, then fade it out (rather than snapping away). */
@@ -2292,6 +2352,7 @@ export class BayScene extends Phaser.Scene {
     if (!entry) return
     this.walkReticles.delete(companionId)
     entry.tween?.stop()
+    entry.label?.destroy()
     if (!flashOnArrival) {
       entry.ring.destroy()
       return
@@ -2836,6 +2897,7 @@ export class BayScene extends Phaser.Scene {
     this.showUnitPlate(companionId)
     this.destroySelectionRing()
     this.createSelectionRing(companionId)
+    bus.emit('mechHeading', { companionId, heading: this.mechHeading(companionId) })
     const mechClass = this.mechSprites.get(companionId)?.getData('mechClass') as
       MechClass | undefined
     const sprite = this.mechSprites.get(companionId)

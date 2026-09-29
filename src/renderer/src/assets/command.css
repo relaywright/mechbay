@@ -9,6 +9,11 @@
   --body: 'Barlow', sans-serif;
   --display: 'Barlow Condensed', sans-serif;
   --green: #b2ce8c;
+  /* MechWarrior-style cockpit instruments: reserved for the compass,
+     computer callouts, heat gauge and wireframes, never for chrome. */
+  --phosphor: #7dff9a;
+  --phosphor-dim: #7dff9a59;
+  --phosphor-glow: #7dff9a40;
 }
 body {
   color: var(--ink);
@@ -863,7 +868,8 @@ input {
   .crew-card {
     height: 158px;
   }
-  .crew-portrait {
+  .crew-portrait,
+  .crew-schematic {
     width: 105px;
     height: 105px;
     right: -6px;
@@ -901,7 +907,8 @@ input {
   .command-state {
     display: none;
   }
-  .crew-portrait {
+  .crew-portrait,
+  .crew-schematic {
     width: 70px;
     height: 70px;
     right: -15px;
@@ -939,7 +946,8 @@ input {
   .crew-name {
     margin-top: 18px;
   }
-  .crew-portrait {
+  .crew-portrait,
+  .crew-schematic {
     width: 78px;
     height: 78px;
     top: 6px;
@@ -1109,7 +1117,8 @@ input {
     height: 136px;
     scroll-snap-align: start;
   }
-  .crew-portrait {
+  .crew-portrait,
+  .crew-schematic {
     width: 90px;
     height: 90px;
     right: -10px;
@@ -2070,5 +2079,196 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .odometer-out {
     display: none;
+  }
+}
+
+/* ------------------------------------------------------------------------
+   MechWarrior 2 cockpit layer: phosphor instruments over the command deck.
+   ------------------------------------------------------------------------ */
+
+.cockpit-hud {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  left: 50%;
+  width: min(340px, 40%);
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  pointer-events: none;
+  font-family: var(--mono);
+  color: var(--phosphor);
+  text-shadow: 0 0 6px var(--phosphor-glow);
+}
+.compass-tape {
+  position: relative;
+  width: 100%;
+  height: 26px;
+  border-bottom: 1px solid var(--phosphor-dim);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+.compass-track {
+  position: absolute;
+  inset: 0;
+}
+.compass-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 5px;
+  background: var(--phosphor-dim);
+  transition: left 120ms linear;
+}
+.compass-tick.is-cardinal {
+  height: 9px;
+  background: var(--phosphor);
+}
+.compass-tick b {
+  position: absolute;
+  bottom: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 500 9px var(--mono);
+  letter-spacing: 0.08em;
+}
+.compass-caret {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: var(--phosphor);
+}
+.compass-readout {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 5px;
+  font: 500 9px var(--mono);
+  background: #0b0f0a;
+  border: 1px solid var(--phosphor-dim);
+}
+.cockpit-callout-slot {
+  min-height: 18px;
+}
+.cockpit-callout {
+  padding: 2px 10px;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  background: #070a06d9;
+  border: 1px solid var(--phosphor-dim);
+  animation: callout-in 180ms steps(3) backwards;
+}
+.cockpit-callout.tone-warning {
+  color: var(--amber);
+  border-color: #efc36d73;
+  text-shadow: 0 0 6px #efc36d55;
+}
+.cockpit-callout.tone-critical {
+  color: #ff6b5a;
+  border-color: #ff6b5a80;
+  text-shadow: 0 0 7px #ff5a4a66;
+  animation:
+    callout-in 180ms steps(3) backwards,
+    callout-blink 520ms steps(2) 180ms 3;
+}
+.cockpit-callout-mark {
+  margin-right: 7px;
+  font-style: normal;
+  animation: callout-blink 900ms steps(2) infinite;
+}
+@keyframes callout-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+}
+@keyframes callout-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Lance heat gauge in the header. */
+.lance-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.lance-gauge-label {
+  color: var(--phosphor);
+  text-shadow: 0 0 5px var(--phosphor-glow);
+}
+.lance-gauge-cells {
+  display: inline-flex;
+  gap: 2px;
+}
+.lance-gauge-cells i {
+  width: 9px;
+  height: 7px;
+  border: 1px solid var(--phosphor-dim);
+  transition:
+    background 200ms,
+    box-shadow 200ms;
+}
+.lance-gauge-cells i.is-lit {
+  background: var(--phosphor);
+  box-shadow: 0 0 6px var(--phosphor-glow);
+}
+.lance-gauge.band-warm .lance-gauge-cells i.is-lit {
+  background: var(--amber);
+  box-shadow: 0 0 6px #efc36d66;
+}
+.lance-gauge.band-hot .lance-gauge-label,
+.lance-gauge.band-hot .lance-gauge-cells i.is-lit {
+  color: #ff6b5a;
+  background: #ff6b5a;
+  box-shadow: 0 0 7px #ff5a4a88;
+}
+.lance-gauge.band-hot .lance-gauge-label {
+  background: none;
+  animation: callout-blink 900ms steps(2) infinite;
+}
+
+/* Mech Lab wireframe on crew cards: hover or keyboard focus swaps the
+   painted portrait for its phosphor schematic. */
+.crew-schematic {
+  position: absolute;
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  right: -10px;
+  top: 13px;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--phosphor-glow));
+  transition: opacity 180ms;
+}
+.crew-card:hover .crew-schematic,
+.crew-card:focus-visible .crew-schematic {
+  opacity: 1;
+  transform: translateY(-5px) scale(1.03);
+  animation: schematic-flicker 260ms steps(4);
+}
+.crew-card:hover .crew-portrait,
+.crew-card:focus-visible .crew-portrait {
+  opacity: 0.12;
+}
+@keyframes schematic-flicker {
+  0% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.8;
+  }
+  60% {
+    opacity: 0.3;
   }
 }

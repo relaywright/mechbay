@@ -350,6 +350,26 @@ export const PATCHES: Record<SfxId, Patch> = {
     ])
   },
 
+  // Cockpit computer: clean square-wave data blips, drier than the radio.
+  // Two rising notes for a nominal callout...
+  computer: {
+    gain: 0.75,
+    layers: [
+      tick(0, 1900, 0.05, 0.01, 2),
+      note(0.01, 523.25, 0.1, 0.045, 0.03, 'square', 1400),
+      note(0.085, 783.99, 0.1, 0.06, 0.05, 'square', 1500),
+      note(0.085, 392, 0.05, 0.06, 0.05, 'triangle', 900)
+    ]
+  },
+  // ...and a falling pair repeated, for warnings.
+  'computer-alert': {
+    gain: 0.75,
+    layers: [0, 0.2].flatMap((delay): ToneLayer[] => [
+      note(delay, 587.33, 0.1, 0.05, 0.02, 'square', 1300),
+      note(delay + 0.08, 415.3, 0.1, 0.06, 0.03, 'square', 1200)
+    ])
+  },
+
   // Mech movement: weight lives in the sub; the clank is only a glint.
   'footstep-heavy': {
     gain: 0.55,

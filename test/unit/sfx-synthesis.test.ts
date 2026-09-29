@@ -181,6 +181,8 @@ describe('PATCHES', () => {
         'acknowledge',
         'radio',
         'target-lock',
+        'computer',
+        'computer-alert',
         'footstep-heavy',
         'footstep-medium',
         'footstep-light',

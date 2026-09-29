@@ -83,6 +83,8 @@ export function CrewRoster({
                 )}
               </span>
               <img src={profile.image} alt="" className="crew-portrait" />
+              {/* Mech Lab wireframe, revealed on hover / keyboard focus. */}
+              <img src={profile.schematic} alt="" className="crew-schematic" />
               <span className="crew-name">{companion.name.replace(/-Prime$/i, '')}</span>
               <span className="crew-runtime">
                 {RUNTIME_NAMES[companion.runtime ?? companion.family]}

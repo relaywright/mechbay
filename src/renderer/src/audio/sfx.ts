@@ -25,6 +25,9 @@ export type SfxId =
   | 'acknowledge'
   | 'radio'
   | 'target-lock'
+  // Cockpit computer (system callouts)
+  | 'computer'
+  | 'computer-alert'
   // Mech movement
   | 'footstep-heavy'
   | 'footstep-medium'

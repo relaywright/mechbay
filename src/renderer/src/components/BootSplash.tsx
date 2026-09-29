@@ -105,7 +105,7 @@ function renderLine(visibleText: string, fullText: string, index: number): React
     return <span style={{ color: colors.amber }}>{visibleText}</span>
   }
 
-  const status = fullText.endsWith('OK') ? 'OK' : '5 MECHS'
+  const status = fullText.endsWith('ONLINE') ? 'ONLINE' : '5 MECHS'
   const detailLength = fullText.length - status.length
   const detail = visibleText.slice(0, detailLength)
   const visibleStatus = visibleText.slice(detailLength)
@@ -113,7 +113,7 @@ function renderLine(visibleText: string, fullText: string, index: number): React
   return (
     <>
       <span style={{ color: colors.textDim }}>{detail}</span>
-      <span style={{ color: status === 'OK' ? colors.streamStdout : colors.amber }}>
+      <span style={{ color: status === 'ONLINE' ? colors.phosphor : colors.amber }}>
         {visibleStatus}
       </span>
     </>

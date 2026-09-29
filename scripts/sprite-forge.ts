@@ -11,7 +11,8 @@
  *
  * This script normalises all of it into one sheet per mech:
  *   assets/mechs/sheets/<class>.png    256×256 cells: idle, then the walk cycle
- *   assets/mechs/portraits/<class>.png tight-cropped idle art for the HUD
+ *   assets/mechs/portraits/<class>.png  tight-cropped idle art for the HUD
+ *   assets/mechs/schematics/<class>.png phosphor wireframe traced from it
  * Every cell is right-facing, feet on a shared baseline, and sized by the
  * mech's weight class, so the bay can place any frame at one fixed scale.
  *
@@ -28,6 +29,8 @@ export interface Pixels {
 }
 
 export const CELL = 256
+/** Height of the traced wireframe schematics (about their on-screen size). */
+const SCHEMATIC_HEIGHT = 200
 /** Screen-space y of the feet inside every cell (a few px of floor margin). */
 export const BASELINE_Y = 250
 
@@ -297,6 +300,71 @@ export function footAnchorX(px: Pixels, bounds: Bounds, sliceFraction = 0.14): n
   return count === 0 ? (bounds.x0 + bounds.x1) / 2 : sum / count
 }
 
+/** Phosphor green of the cockpit instruments (theme.ts `phosphor`). */
+const PHOSPHOR = { r: 125, g: 255, b: 154 }
+
+/**
+ * MechWarrior-style wireframe schematic from a cleaned sprite: the
+ * silhouette traced as a bright 2px line, internal panel edges (luminance
+ * Sobel inside the silhouette) as dimmer lines scaled by edge strength, and
+ * a faint ghost fill. Everything is phosphor green on transparency.
+ */
+export function schematicFrom(px: Pixels, edgeThreshold = 90): Pixels {
+  const { width, height, data } = px
+  const out = new Uint8Array(width * height * 4)
+  const solid = (x: number, y: number): boolean =>
+    x >= 0 && y >= 0 && x < width && y < height && data[(y * width + x) * 4 + 3] >= 64
+  const lum = (x: number, y: number): number => {
+    if (!solid(x, y)) return 0
+    const i = (y * width + x) * 4
+    return 0.3 * data[i] + 0.59 * data[i + 1] + 0.11 * data[i + 2]
+  }
+  const put = (x: number, y: number, alpha: number): void => {
+    const i = (y * width + x) * 4
+    if (alpha <= out[i + 3]) return
+    out[i] = PHOSPHOR.r
+    out[i + 1] = PHOSPHOR.g
+    out[i + 2] = PHOSPHOR.b
+    out[i + 3] = alpha
+  }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!solid(x, y)) continue
+      put(x, y, 22)
+      // Silhouette: any 8-neighbour outside the body, which makes the trace ~2px.
+      let rim = false
+      for (let dy = -1; dy <= 1 && !rim; dy++) {
+        for (let dx = -1; dx <= 1 && !rim; dx++) {
+          if ((dx || dy) && !solid(x + dx, y + dy)) rim = true
+        }
+      }
+      if (rim) {
+        put(x, y, 255)
+        continue
+      }
+      const gx =
+        lum(x + 1, y - 1) +
+        2 * lum(x + 1, y) +
+        lum(x + 1, y + 1) -
+        lum(x - 1, y - 1) -
+        2 * lum(x - 1, y) -
+        lum(x - 1, y + 1)
+      const gy =
+        lum(x - 1, y + 1) +
+        2 * lum(x, y + 1) +
+        lum(x + 1, y + 1) -
+        lum(x - 1, y - 1) -
+        2 * lum(x, y - 1) -
+        lum(x + 1, y - 1)
+      const magnitude = Math.hypot(gx, gy)
+      if (magnitude >= edgeThreshold) {
+        put(x, y, Math.min(210, 90 + Math.round((magnitude - edgeThreshold) * 0.6)))
+      }
+    }
+  }
+  return { width, height, data: out }
+}
+
 /** Full cleanup pass applied to every source frame. */
 export function cleanFrame(
   px: Pixels,
@@ -433,6 +501,17 @@ async function forgeMech(root: string, mech: MechClass): Promise<void> {
   )
   mkdirSync(join(root, 'assets/mechs/portraits'), { recursive: true })
   await portrait.write(join(root, 'assets/mechs/portraits', `${mech}.png`) as `${string}.png`)
+
+  // Wireframe schematic for the HUD, traced at roughly its display size so
+  // the lines stay crisp instead of thinning out when scaled down.
+  const traced = portrait.clone()
+  const sScale = SCHEMATIC_HEIGHT / traced.bitmap.height
+  downscale(traced, Math.round(traced.bitmap.width * sScale), SCHEMATIC_HEIGHT)
+  const lines = schematicFrom(toPixels(traced))
+  const schematic = new Jimp({ width: lines.width, height: lines.height, color: 0x00000000 })
+  schematic.bitmap.data.set(lines.data)
+  mkdirSync(join(root, 'assets/mechs/schematics'), { recursive: true })
+  await schematic.write(join(root, 'assets/mechs/schematics', `${mech}.png`) as `${string}.png`)
   console.log(`forged ${mech}`)
 }
 
