@@ -5,9 +5,11 @@
  * files ship with the app). Callers only ever use the `sfx` singleton below;
  * the engine owns the AudioContext, voice limiting, and the master mix.
  *
- * This file currently holds a silent placeholder implementation so the rest
- * of the renderer can call `sfx.play(...)` before the synth engine lands.
+ * The AudioContext is created lazily on first use, so importing this module
+ * is free, and every call is a silent no-op where Web Audio is unavailable.
+ * Sound design lives in patches.ts; rendering in engine.ts.
  */
+import { createSfxEngine } from './engine'
 
 /** One-shot sounds. */
 export type SfxId =
@@ -60,13 +62,4 @@ export interface SfxEngine {
   unlock(): void
 }
 
-const silent: SfxEngine = {
-  play: () => undefined,
-  startLoop: () => undefined,
-  stopLoop: () => undefined,
-  setEnabled: () => undefined,
-  setVolume: () => undefined,
-  unlock: () => undefined
-}
-
-export const sfx: SfxEngine = silent
+export const sfx: SfxEngine = createSfxEngine()

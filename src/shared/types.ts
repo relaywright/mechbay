@@ -15,12 +15,7 @@ export interface AppMode {
 export type MechClass = 'atlas' | 'marauder' | 'raven' | 'catapult' | 'locust'
 
 export type FacilityType =
-  | 'security-bay'
-  | 'research-lab'
-  | 'foundry'
-  | 'command-center'
-  | 'salvage-dock'
-  | 'data-archive'
+  'security-bay' | 'research-lab' | 'foundry' | 'command-center' | 'salvage-dock' | 'data-archive'
 
 /** Filesystem tree node returned by FS_READ_DIR — consumed by FileBrowser. */
 export interface FsNode {
@@ -193,8 +188,7 @@ export interface DiscoveredProject {
 
 /** Result for BULK_IMPORT_RUN IPC call. */
 export type BulkImportRunResult =
-  | { ok: true; imported: number; facilities: Facility[] }
-  | { ok: false; error: string }
+  { ok: true; imported: number; facilities: Facility[] } | { ok: false; error: string }
 
 /** Payload for COMPANION_CONFIGURE IPC call. */
 export interface CompanionConfigurePayload {
@@ -206,8 +200,7 @@ export interface CompanionConfigurePayload {
 
 /** Result for COMPANION_CONFIGURE IPC call. */
 export type CompanionConfigureResult =
-  | { ok: true; cliAvailable: boolean }
-  | { ok: false; error: string }
+  { ok: true; cliAvailable: boolean } | { ok: false; error: string }
 
 export type SimpleActionResult = { ok: true } | { ok: false; error: string }
 
@@ -242,6 +235,16 @@ export interface AppState {
      * persisted state stays valid without a schema bump.
      */
     missionAlerts?: boolean
+    /**
+     * Synthesized interface, radio, and mech sound effects plus the hangar
+     * room tone. Defaults ON when unset, like `missionAlerts`.
+     */
+    sound?: boolean
+    /**
+     * Master sound volume, 0..1. Defaults to 0.6 when unset (see
+     * `DEFAULT_SOUND_VOLUME`); main clamps anything out of range on write.
+     */
+    soundVolume?: number
   }
   lastScanAt?: number
 }

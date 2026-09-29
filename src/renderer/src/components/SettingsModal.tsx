@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentFamily, Companion } from '../../../shared/types'
 import { RUNTIME_ENV, RUNTIME_OPTIONS } from '../runtime-options'
+import { sfx } from '../audio/sfx'
 import { colors, type } from '../theme'
 
 interface SettingsModalProps {
@@ -8,10 +9,15 @@ interface SettingsModalProps {
   reduceMotion: boolean
   crtOverlay: boolean
   missionAlerts: boolean
+  sound: boolean
+  soundVolume: number
   onClose: () => void
 }
 
 type SecretStatus = Record<AgentFamily, boolean>
+
+/** Quiet period after the last volume change before it's saved and previewed. */
+const VOLUME_SETTLE_MS = 150
 
 const EMPTY_STATUS: SecretStatus = {
   claude: false,
@@ -26,13 +32,19 @@ export function SettingsModal({
   reduceMotion,
   crtOverlay,
   missionAlerts,
+  sound,
+  soundVolume,
   onClose
 }: SettingsModalProps): React.JSX.Element {
   const [secretStatus, setSecretStatus] = useState<SecretStatus>(EMPTY_STATUS)
   const [motionReduced, setMotionReduced] = useState(reduceMotion)
   const [crtEnabled, setCrtEnabled] = useState(crtOverlay)
   const [alertsEnabled, setAlertsEnabled] = useState(missionAlerts)
+  const [soundOn, setSoundOn] = useState(sound)
+  const [volumeLevel, setVolumeLevel] = useState(soundVolume)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const volumeRef = useRef<HTMLInputElement>(null)
+  const persistedVolumeRef = useRef(soundVolume)
 
   // Keep the toggles in sync if the persisted value changes underneath us.
   // Adjusted during render (React's "store the previous prop" pattern)
@@ -46,6 +58,16 @@ export function SettingsModal({
   if (missionAlerts !== syncedMissionAlerts) {
     setSyncedMissionAlerts(missionAlerts)
     setAlertsEnabled(missionAlerts)
+  }
+  const [syncedSound, setSyncedSound] = useState(sound)
+  if (sound !== syncedSound) {
+    setSyncedSound(sound)
+    setSoundOn(sound)
+  }
+  const [syncedSoundVolume, setSyncedSoundVolume] = useState(soundVolume)
+  if (soundVolume !== syncedSoundVolume) {
+    setSyncedSoundVolume(soundVolume)
+    setVolumeLevel(soundVolume)
   }
 
   const toggleMotion = async (): Promise<void> => {
@@ -77,6 +99,62 @@ export function SettingsModal({
       alert(result.error)
     }
   }
+
+  const toggleSound = async (): Promise<void> => {
+    const next = !soundOn
+    setSoundOn(next)
+    // Apply to the engine now, not on the round trip, so switching on is
+    // confirmed by an audible click and switching off is instant.
+    sfx.setEnabled(next)
+    if (next) sfx.play('ui-click')
+    const result = await window.mechbay.updateSettings({ sound: next })
+    if (!result.ok) {
+      setSoundOn(!next)
+      sfx.setEnabled(!next)
+      alert(result.error)
+    }
+  }
+
+  useEffect(() => {
+    persistedVolumeRef.current = soundVolume
+  }, [soundVolume])
+
+  // Dragging adjusts the engine live; the value is persisted (and previewed
+  // with a short chirp) only on release. React's onChange fires on every
+  // input event, so listen for the native commit-on-release `change`. A held
+  // arrow key fires `change` per step, so settle briefly first: one preview
+  // instead of a stutter, and no stale broadcast yanking the thumb back.
+  useEffect(() => {
+    const input = volumeRef.current
+    if (!input) return
+    let pending: ReturnType<typeof setTimeout> | null = null
+    const commit = (preview: boolean): void => {
+      pending = null
+      const next = Number(input.value) / 100
+      if (preview) sfx.play('select')
+      if (next === persistedVolumeRef.current) return
+      void window.mechbay.updateSettings({ soundVolume: next }).then((result) => {
+        if (result.ok) return
+        const previous = persistedVolumeRef.current
+        setVolumeLevel(previous)
+        sfx.setVolume(previous)
+        alert(result.error)
+      })
+    }
+    const onChange = (): void => {
+      if (pending !== null) clearTimeout(pending)
+      pending = setTimeout(() => commit(true), VOLUME_SETTLE_MS)
+    }
+    input.addEventListener('change', onChange)
+    return () => {
+      input.removeEventListener('change', onChange)
+      // Closing mid-settle still saves what the user chose.
+      if (pending !== null) {
+        clearTimeout(pending)
+        commit(false)
+      }
+    }
+  }, [])
 
   const refreshStatus = async (): Promise<void> => {
     setSecretStatus(await window.mechbay.secretsStatus())
@@ -213,6 +291,50 @@ export function SettingsModal({
           >
             {alertsEnabled ? 'ALERTS: ON' : 'ALERTS: OFF'}
           </button>
+        </section>
+
+        <section style={bayStyle}>
+          <div>
+            <div style={sectionLabelStyle}>SOUND</div>
+            <div style={bayHintStyle}>
+              {soundOn
+                ? 'On: synthesized interface clicks, radio chatter, and mech footfalls over a low hangar hum.'
+                : 'Off: the bay runs silent.'}
+            </div>
+          </div>
+          <div style={soundControlsStyle}>
+            <label style={volumeFieldStyle}>
+              <span style={labelStyle}>VOLUME</span>
+              <input
+                ref={volumeRef}
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(volumeLevel * 100)}
+                disabled={!soundOn}
+                aria-label="Master volume"
+                data-sfx="off"
+                style={volumeSliderStyle(soundOn)}
+                onChange={(event) => {
+                  const next = Number(event.target.value) / 100
+                  setVolumeLevel(next)
+                  sfx.setVolume(next)
+                }}
+              />
+              <span style={volumeReadoutStyle(soundOn)}>{Math.round(volumeLevel * 100)}%</span>
+            </label>
+            <button
+              type="button"
+              data-sfx="off"
+              style={toggleButtonStyle(!soundOn)}
+              role="switch"
+              aria-checked={soundOn}
+              onClick={() => void toggleSound()}
+            >
+              {soundOn ? 'SOUND: ON' : 'SOUND: OFF'}
+            </button>
+          </div>
         </section>
 
         <section style={bayStyle}>
@@ -554,6 +676,27 @@ const toggleButtonStyle = (reduced: boolean): React.CSSProperties => ({
   padding: '8px 14px',
   cursor: 'pointer',
   whiteSpace: 'nowrap'
+})
+const soundControlsStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 16,
+  flexShrink: 0
+}
+const volumeFieldStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10 }
+const volumeSliderStyle = (enabled: boolean): React.CSSProperties => ({
+  width: 140,
+  accentColor: colors.amber,
+  cursor: enabled ? 'pointer' : 'default',
+  opacity: enabled ? 1 : 0.4
+})
+const volumeReadoutStyle = (enabled: boolean): React.CSSProperties => ({
+  width: 34,
+  textAlign: 'right',
+  color: enabled ? colors.amber : colors.textMuted,
+  fontSize: 10,
+  fontWeight: 800,
+  fontVariantNumeric: 'tabular-nums'
 })
 const dangerButtonStyle: React.CSSProperties = {
   background: 'rgba(255,82,82,.07)',
