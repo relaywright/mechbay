@@ -135,6 +135,24 @@ const FACILITY_KEY: Record<FacilityType, string> = {
 const FACILITY_DISPLAY_W = 224
 const FACILITY_DISPLAY_H = 168
 
+/**
+ * Living details painted into specific facility art, in SOURCE-image pixels
+ * of the 1200×896 facility PNGs (converted to world offsets at runtime).
+ */
+const FACILITY_AMBIENCE: Partial<
+  Record<FacilityType, { smoke?: Array<[number, number]>; beacon?: [number, number] }>
+> = {
+  foundry: {
+    smoke: [
+      [818, 150],
+      [888, 150]
+    ]
+  },
+  'command-center': { beacon: [595, 75] }
+}
+const FACILITY_SOURCE_W = 1200
+const FACILITY_SOURCE_H = 896
+
 /** Depth for overlays that must read above every mech and building. */
 const OVERLAY_DEPTH = 5000
 
@@ -212,6 +230,7 @@ export class BayScene extends Phaser.Scene {
     { container: Phaser.GameObjects.Container; tweens: Phaser.Tweens.Tween[] }
   >()
   private facilityBeacons = new Map<string, Phaser.GameObjects.Image>()
+  private facilityAmbience = new Map<string, Phaser.GameObjects.GameObject[]>()
   private facilityBeaconTweens = new Map<string, Phaser.Tweens.Tween>()
   private activeWalks = new Map<
     string,
@@ -352,6 +371,7 @@ export class BayScene extends Phaser.Scene {
       for (const packet of this.conduitPackets.values()) packet.destroy()
       this.conduitPackets.clear()
       for (const id of [...this.weldTimers.keys()]) this.stopWelding(id)
+      for (const id of [...this.facilityAmbience.keys()]) this.stopFacilityAmbience(id)
       this.teardownRimChase()
       this.teardownAtmosphere()
       this.teardownRadar()
@@ -367,6 +387,7 @@ export class BayScene extends Phaser.Scene {
         if (!this.conduitPacketTweens.has(id)) this.startConduitPacket(id, points)
       }
       for (const id of this.workLights.keys()) this.startWelding(id)
+      for (const id of this.facilitySprites.keys()) this.startFacilityAmbience(id)
       this.buildRimLights()
       this.buildAtmosphere()
       this.buildRadar()
@@ -1143,6 +1164,7 @@ export class BayScene extends Phaser.Scene {
         this.workLights.delete(id)
         this.stopWelding(id)
         this.stopHoloRing(id)
+        this.stopFacilityAmbience(id)
         this.facilityFoundations.get(id)?.destroy()
         this.facilityFoundations.delete(id)
         this.dragBrackets.get(id)?.destroy()
@@ -1283,6 +1305,8 @@ export class BayScene extends Phaser.Scene {
       this.applyFacilityLinkState(facilityId, sprite.getData('linked') as boolean)
     })
     this.facilitySprites.set(facilityId, sprite)
+    sprite.setData('facilityType', facilityType)
+    this.startFacilityAmbience(facilityId)
     this.createFacilityBeacon(
       facilityId,
       s,
@@ -1391,7 +1415,6 @@ export class BayScene extends Phaser.Scene {
     const companion = this.state?.companions.find((c) => c.id === companionId)
     const sprite = this.mechSprites.get(companionId)
     if (!companion || !sprite || !this.state) return
-    this.hideUnitPlate(companionId)
 
     const record = computeServiceRecord(companionId, this.state.deployments)
     const deployment = this.activeDeployment(companionId)
@@ -1404,6 +1427,19 @@ export class BayScene extends Phaser.Scene {
       : deployment
         ? deployment.status.replace(/-/g, ' ').toUpperCase()
         : 'READY'
+
+    // State broadcasts arrive for every log line of a running mission; only
+    // rebuild the plate when what it shows has actually changed.
+    const signature = [
+      companion.name,
+      record.rank.tier,
+      record.rank.progress.toFixed(3),
+      statusText,
+      this.mechStatusColor(companionId)
+    ].join('|')
+    const existing = this.unitPlates.get(companionId)
+    if (existing && !animate && existing.getData('signature') === signature) return
+    this.hideUnitPlate(companionId)
 
     const name = this.add
       .text(0, -30, companion.name.toUpperCase(), {
@@ -1444,7 +1480,10 @@ export class BayScene extends Phaser.Scene {
     bg.fillStyle(AMBER, 1)
     bg.fillRect(-width / 2 + 3, 0, (width - 3) * record.rank.progress, 2)
 
-    const plate = this.add.container(0, 0, [bg, name, rank]).setDepth(OVERLAY_DEPTH)
+    const plate = this.add
+      .container(0, 0, [bg, name, rank])
+      .setDepth(OVERLAY_DEPTH)
+      .setData('signature', signature)
     const mechClass = sprite.getData('mechClass') as MechClass
     const overlay = this.overlayScale()
     plate.setPosition(sprite.x, sprite.y - mechHeight(mechClass) - 8).setScale(overlay)
@@ -1902,7 +1941,9 @@ export class BayScene extends Phaser.Scene {
    * under reduced motion.
    */
   private startIdleBreath(companionId: string): void {
-    if (this.reducedMotion) return
+    // A downed mech doesn't breathe: stop-working runs right after
+    // dead-in-field in the same transition pass and would restart it.
+    if (this.reducedMotion || this.smokeEmitters.has(companionId)) return
     if (this.idleBreathTweens.has(companionId)) return
     const sprite = this.mechSprites.get(companionId)
     if (!sprite) return
@@ -3054,6 +3095,72 @@ export class BayScene extends Phaser.Scene {
   }
 
   /**
+   * Per-building life: live smoke from the Foundry's chimneys, a pulsing
+   * light on the Command Center's tower. Pure ambience — skipped under
+   * reduced motion like the facility beacons.
+   */
+  private startFacilityAmbience(facilityId: string): void {
+    if (this.reducedMotion || this.facilityAmbience.has(facilityId)) return
+    const sprite = this.facilitySprites.get(facilityId)
+    const spec = FACILITY_AMBIENCE[sprite?.getData('facilityType') as FacilityType]
+    if (!sprite || !spec) return
+    const toWorld = ([sx, sy]: [number, number]): { x: number; y: number } => ({
+      x: sprite.x + (sx / FACILITY_SOURCE_W - 0.5) * FACILITY_DISPLAY_W,
+      y: sprite.y + (sy / FACILITY_SOURCE_H - 0.5) * FACILITY_DISPLAY_H
+    })
+    const parts: Phaser.GameObjects.GameObject[] = []
+    for (const point of spec.smoke ?? []) {
+      const p = toWorld(point)
+      const smoke = this.add
+        .particles(p.x, p.y, FX.puff, {
+          lifespan: { min: 2200, max: 3200 },
+          speed: { min: 8, max: 16 },
+          angle: { min: 262, max: 290 },
+          accelerationX: 5,
+          scale: { start: 0.22, end: 0.85 },
+          alpha: { start: 0.42, end: 0 },
+          rotate: { min: 0, max: 360 },
+          frequency: 320,
+          tint: [0x77736b, 0x5f5b55]
+        })
+        .setDepth(sprite.depth + 0.5)
+      parts.push(smoke)
+    }
+    if (spec.beacon) {
+      const p = toWorld(spec.beacon)
+      const glow = this.add
+        .image(p.x, p.y, FX.glow)
+        .setTint(0xff4a3a)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(sprite.depth + 0.5)
+        .setScale(0.4)
+        .setAlpha(0.2)
+      this.tweens.add({
+        targets: glow,
+        alpha: 0.85,
+        scale: 0.55,
+        duration: 700,
+        yoyo: true,
+        repeat: -1,
+        hold: 200,
+        ease: 'Sine.easeInOut'
+      })
+      parts.push(glow)
+    }
+    this.facilityAmbience.set(facilityId, parts)
+  }
+
+  private stopFacilityAmbience(facilityId: string): void {
+    const parts = this.facilityAmbience.get(facilityId)
+    if (!parts) return
+    for (const part of parts) {
+      this.tweens.killTweensOf(part)
+      part.destroy()
+    }
+    this.facilityAmbience.delete(facilityId)
+  }
+
+  /**
    * Tiny blinking amber beacon on every facility (working or not) so the
    * bay reads as alive even when nothing is deployed. Staggered per-facility
    * period keeps them from blinking in unison. Skipped entirely under
@@ -3121,6 +3228,7 @@ export class BayScene extends Phaser.Scene {
     this.workLights.clear()
     for (const id of [...this.weldTimers.keys()]) this.stopWelding(id)
     for (const id of [...this.holoRings.keys()]) this.stopHoloRing(id)
+    for (const id of [...this.facilityAmbience.keys()]) this.stopFacilityAmbience(id)
     for (const tween of this.facilityBeaconTweens.values()) tween.stop()
     this.facilityBeaconTweens.clear()
     for (const beacon of this.facilityBeacons.values()) beacon.destroy()
