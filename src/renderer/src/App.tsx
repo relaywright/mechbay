@@ -20,6 +20,8 @@ import { CrewRoster } from './components/CrewRoster'
 import { MissionBoard } from './components/MissionBoard'
 import { fleetTelemetry, isActiveMission, STATUS_LABELS } from './operations'
 import { colors, type } from './theme'
+import { sfx } from './audio/sfx'
+import { resolveSoundSettings } from '../../shared/sound-settings'
 
 type SidebarTab = 'operations' | 'log' | 'files' | 'journal'
 
@@ -251,6 +253,18 @@ function App(): React.JSX.Element {
   useEffect(() => {
     if (state) sceneRef.current?.setState(state)
   }, [state])
+
+  // Mirror the sound settings into the synth engine. Keyed on primitives so
+  // the frequent state broadcasts don't re-run it; the hangar room tone
+  // starts once state has loaded (startLoop is idempotent per key).
+  const stateLoaded = state !== null
+  const sound = resolveSoundSettings(state?.settings ?? {})
+  useEffect(() => {
+    if (!stateLoaded) return
+    sfx.setEnabled(sound.enabled)
+    sfx.setVolume(sound.volume)
+    sfx.startLoop('ambient', 'ambient')
+  }, [stateLoaded, sound.enabled, sound.volume])
 
   // Hooks stay above conditional returns, including boot errors.
   const deploymentInfo = useMemo(() => {
@@ -542,6 +556,8 @@ function App(): React.JSX.Element {
           reduceMotion={state.settings.reduceMotion ?? false}
           crtOverlay={state.settings.crtOverlay ?? true}
           missionAlerts={state.settings.missionAlerts ?? true}
+          sound={sound.enabled}
+          soundVolume={sound.volume}
           onClose={() => setSettingsOpen(false)}
         />
       )}
