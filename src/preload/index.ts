@@ -78,6 +78,8 @@ const mechbayApi = {
     reduceMotion?: boolean
     crtOverlay?: boolean
     missionAlerts?: boolean
+    sound?: boolean
+    soundVolume?: number
   }): Promise<SimpleActionResult> => ipcRenderer.invoke(IPC.SETTINGS_UPDATE, patch),
   diffFileGet: (deploymentId: string, path: string): Promise<DiffFileGetResult> =>
     ipcRenderer.invoke(IPC.DIFF_FILE_GET, { deploymentId, path })

@@ -12,6 +12,9 @@ import '@fontsource/ibm-plex-mono/latin-500.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { installUiSounds } from './audio/ui-sounds'
+
+installUiSounds()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

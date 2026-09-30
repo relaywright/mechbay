@@ -1,11 +1,16 @@
+/**
+ * Cockpit start-up checklist, MechWarrior style. Each subsystem is a real
+ * part of the app coming up (reactor = the runner boundary that powers the
+ * mechs, sensors = the bay projector, comms = the HUD).
+ */
 export const BOOT_LINES = [
-  'MECHBAY OS v1.3.0 — COMBINE STANDARD BOOT',
-  '▸ HUD SUBSYSTEMS ................ OK',
-  '▸ ISO GRID PROJECTOR ............ OK',
-  '▸ RUNNER BOUNDARY ............... OK',
-  '▸ SOUL/MEMORY ARCHIVE ........... OK',
-  '▸ COMPANION ROSTER .............. 5 MECHS',
-  '◈ COMMAND AUTHORITY CONFIRMED — CMDR ON DECK'
+  'MECHBAY OS — COMBINE STANDARD BOOT',
+  '▸ REACTOR · RUNNER BOUNDARY ..... ONLINE',
+  '▸ SENSORS · ISO GRID PROJECTOR .. ONLINE',
+  '▸ COMMS · HUD SUBSYSTEMS ........ ONLINE',
+  '▸ MEMORY · SOUL ARCHIVE ......... ONLINE',
+  '▸ LANCE ROSTER .................. 5 MECHS',
+  '◈ ALL SYSTEMS NOMINAL — CMDR ON DECK'
 ] as const
 
 const TYPE_DURATION_MS = 2200

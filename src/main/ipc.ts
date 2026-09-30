@@ -25,6 +25,7 @@ import { seedFacilities, type StateManager } from './state-manager'
 import type { SecretsManager } from './secrets'
 import type { Runner } from './runners/types'
 import { ulid } from '../shared/ulid'
+import { clampSoundVolume } from '../shared/sound-settings'
 import { scanProjects, type DiscoveredProject } from './project-scanner'
 import {
   assembleSystemPrompt,
@@ -185,7 +186,19 @@ export function registerIpc(opts: IpcDeps): void {
 
   ipcMain.handle(
     IPC.SETTINGS_UPDATE,
-    (_e, patch: { reduceMotion?: boolean; crtOverlay?: boolean; missionAlerts?: boolean }) => {
+    (
+      _e,
+      patch: {
+        reduceMotion?: boolean
+        crtOverlay?: boolean
+        missionAlerts?: boolean
+        sound?: boolean
+        soundVolume?: number
+      }
+    ) => {
+      // Non-numeric / NaN volumes are dropped like mistyped booleans; finite
+      // numbers outside 0..1 are clamped rather than rejected.
+      const soundVolume = clampSoundVolume(patch.soundVolume)
       state.updateState((prev) => ({
         ...prev,
         settings: {
@@ -194,7 +207,9 @@ export function registerIpc(opts: IpcDeps): void {
           ...(typeof patch.crtOverlay === 'boolean' ? { crtOverlay: patch.crtOverlay } : {}),
           ...(typeof patch.missionAlerts === 'boolean'
             ? { missionAlerts: patch.missionAlerts }
-            : {})
+            : {}),
+          ...(typeof patch.sound === 'boolean' ? { sound: patch.sound } : {}),
+          ...(soundVolume !== undefined ? { soundVolume } : {})
         }
       }))
       return { ok: true }

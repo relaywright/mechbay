@@ -17,11 +17,20 @@ import { SettingsModal } from './components/SettingsModal'
 import { BootSplash } from './components/BootSplash'
 import { CrtOverlay } from './components/CrtOverlay'
 import { CrewRoster } from './components/CrewRoster'
+import { CockpitHud } from './components/CockpitHud'
+import { CommsFeed } from './components/CommsFeed'
+import { TabInk } from './components/TabInk'
+import { TelemetryStrip } from './components/TelemetryStrip'
 import { MissionBoard } from './components/MissionBoard'
 import { fleetTelemetry, isActiveMission, STATUS_LABELS } from './operations'
 import { colors, type } from './theme'
+import { sfx } from './audio/sfx'
+import { resolveSoundSettings } from '../../shared/sound-settings'
 
 type SidebarTab = 'operations' | 'log' | 'files' | 'journal'
+
+/** Pause between a mission completing and its debrief opening. */
+const DEBRIEF_DELAY_MS = 1500
 
 function App(): React.JSX.Element {
   const [state, setState] = useState<AppState | null>(null)
@@ -42,6 +51,9 @@ function App(): React.JSX.Element {
   const [debriefQueue, setDebriefQueue] = useState<string[]>([])
   const [bootDone, setBootDone] = useState(false)
   const handleBootDone = useCallback(() => setBootDone(true), [])
+  // Flips as the splash starts fading, so the HUD's staggered reveal overlaps it.
+  const [bootRevealed, setBootRevealed] = useState(false)
+  const handleBootReveal = useCallback(() => setBootRevealed(true), [])
 
   const canvasParentRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<BayScene | null>(null)
@@ -77,11 +89,16 @@ function App(): React.JSX.Element {
           .map((deployment) => deployment.id)
 
         if (completedIds.length > 0) {
-          setDebriefQueue((queue) => {
-            const queuedIds = new Set(queue)
-            const newIds = completedIds.filter((id) => !queuedIds.has(id))
-            return newIds.length > 0 ? [...queue, ...newIds] : queue
-          })
+          const enqueue = (): void =>
+            setDebriefQueue((queue) => {
+              const queuedIds = new Set(queue)
+              const newIds = completedIds.filter((id) => !queuedIds.has(id))
+              return newIds.length > 0 ? [...queue, ...newIds] : queue
+            })
+          // Let the bay's mission-complete beat (shockwave, light pillar)
+          // play before the debrief covers the field.
+          if (nextState.settings.reduceMotion) enqueue()
+          else window.setTimeout(enqueue, DEBRIEF_DELAY_MS)
         }
       }
       previousStateRef.current = nextState
@@ -122,6 +139,9 @@ function App(): React.JSX.Element {
       type: Phaser.AUTO,
       parent,
       backgroundColor: '#0a0805',
+      // All sound is synthesized by audio/sfx.ts; Phaser's own audio system
+      // would only hold an idle AudioContext open.
+      audio: { noAudio: true },
       scene,
       scale: {
         mode: Phaser.Scale.FIT,
@@ -252,6 +272,18 @@ function App(): React.JSX.Element {
     if (state) sceneRef.current?.setState(state)
   }, [state])
 
+  // Mirror the sound settings into the synth engine. Keyed on primitives so
+  // the frequent state broadcasts don't re-run it; the hangar room tone
+  // starts once state has loaded (startLoop is idempotent per key).
+  const stateLoaded = state !== null
+  const sound = resolveSoundSettings(state?.settings ?? {})
+  useEffect(() => {
+    if (!stateLoaded) return
+    sfx.setEnabled(sound.enabled)
+    sfx.setVolume(sound.volume)
+    sfx.startLoop('ambient', 'ambient')
+  }, [stateLoaded, sound.enabled, sound.volume])
+
   // Hooks stay above conditional returns, including boot errors.
   const deploymentInfo = useMemo(() => {
     if (!state) return []
@@ -307,7 +339,11 @@ function App(): React.JSX.Element {
   const activeMech = state?.companions.find((c) => c.id === activeMission?.companionId)
 
   return (
-    <div className="command-shell" data-reduce-motion={state?.settings.reduceMotion ?? false}>
+    <div
+      className="command-shell"
+      data-reduce-motion={state?.settings.reduceMotion ?? false}
+      data-boot={bootDone || bootRevealed ? 'revealed' : 'pending'}
+    >
       <HudHeader
         state={state}
         demo={demo}
@@ -327,26 +363,7 @@ function App(): React.JSX.Element {
                 <br className="compact-break" /> entire crew.
               </h2>
             </div>
-            <div className="telemetry-strip" aria-label="Fleet telemetry">
-              <div>
-                <strong>{String(telemetry?.ready ?? 0).padStart(2, '0')}</strong>
-                <span>READY</span>
-              </div>
-              <div>
-                <strong className="amber-value">
-                  {String(telemetry?.active ?? 0).padStart(2, '0')}
-                </strong>
-                <span>ACTIVE</span>
-              </div>
-              <div>
-                <strong>{String(telemetry?.completed ?? 0).padStart(2, '0')}</strong>
-                <span>COMPLETE</span>
-              </div>
-              <div>
-                <strong>{String(telemetry?.queued ?? 0).padStart(2, '0')}</strong>
-                <span>QUEUED</span>
-              </div>
-            </div>
+            <TelemetryStrip telemetry={telemetry} />
           </div>
           <div className="bay-viewport">
             <div className="map-corner map-top-left">
@@ -370,6 +387,7 @@ function App(): React.JSX.Element {
                 RECENTER
               </button>
             </div>
+            <CockpitHud />
             <div className="map-corner map-top-right">
               {telemetry?.linked ?? 0} PROJECTS CONNECTED
             </div>
@@ -403,6 +421,7 @@ function App(): React.JSX.Element {
                 </button>
               )}
             </div>
+            <CommsFeed />
             <div className="map-scale" aria-hidden="true">
               <i />
               <span>BAY 01 / LOCAL</span>
@@ -479,6 +498,7 @@ function App(): React.JSX.Element {
               >
                 JOURNAL
               </button>
+              <TabInk activeKey={`${activeTab}:${browsingFacilityId ?? ''}`} />
             </div>
 
             {activeTab === 'operations' && state && (
@@ -542,6 +562,8 @@ function App(): React.JSX.Element {
           reduceMotion={state.settings.reduceMotion ?? false}
           crtOverlay={state.settings.crtOverlay ?? true}
           missionAlerts={state.settings.missionAlerts ?? true}
+          sound={sound.enabled}
+          soundVolume={sound.volume}
           onClose={() => setSettingsOpen(false)}
         />
       )}
@@ -599,6 +621,7 @@ function App(): React.JSX.Element {
         <BootSplash
           key={state?.settings.reduceMotion ? 'reduced' : 'full'}
           reduceMotion={state?.settings.reduceMotion ?? false}
+          onReveal={handleBootReveal}
           onComplete={handleBootDone}
         />
       )}

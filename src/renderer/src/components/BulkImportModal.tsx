@@ -84,11 +84,12 @@ export function BulkImportModal({ onClose }: BulkImportModalProps): React.JSX.El
   return (
     <div
       style={backdropStyle}
+      className="holo-backdrop"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div style={panelStyle}>
+      <div style={panelStyle} className="holo-panel">
         <div style={headerStyle}>
           <span>BULK IMPORT</span>
           <button type="button" onClick={onClose} style={closeButtonStyle}>
@@ -98,16 +99,10 @@ export function BulkImportModal({ onClose }: BulkImportModalProps): React.JSX.El
 
         {isLoading && <div style={loadingStyle}>Scanning projects...</div>}
 
-        {error && (
-          <div style={errorStyle}>
-            ⚠ {error}
-          </div>
-        )}
+        {error && <div style={errorStyle}>⚠ {error}</div>}
 
         {importResult && (
-          <div style={successStyle}>
-            ✓ Imported {importResult.imported} project(s)
-          </div>
+          <div style={successStyle}>✓ Imported {importResult.imported} project(s)</div>
         )}
 
         {!isLoading && projects.length === 0 && (
@@ -140,9 +135,7 @@ export function BulkImportModal({ onClose }: BulkImportModalProps): React.JSX.El
                     style={checkboxStyle}
                   />
                   <span style={itemNameStyle}>{project.name}</span>
-                  <span style={itemMarkersStyle}>
-                    {project.markers.slice(0, 2).join(', ')}
-                  </span>
+                  <span style={itemMarkersStyle}>{project.markers.slice(0, 2).join(', ')}</span>
                 </label>
               ))}
             </div>
