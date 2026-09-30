@@ -35,7 +35,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "cross-spawn": "^7.0.6",
-    "electron-store": "^10.0.1",
+    "electron-store": "^11.0.2",
     "ulid": "^2.4.0"
   },
   "devDependencies": {
