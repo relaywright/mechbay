@@ -26,9 +26,11 @@ artifacts/
 /*.md
 !/README.md
 !/CONTRIBUTING.md
+!/CHANGELOG.md
 docs/*
 !docs/demo.gif
 !docs/screenshot-bay.png
 !docs/social-preview.png
 !docs/design-system.md
 !docs/portfolio-refresh.md
+!docs/engineering/
