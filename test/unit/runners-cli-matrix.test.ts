@@ -39,7 +39,7 @@ const CASES: Case[] = [
     label: 'claude',
     Runner: ClaudeRunner as never,
     expectedCommand: 'claude',
-    expectedArgs: () => ['-p']
+    expectedArgs: () => ['-p', '--output-format', 'stream-json', '--verbose']
   },
   {
     label: 'codex',
@@ -151,9 +151,13 @@ describe('CliRunner spawn safety', () => {
 
     await runner.spawn('/tmp/project', 'say hi')
 
-    expect(spawnProcess).toHaveBeenCalledWith('claude', ['-p'], {
-      cwd: '/tmp/project',
-      shell: false
-    })
+    expect(spawnProcess).toHaveBeenCalledWith(
+      'claude',
+      ['-p', '--output-format', 'stream-json', '--verbose'],
+      {
+        cwd: '/tmp/project',
+        shell: false
+      }
+    )
   })
 })
