@@ -167,7 +167,12 @@ export type StateSchemaVersion = 3
  * read-only: nothing is written over the saved file.
  */
 export type StateHealth =
-  | { ok: true; notice?: string }
+  | {
+      ok: true
+      notice?: string
+      /** The saved bay was replaced by a fresh one (the notice says why). */
+      freshBay?: boolean
+    }
   | {
       ok: false
       reason: 'newer-version' | 'migration-failed' | 'read-failed'

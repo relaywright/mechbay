@@ -235,7 +235,7 @@ export class StateManager extends EventEmitter {
     if (!hasExisting) {
       this.freshBay = true
       this.persist(this.cache)
-      this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
+      this.health = this.loadedHealth(notices)
       return
     }
 
@@ -308,7 +308,14 @@ export class StateManager extends EventEmitter {
         break
       }
     }
-    this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
+    this.health = this.loadedHealth(notices)
+  }
+
+  private loadedHealth(notices: string[]): StateHealth {
+    if (!notices.length) return { ok: true }
+    return this.freshBay
+      ? { ok: true, notice: notices.join(' '), freshBay: true }
+      : { ok: true, notice: notices.join(' ') }
   }
 
   /**
@@ -339,7 +346,7 @@ export class StateManager extends EventEmitter {
       : ''
     const notice = `MechBay could not move some mission logs out of your old save, so those missions show no console history.${where}`
     this.health = {
-      ok: true,
+      ...this.health,
       notice: this.health.notice ? `${this.health.notice} ${notice}` : notice
     }
   }
