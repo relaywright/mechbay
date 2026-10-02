@@ -3,9 +3,7 @@ import type { DiffFileGetResult, FilePatch } from '../../../shared/types'
 import './diff-viewer.css'
 
 type ViewerState =
-  | { status: 'loading' }
-  | { status: 'error'; error: string }
-  | { status: 'ready'; patch: FilePatch }
+  { status: 'loading' } | { status: 'error'; error: string } | { status: 'ready'; patch: FilePatch }
 
 /**
  * Fetches and renders the unified-diff patch for a single file via

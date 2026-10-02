@@ -102,9 +102,7 @@ export async function resolveInRepo(repoPath: string, filePath: string): Promise
 }
 
 type FileRead =
-  | { kind: 'text'; lines: string[] }
-  | { kind: 'symlink'; target: string }
-  | { kind: 'skip' } // binary, too large, missing, or otherwise unreadable
+  { kind: 'text'; lines: string[] } | { kind: 'symlink'; target: string } | { kind: 'skip' } // binary, too large, missing, or otherwise unreadable
 
 /**
  * Reads a file from disk for diffing purposes. Symlinks are reported as

@@ -15,12 +15,7 @@ export interface AppMode {
 export type MechClass = 'atlas' | 'marauder' | 'raven' | 'catapult' | 'locust'
 
 export type FacilityType =
-  | 'security-bay'
-  | 'research-lab'
-  | 'foundry'
-  | 'command-center'
-  | 'salvage-dock'
-  | 'data-archive'
+  'security-bay' | 'research-lab' | 'foundry' | 'command-center' | 'salvage-dock' | 'data-archive'
 
 /** Filesystem tree node returned by FS_READ_DIR — consumed by FileBrowser. */
 export interface FsNode {
@@ -193,8 +188,7 @@ export interface DiscoveredProject {
 
 /** Result for BULK_IMPORT_RUN IPC call. */
 export type BulkImportRunResult =
-  | { ok: true; imported: number; facilities: Facility[] }
-  | { ok: false; error: string }
+  { ok: true; imported: number; facilities: Facility[] } | { ok: false; error: string }
 
 /** Payload for COMPANION_CONFIGURE IPC call. */
 export interface CompanionConfigurePayload {
@@ -206,8 +200,7 @@ export interface CompanionConfigurePayload {
 
 /** Result for COMPANION_CONFIGURE IPC call. */
 export type CompanionConfigureResult =
-  | { ok: true; cliAvailable: boolean }
-  | { ok: false; error: string }
+  { ok: true; cliAvailable: boolean } | { ok: false; error: string }
 
 export type SimpleActionResult = { ok: true } | { ok: false; error: string }
 
