@@ -127,12 +127,15 @@ export async function launchMechbay(opts: LaunchOptions): Promise<LaunchedMechba
     chromiumSandbox: true
   })
   try {
+    // Wait for the window before asking the main process anything: launch()
+    // can return first, and on a slow start (a large upgraded save) an
+    // evaluate sent that early can be dropped ("Resulting promise was
+    // garbage collected").
+    const page = await app.firstWindow()
     // Second layer behind the main-process guard: report where userData landed.
     const userData = await app.evaluate(({ app }) => app.getPath('userData'))
     assert.ok(isInside(userData, profile), `userData ${userData} must be inside ${profile}`)
 
-    // Wait for the window before resizing it: launch() can return first.
-    const page = await app.firstWindow()
     await app.evaluate(
       ({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0].setContentSize(w, h),
       [width, height]
