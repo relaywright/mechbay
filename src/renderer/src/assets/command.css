@@ -652,7 +652,7 @@ input {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
-  padding: 6px 8px;
+  padding: 8px 16px;
   border-bottom: 1px solid rgba(255, 107, 107, 0.3);
 }
 .log-recall-item {
