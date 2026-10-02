@@ -65,6 +65,34 @@ describe('killProcessTree', () => {
     expect(child.kill).toHaveBeenCalledTimes(1)
   })
 
+  it('resolves, and stops the child alone, when spawning taskkill throws', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const child = fakeChild()
+    const spawnProcess = vi.fn(() => {
+      throw new Error('spawn ENOMEM')
+    })
+    await expect(
+      killProcessTree(child as never, {
+        platform: 'win32',
+        spawnProcess: spawnProcess as never,
+        waitMs: 20
+      })
+    ).resolves.toBeUndefined()
+    expect(child.kill).toHaveBeenCalled()
+  })
+
+  it('ends a taskkill that hangs past the wait limit', async () => {
+    const child = fakeChild()
+    const killer = Object.assign(new EventEmitter(), { kill: vi.fn() })
+    const spawnProcess = vi.fn(() => killer)
+    await killProcessTree(child as never, {
+      platform: 'win32',
+      spawnProcess: spawnProcess as never,
+      waitMs: 20
+    })
+    expect(killer.kill).toHaveBeenCalled()
+  })
+
   it('signals the process group on POSIX, then forces it after the grace period', async () => {
     vi.useFakeTimers()
     const child = fakeChild()

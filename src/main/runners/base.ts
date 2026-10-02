@@ -111,7 +111,11 @@ export abstract class CliRunner implements Runner {
 
     // Every call shares the first stop, so a second click never starts a second kill.
     let stopping: Promise<void> | null = null
-    const abort = (): Promise<void> => (stopping ??= this.killTree(child))
+    const abort = (): Promise<void> =>
+      (stopping ??= this.killTree(child).catch((err) => {
+        // abort() must never reject; an injected killTree might.
+        console.error('[runner] stopping the process tree failed:', err)
+      }))
 
     const exit = new Promise<number>((resolve) => {
       child.on('exit', (code) => resolve(code ?? -1))
