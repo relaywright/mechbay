@@ -2,6 +2,7 @@ import type { AppState } from '../../../shared/types'
 import { CREW, RUNTIME_NAMES } from '../crew'
 import { currentMission, STATUS_LABELS } from '../operations'
 import { computeServiceRecord } from '../service-record'
+import { runtimeSupportNote } from '../../../shared/runtime-support'
 
 /** Chevron insignia: nothing at Recruit, one glyph per tier above that. */
 function RankInsignia({ tier }: { tier: number }): React.JSX.Element | null {
@@ -70,6 +71,7 @@ export function CrewRoster({
               <span className="crew-stat-line">{statLine}</span>
               <span
                 className={`crew-status ${mission ? 'engaged' : companion.cliAvailable ? 'ready' : 'offline'}`}
+                title={runtimeSupportNote(companion.runtime ?? companion.family) ?? undefined}
               >
                 <i />
                 {mission
