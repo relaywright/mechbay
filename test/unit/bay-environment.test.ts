@@ -5,6 +5,7 @@ import {
   clampZoom,
   clampPan,
   panBounds,
+  panToKeepPoint,
   MIN_USER_ZOOM,
   MAX_USER_ZOOM
 } from '../../src/renderer/src/game/bay-environment'
@@ -139,5 +140,25 @@ describe('panBounds + clampPan', () => {
   it('clampPan clamps an out-of-bounds pan symmetrically', () => {
     const bounds = { maxX: 100, maxY: 50 }
     expect(clampPan({ x: 500, y: -500 }, bounds)).toEqual({ x: 100, y: -50 })
+  })
+})
+
+describe('panToKeepPoint', () => {
+  // The world point under a screen point is center + offset / zoom, where
+  // offset is the screen point's distance from the middle of the view.
+  const worldAt = (center: number, offset: number, zoom: number): number => center + offset / zoom
+
+  it('keeps the world point under the cursor fixed while zooming in', () => {
+    const pan = { x: 40, y: -10 }
+    const offset = { x: -600, y: 150 } // cursor over Salvage Dock, left of center
+    const next = panToKeepPoint(pan, offset, 1.3, 1.69)
+    expect(worldAt(next.x, offset.x, 1.69)).toBeCloseTo(worldAt(pan.x, offset.x, 1.3))
+    expect(worldAt(next.y, offset.y, 1.69)).toBeCloseTo(worldAt(pan.y, offset.y, 1.3))
+    expect(next.x).toBeLessThan(pan.x) // the view moves toward the cursor
+  })
+
+  it('leaves the pan alone for a cursor at the center or an unchanged zoom', () => {
+    expect(panToKeepPoint({ x: 5, y: 7 }, { x: 0, y: 0 }, 1, 2)).toEqual({ x: 5, y: 7 })
+    expect(panToKeepPoint({ x: 5, y: 7 }, { x: 300, y: -90 }, 1.5, 1.5)).toEqual({ x: 5, y: 7 })
   })
 })

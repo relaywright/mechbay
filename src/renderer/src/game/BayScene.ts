@@ -14,7 +14,14 @@ import {
 } from './bay-animation'
 import { canvasPointToPage } from './bay-layout'
 import { computeDeploymentActions } from './deployment-transitions'
-import { deckTile, conduitPath, clampZoom, clampPan, panBounds } from './bay-environment'
+import {
+  deckTile,
+  conduitPath,
+  clampZoom,
+  clampPan,
+  panBounds,
+  panToKeepPoint
+} from './bay-environment'
 import { FX, generateFxTextures } from './fx-textures'
 import { Minimap, type MinimapBlip } from './minimap'
 import { headingFromDelta } from '../cockpit'
@@ -578,19 +585,18 @@ export class BayScene extends Phaser.Scene {
       'wheel',
       (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => {
         const camera = this.cameras.main
-        const before = camera.getWorldPoint(pointer.x, pointer.y)
         const nextZoom = clampZoom(this.userZoom - Math.sign(dy) * 0.1)
         if (nextZoom === this.userZoom) return
+        const fromZoom = camera.zoom
         this.userZoom = nextZoom
-        this.userPan = clampPan(this.userPan, panBounds(this.userZoom, BASE_VIEW_W, BASE_VIEW_H))
         this.applyCameraTransform()
-
-        // Re-derive the world point under the cursor at the new zoom and
-        // nudge pan by the difference, so the point the user was hovering
-        // stays fixed on screen instead of the zoom recentering on the diamond.
-        const after = camera.getWorldPoint(pointer.x, pointer.y)
+        // Keep the point the user was hovering fixed on screen. Worked out
+        // from the zoom, not camera.getWorldPoint: Phaser rebuilds the camera
+        // matrix only before it draws, so a second read here still sees the
+        // old zoom and the correction comes out as zero.
+        const offset = { x: pointer.x - camera.width / 2, y: pointer.y - camera.height / 2 }
         this.userPan = clampPan(
-          { x: this.userPan.x + (before.x - after.x), y: this.userPan.y + (before.y - after.y) },
+          panToKeepPoint(this.userPan, offset, fromZoom, camera.zoom),
           panBounds(this.userZoom, BASE_VIEW_W, BASE_VIEW_H)
         )
         this.applyCameraTransform()
