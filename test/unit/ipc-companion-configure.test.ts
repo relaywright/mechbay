@@ -34,6 +34,7 @@ vi.mock('electron', () => ({
 // vitest hoists vi.mock() above imports, so registerIpc below picks up the
 // mocked 'electron' module even though this import comes after the mock.
 import { registerIpc } from '../../src/main/ipc'
+import { makeLogSink } from '../helpers/log-sink'
 
 function makeInMemoryStore(): StoreLike {
   const data: Record<string, unknown> = {}
@@ -88,7 +89,14 @@ describe('IPC.COMPANION_CONFIGURE handler', () => {
       hermes: stubRunner(runnerAvailability.hermes ?? false)
     }
     const fsReader = new FsReader([])
-    registerIpc({ win: makeFakeWin(), state, runners, fsReader, secrets: {} as never })
+    registerIpc({
+      win: makeFakeWin(),
+      state,
+      runners,
+      fsReader,
+      secrets: {} as never,
+      logs: makeLogSink().sink
+    })
     const handler = registeredHandlers.get(IPC.COMPANION_CONFIGURE)
     if (!handler) throw new Error('COMPANION_CONFIGURE handler was not registered')
     return { state, handler }

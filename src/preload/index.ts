@@ -43,7 +43,6 @@ const mechbayApi = {
     history: (missionId: string, afterSeq?: number): Promise<LogChunk[]> =>
       ipcRenderer.invoke(IPC.LOG_HISTORY, missionId, afterSeq),
     subscribe: (cb: (entries: LogChunk[]) => void): (() => void) => {
-      // Until Task 3 batches on the main side, each IPC message carries one entry.
       const listener = (_e: Electron.IpcRendererEvent, payload: LogChunk | LogChunk[]): void =>
         cb(Array.isArray(payload) ? payload : [payload])
       ipcRenderer.on(IPC.LOG_STREAM, listener)

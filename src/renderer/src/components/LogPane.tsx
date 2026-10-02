@@ -25,7 +25,7 @@ export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Ele
   const containerRef = useRef<HTMLDivElement>(null)
   const [isAutoScrollLocked, setIsAutoScrollLocked] = useState(false)
   const [userHasScrolled, setUserHasScrolled] = useState(false)
-  const lastLogCountRef = useRef(0)
+  const lastLogIdRef = useRef<string | null>(null)
 
   // Build processed lines with separators between deployments
   const lines = useMemo((): LogLine[] => {
@@ -87,14 +87,15 @@ export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Ele
     return result
   }, [logs, deployments])
 
-  // Auto-scroll to bottom when new logs arrive (unless locked)
+  // Auto-scroll to bottom when a new line arrives (unless locked). Keyed on
+  // the newest line's id, not the count: once a long mission hits the view
+  // cap the count stays flat while lines keep arriving.
   useEffect(() => {
-    if (logs.length === lastLogCountRef.current) return
+    const lastId = logs.at(-1)?.id ?? null
+    if (lastId === lastLogIdRef.current) return
+    lastLogIdRef.current = lastId
 
-    const newLogsAdded = logs.length > lastLogCountRef.current
-    lastLogCountRef.current = logs.length
-
-    if (!isAutoScrollLocked && containerRef.current && newLogsAdded) {
+    if (!isAutoScrollLocked && containerRef.current && lastId !== null) {
       const container = containerRef.current
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 

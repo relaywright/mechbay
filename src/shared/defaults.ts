@@ -78,3 +78,10 @@ export function defaultMemory(name: string): string {
 *Empty. First deployment will populate this file.*
 `
 }
+
+/**
+ * Saved history keeps this many missions; starting one more drops the
+ * oldest. It is the only way a mission leaves saved state, so it is also
+ * what decides when a mission's log file may be deleted.
+ */
+export const MAX_SAVED_MISSIONS = 200

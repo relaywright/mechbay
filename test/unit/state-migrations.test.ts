@@ -101,13 +101,14 @@ describe('migrateState', () => {
     })
   })
 
-  it('drops the five fields no player sees or edits', () => {
+  it('drops unused fields and moves logs out of saved state', () => {
     const outcome = migrateState(loadV2())
     if (outcome.kind !== 'migrated') throw new Error(outcome.kind)
     const state = outcome.state as unknown as Record<string, unknown> & {
       settings: Record<string, unknown>
     }
     expect('lastScanAt' in state).toBe(false)
+    expect('logChunks' in state).toBe(false)
     expect('companionNameOverrides' in state.settings).toBe(false)
     for (const companion of outcome.state.companions)
       expect('recentDeploymentIds' in companion).toBe(false)

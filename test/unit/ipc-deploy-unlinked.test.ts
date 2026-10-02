@@ -19,6 +19,7 @@ vi.mock('electron', () => ({
 }))
 
 import { registerIpc } from '../../src/main/ipc'
+import { makeLogSink } from '../helpers/log-sink'
 
 function makeInMemoryStore(): StoreLike {
   const data: Record<string, unknown> = {}
@@ -60,6 +61,7 @@ describe('IPC.DEPLOY_START unlinked facility guard', () => {
       win: makeFakeWin(),
       state,
       runners,
+      logs: makeLogSink().sink,
       fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
       secrets: {} as never
     })

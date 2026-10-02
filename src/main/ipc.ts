@@ -2,6 +2,7 @@ import { app, ipcMain, BrowserWindow, dialog } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { IPC } from '../shared/ipc-channels'
+import { MAX_SAVED_MISSIONS } from '../shared/defaults'
 import type {
   AgentFamily,
   AppMode,
@@ -46,6 +47,7 @@ import {
   resolveInRepo
 } from './git-diff'
 import { redactSecrets } from './redact'
+import type { MissionLogSink } from './log-store'
 import { NotYetAvailableError } from '../shared/bridge-errors'
 
 const GRID_W = 16
@@ -58,6 +60,10 @@ export interface IpcDeps {
   fsReader: FsReader
   secrets: SecretsManager
   demoMode?: boolean
+  /** Mission logs (log-store.ts). Text is redacted before it is appended. */
+  logs: MissionLogSink & {
+    history: (missionId: string, afterSeq?: number) => Promise<LogChunk[]>
+  }
 }
 
 const FS_DIR_IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'out']
@@ -348,7 +354,7 @@ export function registerIpc(opts: IpcDeps): void {
 
       state.updateState((prev) => ({
         ...prev,
-        deployments: [deployment, ...prev.deployments].slice(0, 200)
+        deployments: [deployment, ...prev.deployments].slice(0, MAX_SAVED_MISSIONS)
       }))
 
       if (status === 'queued') {
@@ -378,11 +384,14 @@ export function registerIpc(opts: IpcDeps): void {
     }
   )
 
+  // The mission id comes from the renderer; the log store refuses anything
+  // that is not a plain id before it touches a file.
+  ipcMain.handle(IPC.LOG_HISTORY, (_e, missionId: string, afterSeq?: number) =>
+    opts.logs.history(String(missionId), Number(afterSeq) || 0)
+  )
+
   // Contract stubs (spec 7.5). Each is replaced by the task that ships the
-  // feature: logs.history (Task 3), deployAbort (Tasks 6 and 8), review (Phase 1).
-  ipcMain.handle(IPC.LOG_HISTORY, () => {
-    throw new NotYetAvailableError('Saved mission logs arrive in this release.')
-  })
+  // feature: deployAbort (Tasks 6 and 8), review (Phase 1).
   ipcMain.handle(IPC.DEPLOY_ABORT, () => {
     throw new NotYetAvailableError('Recalling a mission arrives in this release.')
   })
@@ -561,7 +570,23 @@ export async function executeDeployment(
   /** Secrets known when a queued task was entered, redacted alongside today's. */
   extraSecrets: readonly string[] = []
 ): Promise<void> {
-  const { win, state, runners } = opts
+  try {
+    await runDeployment(deploymentId, companion, facility, taskPrompt, opts, extraSecrets)
+  } finally {
+    // Every exit path, including a crash: write the last lines and free the buffer.
+    opts.logs.close(deploymentId)
+  }
+}
+
+async function runDeployment(
+  deploymentId: string,
+  companion: Companion,
+  facility: Facility,
+  taskPrompt: string,
+  opts: IpcDeps,
+  extraSecrets: readonly string[]
+): Promise<void> {
+  const { state, runners } = opts
   const effectiveRuntime = companion.runtime ?? companion.family
   const runner = runners[effectiveRuntime]
   if (!runner) {
@@ -632,21 +657,9 @@ export async function executeDeployment(
       text: string
       thoughtKind?: 'intent' | 'findings'
     }): void => {
-      const logChunk: LogChunk = {
-        id: ulid(),
-        deploymentId,
-        timestamp: Date.now(),
-        stream: p.stream,
-        text: redact(p.text),
-        ...(p.thoughtKind ? { thoughtKind: p.thoughtKind } : {})
-      }
-      if (!win.isDestroyed()) {
-        win.webContents.send(IPC.LOG_STREAM, logChunk)
-      }
-      state.updateState((prev) => ({
-        ...prev,
-        logChunks: [...prev.logChunks, logChunk].slice(-5000)
-      }))
+      // Redact here, before the line reaches the log store: the store sends
+      // it to the window and writes it to disk exactly as given.
+      opts.logs.append(deploymentId, { ...p, text: redact(p.text) })
     }
 
     // Drain stream BEFORE awaiting exit — exit may resolve while chunks
@@ -806,7 +819,7 @@ function secretEnvValues(env: Record<string, string | undefined>): string[] {
  * inherited environment variable whose name looks secret (an agent that
  * prints its environment would otherwise show, say, GITHUB_TOKEN).
  */
-function collectSecretValues(opts: IpcDeps): string[] {
+export function collectSecretValues(opts: Pick<IpcDeps, 'runners' | 'secrets'>): string[] {
   const families = Object.keys(opts.runners) as AgentFamily[]
   return [
     ...families.map((family) => opts.secrets.getSecret(family)),

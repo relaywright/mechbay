@@ -120,8 +120,11 @@ export interface Deployment {
 }
 
 export interface LogChunk {
+  /** `<deploymentId>:<seq>` */
   id: string
   deploymentId: string
+  /** 1-based position within its mission. */
+  seq: number
   timestamp: number
   stream: 'stdout' | 'stderr' | 'system' | 'thought'
   text: string
@@ -217,7 +220,6 @@ export interface AppState {
   companions: Companion[]
   facilities: Facility[]
   deployments: Deployment[]
-  logChunks: LogChunk[]
   settings: {
     projectsDir: string
     concurrencyCap: number

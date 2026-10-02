@@ -345,6 +345,11 @@ nobody mistakes them for guarantees:
     secret-named variable that holds a file path, such as `SSH_KEY_PATH`,
     is hidden like a key. A key is recognized only exactly as stored: a
     tool that prints it base64-encoded or escaped is not caught.
+  - Log lines saved by v1.4.0, before hiding existed, are hidden when
+    v1.4.2 moves them into log files, but only against the keys MechBay
+    knows at that moment: a key removed or replaced since then stays
+    visible in those old lines. The backup made before the upgrade keeps
+    them exactly as they were.
 - _Not reachable from inside a project:_ a folder link planted in the
   projects folder or in MechBay's data folder is followed. Planting one
   needs write access outside the project.

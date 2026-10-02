@@ -23,6 +23,7 @@ vi.mock('electron', () => ({
 // vitest hoists vi.mock() above imports, so executeDeployment below picks
 // up the mocked 'electron' module even though this import comes after it.
 import { executeDeployment } from '../../src/main/ipc'
+import { makeLogSink } from '../helpers/log-sink'
 
 function makeInMemoryStore(): StoreLike {
   const data: Record<string, unknown> = {}
@@ -130,6 +131,7 @@ describe('executeDeployment runtime selection', () => {
       win: makeFakeWin(),
       state,
       runners,
+      logs: makeLogSink().sink,
       fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
       secrets: {
         envFor: vi.fn(() => ({ OPENAI_API_KEY: 'stored-key' })),
