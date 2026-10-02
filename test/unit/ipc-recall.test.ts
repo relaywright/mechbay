@@ -51,6 +51,7 @@ vi.mock('../../src/main/soul-memory', () => ({
 }))
 
 import { registerIpc } from '../../src/main/ipc'
+import { appendMemoryEntry } from '../../src/main/soul-memory'
 
 // Everything a test started, so afterEach can stop it even when the test
 // fails: a test only ever stops its own agents, through their own handles.
@@ -351,5 +352,82 @@ describe('shutdownMissions', () => {
     expect(abortAll).toHaveBeenCalledWith(200)
     expect(flushAll).toHaveBeenCalled()
     missions.delete('hung')
+  })
+})
+
+/** The outcome line most recently written to a mech's memory. */
+function lastMemoryOutcome(): string | undefined {
+  const calls = vi.mocked(appendMemoryEntry).mock.calls
+  return (calls.at(-1)?.[1] as { outcome: string } | undefined)?.outcome
+}
+
+describe('missions finish even when the output stays open', () => {
+  beforeEach(() => {
+    baseline.gate = null
+  })
+
+  it('a mission completes when a process the agent left running holds its output open', async () => {
+    const runner: Runner = {
+      isAvailable: async () => true,
+      spawn: async () => {
+        // The agent started a dev server in the background and exited; the
+        // server still holds the output pipe, so the stream never ends.
+        async function* stream(): AsyncGenerator<{ stream: 'stdout'; text: string }> {
+          yield { stream: 'stdout', text: 'Started the dev server on port 5173.\n' }
+          await new Promise(() => {})
+        }
+        return { stream: stream(), exit: Promise.resolve(0), abort: async () => {} }
+      }
+    }
+    const { missions, entries, deploy, mission } = setup(runner)
+    const { deploymentId } = await deploy(0)
+    await vi.waitFor(() => expect(mission(deploymentId)?.status).toBe('completed'), {
+      timeout: 5000
+    })
+    await vi.waitFor(() => expect(missions.ids()).toEqual([]))
+    const text = entries.map((e) => e.text).join('')
+    expect(text).toContain('Started the dev server on port 5173.')
+    expect(text).toContain('a process it started is still holding its output open')
+  }, 10_000)
+})
+
+describe('what a recalled mech remembers', () => {
+  beforeEach(() => {
+    baseline.gate = null
+    vi.mocked(appendMemoryEntry).mockClear()
+  })
+
+  it('remembers a recall by the commander as a recall, not a failure', async () => {
+    const { runner } = controlled()
+    const { missions, deploy, abort } = setup(runner)
+    const { deploymentId } = await deploy(0)
+    await vi.waitFor(() => expect(missions.ids()).toEqual([deploymentId]))
+    await abort(deploymentId)
+    await vi.waitFor(() => expect(missions.ids()).toEqual([]))
+    await vi.waitFor(() => expect(lastMemoryOutcome()).toBe('Recalled by the commander.'))
+  })
+
+  it('remembers a mission stopped by closing MechBay as closed, not as recalled by the commander', async () => {
+    const { runner } = controlled()
+    const { state, missions, deploy } = setup(runner)
+    const { deploymentId } = await deploy(0)
+    await vi.waitFor(() => expect(missions.ids()).toEqual([deploymentId]))
+    await shutdownMissions({ state, missions, logs: { flushAll: vi.fn() }, timeoutMs: 2000 })
+    await vi.waitFor(() => expect(missions.ids()).toEqual([]))
+    await vi.waitFor(() => expect(lastMemoryOutcome()).toBe('Recalled when MechBay closed.'))
+  })
+
+  it('remembers that a mission recalled before launch never started', async () => {
+    let open!: () => void
+    baseline.gate = new Promise<void>((r) => (open = r))
+    const { runner } = controlled()
+    const { deploy, abort, mission } = setup(runner)
+    const { deploymentId } = await deploy(0)
+    await vi.waitFor(() => expect(mission(deploymentId)?.status).toBe('working'))
+    await abort(deploymentId)
+    open()
+    await vi.waitFor(() =>
+      expect(lastMemoryOutcome()).toBe('Recalled by the commander. The agent never started.')
+    )
   })
 })

@@ -26,7 +26,15 @@ describe('RecallButton', () => {
     await waitFor(() => expect(deployAbort).toHaveBeenCalledWith('m1'))
   })
 
-  it('backs out with Keep going', () => {
+  it('backs out of a cancel with Keep it in line', () => {
+    Object.assign(window, { mechbay: { deployAbort: vi.fn() } })
+    render(<RecallButton deployment={mission('queued')} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel mission' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Keep it in line' }))
+    expect(screen.getByRole('button', { name: 'Cancel mission' })).toBeTruthy()
+  })
+
+  it('backs out of a recall with Keep going', () => {
     Object.assign(window, { mechbay: { deployAbort: vi.fn() } })
     render(<RecallButton deployment={mission('working')} />)
     fireEvent.click(screen.getByRole('button', { name: 'Recall mech' }))
@@ -57,7 +65,7 @@ describe('RecallButton', () => {
       mechbay: {
         deployAbort: vi.fn(async () => {
           throw new Error(
-            "Error invoking remote method 'mechbay:deploy:abort': Error: [not-yet-available] Recalling a running mission arrives in this release."
+            "Error invoking remote method 'mechbay:deploy:abort': Error: [not-yet-available] Reviewing a mission's changes is not available yet."
           )
         })
       }
@@ -67,7 +75,7 @@ describe('RecallButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yes, recall' }))
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
-      'Recalling a running mission arrives in this release.'
+      "Reviewing a mission's changes is not available yet."
     )
   })
 })

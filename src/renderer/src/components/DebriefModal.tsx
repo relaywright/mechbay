@@ -65,9 +65,11 @@ export function DebriefModal(props: {
               {deployment.status === 'cancelled' ? 'Mission recalled.' : 'Objective complete.'}
             </h2>
           </div>
-          <span className="debrief-check" aria-hidden="true">
-            ✓
-          </span>
+          {deployment.status !== 'cancelled' && (
+            <span className="debrief-check" aria-hidden="true">
+              ✓
+            </span>
+          )}
         </div>
         <div id="mission-debrief-title" style={titleStyle}>
           ■ MISSION DEBRIEF / {props.companion.name.toUpperCase()} ←{' '}

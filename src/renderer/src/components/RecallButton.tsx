@@ -42,7 +42,7 @@ export function RecallButton({ deployment }: { deployment: Deployment }): React.
             disabled={pending}
             onClick={() => setConfirming(false)}
           >
-            Keep going
+            {queued ? 'Keep it in line' : 'Keep going'}
           </button>
         </>
       ) : (

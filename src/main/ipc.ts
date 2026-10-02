@@ -49,6 +49,7 @@ import {
 import { redactSecrets } from './redact'
 import type { MissionLogSink } from './log-store'
 import type { MissionRegistry } from './mission-registry'
+import { readUntilExitDrained } from './drain-output'
 import { NotYetAvailableError } from '../shared/bridge-errors'
 import {
   capDeployments,
@@ -86,6 +87,9 @@ export interface IpcDeps {
 }
 
 const FS_DIR_IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'out']
+
+/** After the agent exits, how long its last output may take to arrive. */
+const DRAIN_AFTER_EXIT_MS = 2000
 
 /**
  * Raw task text of queued deployments, by deployment id, with the secrets
@@ -755,6 +759,11 @@ async function runDeployment(
   // before and during launch, since a recall can land during any of them.
   const isCancelled = (): boolean =>
     state.getState().deployments.find((d) => d.id === deploymentId)?.status === 'cancelled'
+  // How the mission was recalled ("by the commander", "when MechBay
+  // closed"), for the mech's memory.
+  const recalledAs = (): string =>
+    state.getState().deployments.find((d) => d.id === deploymentId)?.summary ??
+    'Recalled by the commander.'
 
   // Transition to working
   setDeployment(state, deploymentId, { status: 'working', autonomy: level ?? 'unenforced' })
@@ -790,7 +799,7 @@ async function runDeployment(
         companion,
         facility,
         taskPrompt,
-        'Recalled by the commander before it started.',
+        `${recalledAs()} The agent never started.`,
         secretValues
       )
       return
@@ -822,7 +831,15 @@ async function runDeployment(
 
     // Drain stream BEFORE awaiting exit — exit may resolve while chunks
     // are still queued. Sequential await guarantees all chunks reach renderer.
-    for await (const chunk of result.stream) {
+    // Reading stops DRAIN_AFTER_EXIT_MS after the agent exits, even if a
+    // process it left running still holds the output open.
+    const output = readUntilExitDrained(result.stream, result.exit, DRAIN_AFTER_EXIT_MS, () =>
+      emit({
+        stream: 'system',
+        text: 'The agent exited, but a process it started is still holding its output open. MechBay stopped reading it.\n'
+      })
+    )
+    for await (const chunk of output) {
       for (const parsed of parser.feed(chunk)) emit(parsed)
     }
     // Flush any partial trailing line left in the parser buffers.
@@ -850,7 +867,7 @@ async function runDeployment(
       companion,
       facility,
       taskPrompt,
-      isCancelled() ? 'Recalled by the commander.' : `Failed before exit. ${message}`,
+      isCancelled() ? recalledAs() : `Failed before exit. ${message}`,
       secretValues
     )
     return
@@ -904,7 +921,7 @@ async function runDeployment(
     companion,
     facility,
     taskPrompt,
-    isCancelled() ? `Recalled by the commander. ${diffNote}`.trim() : outcome,
+    isCancelled() ? `${recalledAs()} ${diffNote}`.trim() : outcome,
     secretValues
   )
 }
