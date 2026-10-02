@@ -87,20 +87,22 @@ ffmpeg([
   '-an',
   mp4
 ])
+// Two passes hold VP9 to its bitrate. Single-pass constrained quality
+// overshot to 680 KB once the bay gained motion effects.
+const vp9 = ['-c:v', 'libvpx-vp9', '-b:v', '180k', '-passlogfile', passlog, ...colorOptions]
 ffmpeg([
   ...input,
   '-vf',
   filter,
-  '-c:v',
-  'libvpx-vp9',
-  '-b:v',
-  '180k',
-  '-crf',
-  '38',
-  ...colorOptions,
+  ...vp9,
+  '-pass',
+  '1',
   '-an',
-  webm
+  '-f',
+  'null',
+  process.platform === 'win32' ? 'NUL' : '/dev/null'
 ])
+ffmpeg([...input, '-vf', filter, ...vp9, '-pass', '2', '-an', webm])
 for (const [file, extension] of [
   [mp4, 'mp4'],
   [webm, 'webm']
@@ -130,10 +132,11 @@ for (const [file, extension] of [
   if (media) copyFileSync(file, join(media, `mechbay-demo.${extension}`))
 }
 const gif = join(root, 'docs', 'demo.gif')
+// Bayer scale 5 keeps the README GIF under 5 MB now that the bay animates more.
 ffmpeg([
   ...input,
   '-filter_complex',
-  'fps=8,scale=1000:625:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4',
+  'fps=8,scale=1000:625:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5',
   '-loop',
   '0',
   gif
