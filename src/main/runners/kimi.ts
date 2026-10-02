@@ -1,6 +1,3 @@
-import { readFile } from 'fs/promises'
-import { homedir } from 'os'
-import { join } from 'path'
 import { CliRunner, type CliRunnerDeps } from './base'
 import type { SecretsManager } from '../secrets'
 
@@ -32,9 +29,9 @@ export interface KimiRunnerDeps extends Partial<CliRunnerDeps> {
  *   3. The prompt Kimi sees is assembled from soul.md + memory.md + task
  *      which can exceed the Windows argv ceiling; stdin sidesteps that.
  *
- * Auth is pulled from FIREWORKS_API_KEY (env or ~/.claude/env/personal.env
- * as a fallback, per the script). The Electron main process inherits the
- * user's env by default, so no extra wiring is needed.
+ * Auth comes from FIREWORKS_API_KEY: either the environment or a key stored
+ * in MechBay Settings (encrypted by the OS and injected into this process at
+ * launch).
  */
 export class KimiRunner extends CliRunner {
   protected command = 'python'
@@ -47,35 +44,12 @@ export class KimiRunner extends CliRunner {
     this.secrets = deps.secrets
   }
 
-  // A Python-only probe can mark Raven-Prime deployable when the wrapper will fail authentication.
+  // A Python-only probe would mark Raven-Prime deployable when the wrapper will fail authentication.
   async isAvailable(): Promise<boolean> {
-    const storedKey = this.secrets?.getStatus().kimi ?? false
-    const [pythonPath, apiKey] = await Promise.all([
-      this.which(this.command),
-      storedKey ? Promise.resolve('stored') : this.getApiKey()
-    ])
-    return pythonPath !== null && apiKey !== null
-  }
-
-  private async getApiKey(): Promise<string | null> {
-    const envKey = process.env.FIREWORKS_API_KEY
-    if (envKey) return envKey
-
-    try {
-      const contents = await readFile(join(homedir(), '.claude', 'env', 'personal.env'), 'utf8')
-      const prefix = 'FIREWORKS_API_KEY='
-
-      for (const rawLine of contents.split(/\r?\n/)) {
-        const line = rawLine.trim()
-        if (line.startsWith(prefix) && !line.startsWith('#')) {
-          return line.slice(prefix.length).trim() || null
-        }
-      }
-    } catch {
-      return null
-    }
-
-    return null
+    const pythonPath = await this.which(this.command)
+    const hasKey =
+      (this.secrets?.getStatus().kimi ?? false) || Boolean(process.env.FIREWORKS_API_KEY)
+    return pythonPath !== null && hasKey
   }
 
   protected buildArgs(_prompt: string, model?: string): string[] {

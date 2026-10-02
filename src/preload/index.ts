@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import { IPC } from '../shared/ipc-channels'
 import type {
   AppMode,
@@ -87,14 +86,11 @@ export type MechBayApi = typeof mechbayApi
 
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('mechbay', mechbayApi)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.mechbay = mechbayApi
 }
