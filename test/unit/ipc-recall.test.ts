@@ -353,6 +353,24 @@ describe('shutdownMissions', () => {
     expect(flushAll).toHaveBeenCalled()
     missions.delete('hung')
   })
+
+  it('sends no new mission once MechBay is closing', async () => {
+    const { runner, runs } = controlled()
+    const { state, missions, deploy } = setup(runner)
+    await shutdownMissions({ state, missions, logs: { flushAll: vi.fn() }, timeoutMs: 2000 })
+    await expect(deploy(0)).rejects.toThrow('MechBay is closing.')
+    await new Promise((r) => setTimeout(r, 50))
+    expect(runs).toHaveLength(0)
+    expect(missions.ids()).toEqual([])
+  })
+
+  it('stops an agent that finishes starting after MechBay began closing', async () => {
+    const aborted = vi.fn(async () => {})
+    const missions = new MissionRegistry()
+    missions.close()
+    missions.set('late', { abort: aborted })
+    await vi.waitFor(() => expect(aborted).toHaveBeenCalledTimes(1))
+  })
 })
 
 /** The outcome line most recently written to a mech's memory. */
@@ -376,9 +394,15 @@ describe('missions finish even when the output stays open', () => {
           yield { stream: 'stdout', text: 'Started the dev server on port 5173.\n' }
           await new Promise(() => {})
         }
-        return { stream: stream(), exit: Promise.resolve(0), abort: async () => {} }
+        return {
+          stream: stream(),
+          exit: Promise.resolve(0),
+          abort: async () => {},
+          detachOutput
+        }
       }
     }
+    const detachOutput = vi.fn()
     const { missions, entries, deploy, mission } = setup(runner)
     const { deploymentId } = await deploy(0)
     await vi.waitFor(() => expect(mission(deploymentId)?.status).toBe('completed'), {
@@ -388,6 +412,8 @@ describe('missions finish even when the output stays open', () => {
     const text = entries.map((e) => e.text).join('')
     expect(text).toContain('Started the dev server on port 5173.')
     expect(text).toContain('a process it started is still holding its output open')
+    // The runner stops collecting that process's output once reading stops.
+    expect(detachOutput).toHaveBeenCalledTimes(1)
   }, 10_000)
 })
 
@@ -415,6 +441,34 @@ describe('what a recalled mech remembers', () => {
     await shutdownMissions({ state, missions, logs: { flushAll: vi.fn() }, timeoutMs: 2000 })
     await vi.waitFor(() => expect(missions.ids()).toEqual([]))
     await vi.waitFor(() => expect(lastMemoryOutcome()).toBe('Recalled when MechBay closed.'))
+  })
+
+  it('finishes writing a closed mission before shutdown returns, so quitting cannot cut it off', async () => {
+    const { runner } = controlled()
+    const { state, missions, deploy, mission } = setup(runner)
+    const { deploymentId } = await deploy(0)
+    await vi.waitFor(() => expect(missions.ids()).toEqual([deploymentId]))
+    const flushAll = vi.fn()
+    await shutdownMissions({ state, missions, logs: { flushAll }, timeoutMs: 2000 })
+    // No waiting: the app exits the moment shutdown returns.
+    expect(lastMemoryOutcome()).toBe('Recalled when MechBay closed.')
+    expect(missions.ids()).toEqual([])
+    expect(mission(deploymentId)?.completedAt).toBeDefined()
+    expect(flushAll).toHaveBeenCalled()
+  })
+
+  it('waits for a mission still preparing its launch, and never starts its agent', async () => {
+    let open!: () => void
+    baseline.gate = new Promise<void>((r) => (open = r))
+    const { runner, runs } = controlled()
+    const { state, missions, deploy, mission } = setup(runner)
+    const { deploymentId } = await deploy(0)
+    await vi.waitFor(() => expect(mission(deploymentId)?.status).toBe('working'))
+    const done = shutdownMissions({ state, missions, logs: { flushAll: vi.fn() }, timeoutMs: 2000 })
+    setTimeout(open, 20)
+    await done
+    expect(lastMemoryOutcome()).toBe('Recalled when MechBay closed. The agent never started.')
+    expect(runs).toHaveLength(0)
   })
 
   it('remembers that a mission recalled before launch never started', async () => {

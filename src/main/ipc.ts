@@ -363,6 +363,7 @@ export function registerIpc(opts: IpcDeps): void {
         quickPromptUsed?: string
       }
     ) => {
+      if (opts.missions.closing) throw new Error('MechBay is closing.')
       const deploymentId = ulid()
       const s = state.getState()
       const companion = s.companions.find((c) => c.id === args.companionId)
@@ -651,6 +652,8 @@ export function registerIpc(opts: IpcDeps): void {
  */
 export function startQueuedMissions(opts: IpcDeps): void {
   const { state } = opts
+  // Closing: shutdown cancels every waiting mission, so none may start.
+  if (opts.missions.closing) return
   // A raw prompt is kept only while its mission waits. Anything that ended a
   // queued mission elsewhere (the boot sweep, for one) leaves an entry that
   // no mission will ever read: drop it here.
@@ -730,22 +733,25 @@ function launchMission(
 ): void {
   // Fire and forget: execution updates state asynchronously. A crash lands
   // in the mission as 'failed', and the queue moves on either way.
-  executeDeployment(id, companion, facility, taskPrompt, opts, queuedSecrets)
-    .catch((err) => {
+  const run = executeDeployment(id, companion, facility, taskPrompt, opts, queuedSecrets).catch(
+    (err) => {
       const message = redactSecrets(err instanceof Error ? err.message : String(err), [
         ...collectSecretValues(opts),
         ...queuedSecrets
       ])
       console.error(`[ipc] executeDeployment(${id}) crashed:`, message)
       setDeployment(opts.state, id, { status: 'failed', completedAt: Date.now(), summary: message })
-    })
-    .finally(() => {
-      try {
-        startQueuedMissions(opts)
-      } catch (err) {
-        console.error('[ipc] startQueuedMissions failed after a mission ended:', err)
-      }
-    })
+    }
+  )
+  // Closing MechBay waits for this run to save its outcome before it exits.
+  opts.missions.track(run)
+  void run.finally(() => {
+    try {
+      startQueuedMissions(opts)
+    } catch (err) {
+      console.error('[ipc] startQueuedMissions failed after a mission ended:', err)
+    }
+  })
 }
 
 export async function executeDeployment(
@@ -799,9 +805,11 @@ async function runDeployment(
   // controls its own permissions and MechBay cannot limit it.
   const level = effectiveAutonomy(effectiveRuntime, companion.autonomy ?? DEFAULT_AUTONOMY)
 
-  // A recalled mission is 'cancelled' (P0-11). Checked after the waits
-  // before and during launch, since a recall can land during any of them.
+  // A recalled mission is 'cancelled' (P0-11), and closing MechBay recalls
+  // every mission. Checked after the waits before and during launch, since
+  // a recall can land during any of them.
   const isCancelled = (): boolean =>
+    opts.missions.closing ||
     state.getState().deployments.find((d) => d.id === deploymentId)?.status === 'cancelled'
   // How the mission was recalled ("by the commander", "when MechBay
   // closed"), for the mech's memory.
@@ -881,12 +889,15 @@ async function runDeployment(
     // are still queued. Sequential await guarantees all chunks reach renderer.
     // Reading stops DRAIN_AFTER_EXIT_MS after the agent exits, even if a
     // process it left running still holds the output open.
-    const output = readUntilExitDrained(result.stream, result.exit, DRAIN_AFTER_EXIT_MS, () =>
+    const output = readUntilExitDrained(result.stream, result.exit, DRAIN_AFTER_EXIT_MS, () => {
+      // Stop collecting the leftover process's output, so it does not pile
+      // up in memory for as long as that process runs.
+      result?.detachOutput?.()
       emit({
         stream: 'system',
         text: 'The agent exited, but a process it started is still holding its output open. MechBay stopped reading it.\n'
       })
-    )
+    })
     for await (const chunk of output) {
       for (const parsed of parser.feed(chunk)) emit(parsed)
     }

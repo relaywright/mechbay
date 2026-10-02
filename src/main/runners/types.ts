@@ -26,6 +26,12 @@ export interface SpawnResult {
   exit: Promise<number>
   /** Facts the runner learned from the CLI's output (Claude only today). Read after the stream ends. */
   report?: () => RunReport
+  /**
+   * Stop reading the output and end `stream`, for when the agent has exited
+   * but a process it started still holds the output open. That process's
+   * later output is discarded instead of collected.
+   */
+  detachOutput?: () => void
 }
 
 /** Optional per-spawn overrides threaded through to the runner's argv. */

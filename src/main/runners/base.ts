@@ -123,8 +123,10 @@ export abstract class CliRunner implements Runner {
     })
 
     const transform = this.createStdoutTransform()
+    const output = this.toAsyncStream(child, transform)
     return {
-      stream: this.toAsyncStream(child, transform),
+      stream: output.stream,
+      detachOutput: output.detach,
       abort,
       exit,
       pid: child.pid,
@@ -132,10 +134,10 @@ export abstract class CliRunner implements Runner {
     }
   }
 
-  private async *toAsyncStream(
+  private toAsyncStream(
     child: ChildProcess,
     transform: StreamTransform | null
-  ): AsyncIterable<RunnerChunk> {
+  ): { stream: AsyncIterable<RunnerChunk>; detach: () => void } {
     const queue: RunnerChunk[] = []
     let resolveNext: (() => void) | null = null
     let done = false
@@ -156,20 +158,22 @@ export abstract class CliRunner implements Runner {
       if (shown) queue.push({ stream: 'stdout', text: shown })
     }
 
-    child.stdout?.on('data', (d: Buffer) => {
+    const onStdout = (d: Buffer): void => {
       pushStdout(outDecoder.write(d))
       wake()
-    })
+    }
+    const onStderr = (d: Buffer): void => {
+      const text = errDecoder.write(d)
+      if (text) queue.push({ stream: 'stderr', text })
+      wake()
+    }
+    child.stdout?.on('data', onStdout)
     child.stdout?.on('error', (err) => {
       queue.push({ stream: 'stderr', text: `[stream error] ${err.message}\n` })
       done = true
       wake()
     })
-    child.stderr?.on('data', (d: Buffer) => {
-      const text = errDecoder.write(d)
-      if (text) queue.push({ stream: 'stderr', text })
-      wake()
-    })
+    child.stderr?.on('data', onStderr)
     child.stderr?.on('error', (err) => {
       queue.push({ stream: 'stderr', text: `[stream error] ${err.message}\n` })
       done = true
@@ -192,10 +196,25 @@ export abstract class CliRunner implements Runner {
       wake()
     })
 
-    while (!done || queue.length > 0) {
-      while (queue.length > 0) yield queue.shift()!
-      if (done) break
-      await new Promise<void>((r) => (resolveNext = r))
+    // Stop collecting, but keep the pipes flowing: a process that still
+    // holds them must never block on a full pipe, and its output is dropped.
+    const detach = (): void => {
+      child.stdout?.off('data', onStdout)
+      child.stderr?.off('data', onStderr)
+      child.stdout?.resume()
+      child.stderr?.resume()
+      queue.length = 0
+      done = true
+      wake()
     }
+
+    async function* stream(): AsyncGenerator<RunnerChunk> {
+      while (!done || queue.length > 0) {
+        while (queue.length > 0) yield queue.shift()!
+        if (done) break
+        await new Promise<void>((r) => (resolveNext = r))
+      }
+    }
+    return { stream: stream(), detach }
   }
 }

@@ -386,7 +386,7 @@ descendant, need a native module or a helper binary; that is a bigger
 change than this release needs. Killing processes by name would hit the
 player's own copies of the same tools.
 
-**Consequence:** Two risks remain, accepted on purpose:
+**Consequence:** Four risks remain, accepted on purpose:
 
 - _A tool that leaves the tree escapes._ On Windows, a process whose parent
   shell has already exited is no longer linked to the tree, so `taskkill /T`
@@ -399,6 +399,18 @@ player's own copies of the same tools.
   Windows could hand the same PID to a new, unrelated process, which
   taskkill would then end. MechBay checks the process is still running
   just before starting taskkill, so the window is milliseconds wide.
+- _A finished agent's leftovers are not stopped on macOS and Linux._ Once
+  the agent itself has exited, recalling the mission signals nothing, even
+  if a process it started is still in the group. Signalling a group whose
+  leader is gone could, after enough time, reach an unrelated program that
+  was given the same number. Windows is not affected, because it never
+  links a process to a parent that has exited.
+- _A launcher that exits early ends the mission early._ MechBay stops
+  reading two seconds after the process it started exits, so a leftover
+  dev server cannot hold a mission open forever. A runtime command that
+  only starts the real agent and exits at once (a launcher script) would
+  have its mission end two seconds later, with the agent still working.
+  None of the built-in runtimes work this way; a custom command could.
 
 **Source:** internal Track B plan (2026-10-02, Task 7), Claude adversarial
 review (2026-10-02; cross-family = Claude + Codex, Codex review queued)
