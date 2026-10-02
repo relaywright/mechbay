@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 import icon from '../../resources/icon.png?asset'
 import { StateManager } from './state-manager'
+import { openStateStore } from './state-store'
 import { scaffoldSoulAndMemory } from './soul-memory'
 import { FsReader } from './fs-reader'
 import { ClaudeRunner } from './runners/claude'
@@ -102,8 +103,13 @@ app.whenReady().then(() => {
 
   // ─── MechBay subsystems ───────────────────────────────────────
   const demoMode = isDemoMode()
-  const store = new Store({ name: demoMode ? 'mechbay-state-demo' : 'mechbay-state' })
-  const state = new StateManager(store, app.getPath('userData'))
+  const userData = app.getPath('userData')
+  const opened = openStateStore({
+    dir: userData,
+    name: demoMode ? 'mechbay-state-demo' : 'mechbay-state',
+    createStore: (name) => new Store({ name })
+  })
+  const state = new StateManager(opened.store, userData, { startupNotice: opened.notice })
   const secrets = new SecretsManager(new Store({ name: 'mechbay-secrets' }))
 
   if (demoMode) {

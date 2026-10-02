@@ -6,6 +6,7 @@ export const IPC = {
   APP_MODE_GET: 'mechbay:app:modeGet',
   STATE_SUBSCRIBE: 'mechbay:state:subscribe',
   STATE_GET: 'mechbay:state:get',
+  STATE_HEALTH_GET: 'mechbay:state:healthGet',
   DEPLOY_START: 'mechbay:deploy:start',
   DEPLOY_ABORT: 'mechbay:deploy:abort',
   DEPLOY_INPUT: 'mechbay:deploy:input',

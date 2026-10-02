@@ -113,7 +113,6 @@ describe('executeDeployment runtime selection', () => {
       spriteKey: 'mech-atlas',
       homeTile: { x: 4, y: 10 },
       cliAvailable: true,
-      recentDeploymentIds: [],
       soulPath,
       memoryPath
     }

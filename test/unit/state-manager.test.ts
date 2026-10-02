@@ -18,7 +18,7 @@ describe('StateManager', () => {
     const sm = new StateManager(store, '/tmp/mechbay-test')
     const state = sm.getState()
 
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(3)
     expect(state.companions).toHaveLength(5)
     expect(state.companions.map((c) => c.family).sort()).toEqual([
       'claude',
@@ -44,9 +44,9 @@ describe('StateManager', () => {
     ])
   })
 
-  it('re-seeds state when cached version is stale (schema migration)', () => {
+  it('starts a fresh bay when the saved schema predates the first release', () => {
     const store = makeInMemoryStore()
-    // Pre-populate store with v1 data (no facilities) to simulate pre-migration
+    // Schema 1 never shipped, so there is nothing to migrate from
     store.set('state', {
       version: 1,
       companions: [],
@@ -57,9 +57,10 @@ describe('StateManager', () => {
     })
     const sm = new StateManager(store, '/tmp/mechbay-test')
     const state = sm.getState()
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(3)
     expect(state.companions).toHaveLength(5)
     expect(state.facilities).toHaveLength(6)
+    expect(sm.getHealth()).toMatchObject({ ok: true, notice: expect.stringContaining('fresh') })
   })
 
   it('seeds canonical mech-class mapping per spec §6', () => {
@@ -95,12 +96,12 @@ describe('StateManager', () => {
   it('persists updates via updateState()', () => {
     const store = makeInMemoryStore()
     const sm = new StateManager(store, '/tmp/mechbay-test')
-    sm.updateState((s) => ({ ...s, lastScanAt: 1234 }))
-    expect(sm.getState().lastScanAt).toBe(1234)
+    sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 5 } }))
+    expect(sm.getState().settings.concurrencyCap).toBe(5)
 
     // Verify persistence reaches the store
     const sm2 = new StateManager(store, '/tmp/mechbay-test')
-    expect(sm2.getState().lastScanAt).toBe(1234)
+    expect(sm2.getState().settings.concurrencyCap).toBe(5)
   })
 
   it('emits stateChanged events on update', () => {
@@ -110,8 +111,8 @@ describe('StateManager', () => {
     sm.on('stateChanged', () => {
       calls++
     })
-    sm.updateState((s) => ({ ...s, lastScanAt: 5678 }))
-    sm.updateState((s) => ({ ...s, lastScanAt: 9999 }))
+    sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 4 } }))
+    sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 5 } }))
     expect(calls).toBe(2)
   })
 

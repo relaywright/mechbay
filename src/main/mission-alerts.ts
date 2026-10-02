@@ -78,9 +78,7 @@ export function formatMissionAlert(
   }
 
   // awaiting-input
-  const body = deployment.pendingInput?.prompt
-    ? deployment.pendingInput.prompt
-    : `${facilityName} · Waiting for your input.`
+  const body = `${facilityName} · Waiting for your input.`
   return { title: `${name} needs input`, body: truncate(body, 120) }
 }
 

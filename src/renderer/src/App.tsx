@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import Phaser from 'phaser'
-import type { AppState, Deployment } from '../../shared/types'
+import type { AppState, Deployment, StateHealth } from '../../shared/types'
 import { BayScene } from './game/BayScene'
 import { bus } from './bus'
 import { DeployModal } from './components/DeployModal'
 import { CrashRecoveryModal } from './components/CrashRecoveryModal'
+import { StateRecoveryModal } from './components/StateRecoveryModal'
 import { DebriefModal } from './components/DebriefModal'
 import { FileBrowser } from './components/FileBrowser'
 import { JournalTab } from './components/JournalTab'
@@ -31,6 +32,8 @@ function App(): React.JSX.Element {
     facilityId: string
   } | null>(null)
   const [recoveryZombies, setRecoveryZombies] = useState<Deployment[] | null>(null)
+  const [stateHealth, setStateHealth] = useState<StateHealth | null>(null)
+  const [stateNoticeDismissed, setStateNoticeDismissed] = useState(false)
   const [browsingFacilityId, setBrowsingFacilityId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<SidebarTab>('operations')
   const [demo, setDemo] = useState(false)
@@ -42,6 +45,7 @@ function App(): React.JSX.Element {
   const [debriefQueue, setDebriefQueue] = useState<string[]>([])
   const [bootDone, setBootDone] = useState(false)
   const handleBootDone = useCallback(() => setBootDone(true), [])
+  const dismissStateNotice = useCallback(() => setStateNoticeDismissed(true), [])
 
   const canvasParentRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<BayScene | null>(null)
@@ -61,9 +65,13 @@ function App(): React.JSX.Element {
       })
       .catch((e) => setError(String(e)))
     void window.mechbay
+      .getStateHealth()
+      .then(setStateHealth)
+      .catch((e) => console.error('[app] getStateHealth failed:', e))
+    void window.mechbay
       .getAppMode()
       .then((mode) => setDemo(mode.demo))
-      .catch(() => {})
+      .catch((e) => console.error('[app] getAppMode failed:', e))
     const offState = window.mechbay.onStateChange((nextState) => {
       const previousState = previousStateRef.current
       if (previousState) {
@@ -301,10 +309,16 @@ function App(): React.JSX.Element {
   const debriefFacility = state?.facilities.find(
     (facility) => facility.id === debriefDeployment?.facilityId
   )
+  // Shown once per launch; the NOT SAVING chip stays after it is dismissed.
+  const showStateNotice =
+    !stateNoticeDismissed &&
+    stateHealth !== null &&
+    (!stateHealth.ok || Boolean(stateHealth.notice))
   const otherModalOpen = Boolean(
     pendingDeploy ||
     bulkImportOpen ||
     settingsOpen ||
+    showStateNotice ||
     (recoveryZombies && recoveryZombies.length > 0)
   )
 
@@ -317,6 +331,7 @@ function App(): React.JSX.Element {
       <HudHeader
         state={state}
         demo={demo}
+        notSaving={stateHealth?.ok === false}
         onBulkImportClick={() => setBulkImportOpen(true)}
         onSettingsClick={() => setSettingsOpen(true)}
       />
@@ -544,6 +559,10 @@ function App(): React.JSX.Element {
 
       {recoveryZombies && recoveryZombies.length > 0 && (
         <CrashRecoveryModal zombies={recoveryZombies} onDismiss={() => setRecoveryZombies(null)} />
+      )}
+
+      {stateHealth && showStateNotice && (
+        <StateRecoveryModal health={stateHealth} onDismiss={dismissStateNotice} />
       )}
 
       {bulkImportOpen && <BulkImportModal onClose={() => setBulkImportOpen(false)} />}
