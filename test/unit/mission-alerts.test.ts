@@ -41,7 +41,8 @@ const COMPANION: Companion = {
   homeTile: { x: 4, y: 10 },
   cliAvailable: true,
   soulPath: '/tmp/atlas/soul.md',
-  memoryPath: '/tmp/atlas/memory.md'
+  memoryPath: '/tmp/atlas/memory.md',
+  autonomy: 'edit'
 }
 
 const FACILITY: Facility = {

@@ -1,4 +1,5 @@
 import { CliRunner } from './base'
+import type { RunnerSpawnOptions } from './types'
 
 /**
  * Split a user-provided command line without invoking a shell. Quotes group
@@ -58,7 +59,8 @@ export class HermesRunner extends CliRunner {
     return command !== undefined && (await this.which(command)) !== null
   }
 
-  protected buildArgs(prompt: string, model?: string): string[] {
+  protected buildArgs(prompt: string, options: RunnerSpawnOptions): string[] {
+    const model = options.model
     return this.commandTokens()
       .slice(1)
       .map((token) => token.replaceAll('{PROMPT}', prompt))

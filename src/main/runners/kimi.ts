@@ -1,5 +1,6 @@
 import { CliRunner, type CliRunnerDeps } from './base'
 import type { SecretsManager } from '../secrets'
+import type { RunnerSpawnOptions } from './types'
 
 export interface KimiRunnerDeps extends Partial<CliRunnerDeps> {
   /**
@@ -52,8 +53,14 @@ export class KimiRunner extends CliRunner {
     return pythonPath !== null && hasKey
   }
 
-  protected buildArgs(_prompt: string, model?: string): string[] {
-    return [this.scriptPath, '-', '-v', '--narrate', ...(model ? ['--model', model] : [])]
+  protected buildArgs(_prompt: string, options: RunnerSpawnOptions): string[] {
+    return [
+      this.scriptPath,
+      '-',
+      '-v',
+      '--narrate',
+      ...(options.model ? ['--model', options.model] : [])
+    ]
   }
 
   protected stdinInput(prompt: string): string | null {

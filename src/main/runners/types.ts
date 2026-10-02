@@ -8,6 +8,7 @@
  */
 
 import type { RunReport } from './claude-stream'
+import type { AutonomyLevel } from '../../shared/autonomy'
 
 export interface RunnerChunk {
   stream: 'stdout' | 'stderr'
@@ -31,6 +32,8 @@ export interface RunnerSpawnOptions {
   model?: string
   /** Environment variables injected into this process only. */
   env?: Record<string, string>
+  /** Permission level; each runner maps it to its CLI's own flags. Defaults to DEFAULT_AUTONOMY. */
+  autonomy?: AutonomyLevel
 }
 
 export interface Runner {

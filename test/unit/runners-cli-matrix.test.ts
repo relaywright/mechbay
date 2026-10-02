@@ -39,13 +39,22 @@ const CASES: Case[] = [
     label: 'claude',
     Runner: ClaudeRunner as never,
     expectedCommand: 'claude',
-    expectedArgs: () => ['-p', '--output-format', 'stream-json', '--verbose']
+    // No level given: the runner applies the default (Edit files).
+    expectedArgs: () => [
+      '-p',
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--permission-mode',
+      'acceptEdits'
+    ]
   },
   {
     label: 'codex',
     Runner: CodexRunner as never,
     expectedCommand: 'codex',
-    expectedArgs: () => ['exec', '-']
+    // Pinned to linux below, so no Windows sandbox override.
+    expectedArgs: () => ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-']
   },
   {
     label: 'gemini',
@@ -114,6 +123,7 @@ describe.each(CASES)('$label runner', ({ Runner, expectedCommand, expectedArgs, 
     const child = makeFakeChild()
     const runner = new Runner({
       which: async () => '/fake/' + expectedCommand,
+      platform: 'linux',
       spawnProcess: ((cmd: string, args: string[]) => {
         spawnCalls.push([cmd, args])
         return child
@@ -153,7 +163,7 @@ describe('CliRunner spawn safety', () => {
 
     expect(spawnProcess).toHaveBeenCalledWith(
       'claude',
-      ['-p', '--output-format', 'stream-json', '--verbose'],
+      ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits'],
       {
         cwd: '/tmp/project',
         shell: false

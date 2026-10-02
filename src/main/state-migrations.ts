@@ -1,4 +1,5 @@
 import type { AgentFamily, AppState, DiffFileStat, FacilityType, MechClass } from '../shared/types'
+import { DEFAULT_AUTONOMY } from '../shared/autonomy'
 
 /**
  * Saved-state migrations (P0-14). The saved bay is upgraded one schema
@@ -141,7 +142,8 @@ const SAVED_SHAPES: Readonly<Record<number, (value: unknown) => boolean>> = {
  * `pendingInput`; none of them carries anything a player made.
  * `logChunks` also leaves saved state, but its lines are not lost:
  * StateManager hands them to the log store (log-store.ts), which writes
- * them to per-mission files at startup.
+ * them to per-mission files at startup. Every mech gains the default
+ * Autonomy level (P0-12, DEFAULT_AUTONOMY: Edit files).
  */
 export function migrateV2ToV3(input: unknown): AppState {
   const s = input as AppStateV2
@@ -150,7 +152,10 @@ export function migrateV2ToV3(input: unknown): AppState {
   return {
     ...rest,
     version: 3,
-    companions: s.companions.map(({ recentDeploymentIds: _ids, ...companion }) => companion),
+    companions: s.companions.map(({ recentDeploymentIds: _ids, ...companion }) => ({
+      ...companion,
+      autonomy: DEFAULT_AUTONOMY
+    })),
     facilities: s.facilities.map(({ decommissioned: _decommissioned, ...facility }) => facility),
     deployments: s.deployments.map(({ pendingInput: _pending, ...deployment }) => deployment),
     settings: keptSettings

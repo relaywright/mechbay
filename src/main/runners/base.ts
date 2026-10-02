@@ -19,6 +19,10 @@ import type { StreamTransform } from './claude-stream'
 export interface CliRunnerDeps {
   which: (cmd: string) => Promise<string | null>
   spawnProcess?: typeof nodeSpawn
+  /** Defaults to process.platform. Lets tests pin Windows-only flags. */
+  platform?: NodeJS.Platform
+  /** Extra argv a runner inserts before its model flag. Used by acceptance tests to ignore the user's own CLI config. */
+  profileArgs?: string[]
 }
 
 export async function defaultWhich(cmd: string): Promise<string | null> {
@@ -34,16 +38,20 @@ export async function defaultWhich(cmd: string): Promise<string | null> {
 export abstract class CliRunner implements Runner {
   protected which: (cmd: string) => Promise<string | null>
   protected spawnProcess: typeof nodeSpawn
+  protected platform: NodeJS.Platform
+  protected profileArgs: string[]
 
   constructor(deps: Partial<CliRunnerDeps> = {}) {
     this.which = deps.which ?? defaultWhich
     this.spawnProcess = deps.spawnProcess ?? (crossSpawn as typeof nodeSpawn)
+    this.platform = deps.platform ?? process.platform
+    this.profileArgs = deps.profileArgs ?? []
   }
 
   /** The executable to look up on PATH and invoke. */
   protected abstract command: string
-  /** Turn a user prompt (+ optional model override) into argv for the CLI. */
-  protected abstract buildArgs(prompt: string, model?: string): string[]
+  /** Turn a user prompt and the spawn options (model, Autonomy level) into argv for the CLI. */
+  protected abstract buildArgs(prompt: string, options: RunnerSpawnOptions): string[]
   /**
    * Optionally pipe content to the child's stdin and close it.
    * Default: no stdin writes — the runner relies purely on argv.
@@ -72,7 +80,7 @@ export abstract class CliRunner implements Runner {
     }
     const child = this.spawnProcess(
       this.command,
-      this.buildArgs(prompt, options?.model),
+      this.buildArgs(prompt, options ?? {}),
       spawnOptions
     )
 

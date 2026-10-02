@@ -49,6 +49,13 @@ import {
 import { redactSecrets } from './redact'
 import type { MissionLogSink } from './log-store'
 import { NotYetAvailableError } from '../shared/bridge-errors'
+import {
+  AUTONOMY_LABELS,
+  AUTONOMY_LEVELS,
+  DEFAULT_AUTONOMY,
+  autonomySupport,
+  effectiveAutonomy
+} from '../shared/autonomy'
 
 const GRID_W = 16
 const GRID_H = 16
@@ -518,27 +525,33 @@ export function registerIpc(opts: IpcDeps): void {
       if (payload.name !== undefined && (!name || name.length > 24)) {
         return { ok: false, error: 'Name must be 1-24 characters' }
       }
-      if (runtime === undefined) {
-        if (name) {
-          state.updateState((prev) => ({
-            ...prev,
-            companions: prev.companions.map((candidate) =>
-              candidate.id === companionId ? { ...candidate, name } : candidate
-            )
-          }))
-        }
-        return { ok: true, cliAvailable: companion.cliAvailable }
+      const autonomy = payload.autonomy
+      if (autonomy !== undefined && !AUTONOMY_LEVELS.includes(autonomy)) {
+        return { ok: false, error: `Unknown Autonomy level: ${String(autonomy)}` }
       }
-      if (!(runtime in runners)) {
+      if (runtime !== undefined && !(runtime in runners)) {
         return { ok: false, error: `Unknown runtime: ${runtime}` }
       }
+      const targetRuntime = runtime ?? companion.runtime ?? companion.family
+      if (autonomy !== undefined) {
+        const support = autonomySupport(targetRuntime)
+        if (!support.available[autonomy]) {
+          return {
+            ok: false,
+            error:
+              `${AUTONOMY_LABELS[autonomy]} is not available for this runtime. ${support.reason ?? ''}`.trim()
+          }
+        }
+      }
 
-      let cliAvailable: boolean
-      try {
-        cliAvailable = await runners[runtime].isAvailable()
-      } catch (err) {
-        console.warn(`[ipc] isAvailable() threw for runtime ${runtime}:`, err)
-        cliAvailable = false
+      let cliAvailable = companion.cliAvailable
+      if (runtime !== undefined) {
+        try {
+          cliAvailable = await runners[runtime].isAvailable()
+        } catch (err) {
+          console.warn(`[ipc] isAvailable() threw for runtime ${runtime}:`, err)
+          cliAvailable = false
+        }
       }
 
       state.updateState((prev) => ({
@@ -547,15 +560,15 @@ export function registerIpc(opts: IpcDeps): void {
           c.id === companionId
             ? {
                 ...c,
-                runtime,
-                model: payload.model?.trim() || undefined,
-                cliAvailable,
-                ...(name ? { name } : {})
+                ...(name ? { name } : {}),
+                ...(autonomy ? { autonomy } : {}),
+                ...(runtime !== undefined
+                  ? { runtime, model: payload.model?.trim() || undefined, cliAvailable }
+                  : {})
               }
             : c
         )
       }))
-
       return { ok: true, cliAvailable }
     }
   )
@@ -613,15 +626,20 @@ async function runDeployment(
   let secretValues = [...collectSecretValues(opts), ...extraSecrets]
   const redact = (text: string): string => redactSecrets(text, secretValues)
 
+  // The level this mission actually runs at; null when the runtime
+  // controls its own permissions and MechBay cannot limit it.
+  const level = effectiveAutonomy(effectiveRuntime, companion.autonomy ?? DEFAULT_AUTONOMY)
+
   // Transition to working
   state.updateState((prev) => ({
     ...prev,
     deployments: prev.deployments.map((d) =>
-      d.id === deploymentId ? { ...d, status: 'working' } : d
+      d.id === deploymentId ? { ...d, status: 'working', autonomy: level ?? 'unenforced' } : d
     )
   }))
 
   let exitCode: number
+  let denials: string[] = []
   let baselineSha: string | null = null
   try {
     // Wrap the task prompt in the companion's soul + memory so every
@@ -648,7 +666,8 @@ async function runDeployment(
     secretValues = [...secretValues, ...secretEnvValues(launchEnv)]
     const result = await runner.spawn(facility.path, fullPrompt, {
       model: companion.model,
-      env: launchEnv
+      env: launchEnv,
+      autonomy: level ?? undefined
     })
     const parser = new NarrationParser()
 
@@ -671,6 +690,10 @@ async function runDeployment(
     for (const parsed of parser.flush()) emit(parsed)
 
     exitCode = await result.exit
+    // Denial labels carry raw command text (for example `Bash: <command>`),
+    // which can hold an API key: redact them like every log line before
+    // they are saved and sent to the window.
+    denials = (result.report?.().permissionDenials ?? []).map(redact)
   } catch (err) {
     const message = redact(err instanceof Error ? err.message : String(err))
     state.updateState((prev) => ({
@@ -724,7 +747,8 @@ async function runDeployment(
             exitCode,
             completedAt: Date.now(),
             summary: outcome,
-            ...diffFields
+            ...diffFields,
+            ...(denials.length ? { permissionDenials: denials } : {})
           }
         : d
     )

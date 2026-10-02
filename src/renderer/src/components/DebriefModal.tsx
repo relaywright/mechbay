@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Companion, Deployment, Facility } from '../../../shared/types'
+import { AUTONOMY_LABELS } from '../../../shared/autonomy'
 import { colors, type } from '../theme'
 import { DiffViewer } from './DiffViewer'
 
@@ -102,11 +103,35 @@ export function DebriefModal(props: {
             <dt style={labelStyle}>EXIT CODE</dt>
             <dd style={valueStyle}>{deployment.exitCode ?? 'N/A'}</dd>
           </div>
+          {deployment.autonomy && (
+            <div style={detailRowStyle}>
+              <dt style={labelStyle}>AUTONOMY</dt>
+              <dd style={valueStyle}>
+                {deployment.autonomy === 'unenforced'
+                  ? 'Not enforced'
+                  : AUTONOMY_LABELS[deployment.autonomy]}
+              </dd>
+            </div>
+          )}
           <div style={detailRowStyle}>
             <dt style={labelStyle}>SUMMARY</dt>
             <dd style={summaryValueStyle}>{deployment.summary ?? 'Completed.'}</dd>
           </div>
         </dl>
+
+        {deployment.permissionDenials?.length ? (
+          <section aria-label="Blocked actions" className="debrief-blocked">
+            <h3>BLOCKED · needed approval</h3>
+            <ul>
+              {deployment.permissionDenials.map((label, i) => (
+                <li key={i}>
+                  <code>{label}</code>
+                </li>
+              ))}
+            </ul>
+            <p>Run these yourself, or raise this mech’s Autonomy in Settings and send it again.</p>
+          </section>
+        ) : null}
 
         {diffFiles === undefined ? (
           // The summary names the reason (no repository, or git could not read it).

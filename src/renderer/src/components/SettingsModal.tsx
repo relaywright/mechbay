@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentFamily, Companion } from '../../../shared/types'
+import type { AgentFamily, Companion, CompanionConfigurePayload } from '../../../shared/types'
+import { DEFAULT_AUTONOMY } from '../../../shared/autonomy'
+import { ipcErrorMessage } from '../../../shared/bridge-errors'
 import { RUNTIME_ENV, RUNTIME_OPTIONS } from '../runtime-options'
 import { colors, type } from '../theme'
+import { AutonomyControl } from './AutonomyControl'
 
 interface SettingsModalProps {
   companions: Companion[]
@@ -250,25 +253,36 @@ function MechSettingsRow({
   const [runtime, setRuntime] = useState<AgentFamily>(companion.runtime ?? companion.family)
   const [model, setModel] = useState(companion.model ?? '')
   const [keyValue, setKeyValue] = useState('')
-  const [pending, setPending] = useState<'name' | 'runtime' | 'key' | null>(null)
+  const [pending, setPending] = useState<'name' | 'runtime' | 'autonomy' | 'key' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The saved runtime, not the dropdown's unapplied choice: a level change
+  // saves at once and is checked against the runtime the mech runs today.
+  const savedRuntime = companion.runtime ?? companion.family
 
-  const configure = async (kind: 'name' | 'runtime'): Promise<void> => {
+  const apply = async (
+    kind: 'name' | 'runtime' | 'autonomy',
+    payload: CompanionConfigurePayload
+  ): Promise<void> => {
     setPending(kind)
     setError(null)
     try {
-      const result = await window.mechbay.configureCompanion(
-        kind === 'name'
-          ? { companionId: companion.id, name }
-          : { companionId: companion.id, runtime, model }
-      )
+      const result = await window.mechbay.configureCompanion(payload)
       if (!result.ok) setError(result.error)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      console.error('[settings] configureCompanion failed', err)
+      setError(ipcErrorMessage(err))
     } finally {
       setPending(null)
     }
   }
+
+  const configure = (kind: 'name' | 'runtime'): Promise<void> =>
+    apply(
+      kind,
+      kind === 'name'
+        ? { companionId: companion.id, name }
+        : { companionId: companion.id, runtime, model }
+    )
 
   const saveSecret = async (value: string): Promise<void> => {
     setPending('key')
@@ -353,6 +367,18 @@ function MechSettingsRow({
             </button>
           </span>
         </label>
+
+        <div style={fieldStyle}>
+          <span style={labelStyle}>AUTONOMY</span>
+          <AutonomyControl
+            runtime={savedRuntime}
+            value={companion.autonomy ?? DEFAULT_AUTONOMY}
+            disabled={pending !== null}
+            onChange={(level) =>
+              void apply('autonomy', { companionId: companion.id, autonomy: level })
+            }
+          />
+        </div>
 
         <div style={fieldStyle}>
           <span style={labelStyle}>API KEY</span>

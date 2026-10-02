@@ -14,6 +14,7 @@ import type {
   StateHealth
 } from '../shared/types'
 import { ulid } from '../shared/ulid'
+import { DEFAULT_AUTONOMY } from '../shared/autonomy'
 import {
   CURRENT_SCHEMA_VERSION,
   isAppStateV2,
@@ -82,7 +83,8 @@ function defaultState(userDataDir: string): AppState {
         homeTile: m.homeTile,
         cliAvailable: false,
         soulPath: path.join(barracks, 'soul.md'),
-        memoryPath: path.join(barracks, 'memory.md')
+        memoryPath: path.join(barracks, 'memory.md'),
+        autonomy: DEFAULT_AUTONOMY
       }
       return companion
     }),
