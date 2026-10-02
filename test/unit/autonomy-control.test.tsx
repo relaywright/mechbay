@@ -25,6 +25,14 @@ describe('AutonomyControl', () => {
     expect(screen.getByText(/every action approved/)).toBeTruthy()
   })
 
+  it('shows the CLI-settings caveat as visible text for enforced runtimes', () => {
+    render(<AutonomyControl runtime="claude" value="read" onChange={() => {}} />)
+    expect(screen.getByText(/inside the project \(allow rules, hooks\)/)).toBeTruthy()
+    expect(
+      screen.getByText('Can look through the project. The CLI blocks any change to files.')
+    ).toBeTruthy()
+  })
+
   it('shows "Not enforced" for runtimes MechBay cannot limit', () => {
     render(<AutonomyControl runtime="hermes" value="edit" onChange={() => {}} />)
     expect(screen.getByText(/Not enforced/)).toBeTruthy()

@@ -17,13 +17,13 @@ export const AUTONOMY_LABELS: Record<AutonomyLevel, string> = {
 }
 
 export const AUTONOMY_HINTS: Record<AutonomyLevel, string> = {
-  read: 'Can look through the project but cannot change anything.',
+  read: 'Can look through the project. The CLI blocks any change to files.',
   edit: 'Can change files in the project. Anything that needs more access is blocked.',
   full: 'Can change files and run any command without asking. Use it only on projects you can restore.'
 }
 
 export const USER_RULES_NOTE =
-  'Your own CLI settings (allow rules, hooks) can permit more than the level you pick here. MechBay passes the level on every launch, but it cannot remove rules you added yourself.'
+  'CLI settings on this computer or inside the project (allow rules, hooks) can permit more than this level. MechBay cannot remove them.'
 
 export interface AutonomySupport {
   /** False when the runtime controls its own permissions and MechBay cannot limit it. */
@@ -50,6 +50,8 @@ export function autonomySupport(runtime: AgentFamily): AutonomySupport {
       }
     case 'kimi':
     case 'hermes':
+    default:
+      // Unknown values (a damaged save) are treated like an agent MechBay cannot limit.
       return {
         enforced: false,
         available: NONE,
@@ -67,4 +69,26 @@ export function effectiveAutonomy(
   if (!support.enforced) return null
   if (support.available[level]) return level
   return AUTONOMY_LEVELS.find((l) => support.available[l]) ?? null
+}
+
+/** A mission's real level; 'unenforced' (MechBay cannot limit it) ranks above Full. */
+export type EffectiveAutonomy = AutonomyLevel | 'unenforced'
+
+function rank(level: EffectiveAutonomy): number {
+  return level === 'unenforced' ? AUTONOMY_LEVELS.length : AUTONOMY_LEVELS.indexOf(level)
+}
+
+/**
+ * The level a mech would really run at after a runtime switch, when that is
+ * more than it runs at today (Read only on Claude becomes Full on Gemini).
+ * Undefined when the switch does not raise it.
+ */
+export function autonomyRaisedBy(
+  from: AgentFamily,
+  to: AgentFamily,
+  level: AutonomyLevel
+): EffectiveAutonomy | undefined {
+  const before = effectiveAutonomy(from, level) ?? 'unenforced'
+  const after = effectiveAutonomy(to, level) ?? 'unenforced'
+  return rank(after) > rank(before) ? after : undefined
 }

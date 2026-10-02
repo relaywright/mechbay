@@ -6,7 +6,7 @@
  * cross IPC boundaries cleanly.
  */
 
-import type { AutonomyLevel } from './autonomy'
+import type { AutonomyLevel, EffectiveAutonomy } from './autonomy'
 
 export type AgentFamily = 'claude' | 'codex' | 'kimi' | 'gemini' | 'hermes'
 
@@ -220,6 +220,12 @@ export interface CompanionConfigurePayload {
   model?: string
   name?: string
   autonomy?: AutonomyLevel
+  /**
+   * Required when a runtime switch raises the level missions really run at
+   * (Read only on Claude becomes Full on Gemini): the level the user saw and
+   * confirmed. A request without it, or with a different level, is rejected.
+   */
+  acceptAutonomy?: EffectiveAutonomy
 }
 
 /** Result for COMPANION_CONFIGURE IPC call. */

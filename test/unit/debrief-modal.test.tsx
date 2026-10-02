@@ -46,3 +46,43 @@ describe('DebriefModal without a file diff', () => {
     expect(screen.getByText('File diff unavailable. The summary above says why.')).toBeTruthy()
   })
 })
+
+describe('DebriefModal blocked actions', () => {
+  function renderBlocked(autonomy: Deployment['autonomy']): void {
+    const deployment = {
+      id: 'dep-2',
+      companionId: 'atlas',
+      facilityId: 'reactor',
+      taskPrompt: 'Clean the build',
+      status: 'completed',
+      startedAt: 0,
+      completedAt: 1000,
+      exitCode: 0,
+      summary: 'Completed.',
+      autonomy,
+      permissionDenials: ['Bash: rm -rf build']
+    } as Deployment
+    render(
+      <DebriefModal
+        deployment={deployment}
+        companion={{ id: 'atlas', name: 'Atlas-Prime' } as Companion}
+        facility={{ id: 'reactor', name: 'Reactor Control' } as Facility}
+        onDismiss={() => {}}
+      />
+    )
+  }
+
+  it('suggests raising Autonomy when the mission ran below Full', () => {
+    renderBlocked('edit')
+    expect(screen.getByText(/raise this mech’s Autonomy/)).toBeTruthy()
+  })
+
+  it.each(['full', 'unenforced'] as const)(
+    'points at CLI rules instead when it ran at %s',
+    (autonomy) => {
+      renderBlocked(autonomy)
+      expect(screen.queryByText(/raise this mech’s Autonomy/)).toBeNull()
+      expect(screen.getByText(/allow and deny rules in your CLI settings/)).toBeTruthy()
+    }
+  )
+})

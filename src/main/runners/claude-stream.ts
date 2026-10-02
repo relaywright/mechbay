@@ -221,10 +221,19 @@ export class ClaudeStreamFormatter implements StreamTransform {
     if (id && this.announced.has(id)) return []
     if (id) this.announced.add(id)
     const label = this.labels.get(id) ?? (toolName || 'a tool')
+    if (NOT_AN_ACTION.has(label)) return []
     this.denials.push(label)
     return [`DENIED · ${label}`]
   }
 }
+
+/**
+ * Tools that ask the commander something rather than act on the project. In
+ * a headless run under Read only (plan mode) Claude usually ends by calling
+ * ExitPlanMode, which is refused; listing it as a blocked action to "run
+ * yourself" would be noise.
+ */
+const NOT_AN_ACTION = new Set(['ExitPlanMode', 'AskUserQuestion'])
 
 function stripCr(line: string): string {
   return line.endsWith('\r') ? line.slice(0, -1) : line

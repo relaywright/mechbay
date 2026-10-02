@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { ClaudeRunner } from '../../src/main/runners/claude'
 import { CodexRunner } from '../../src/main/runners/codex'
 import { GeminiRunner } from '../../src/main/runners/gemini'
-import { autonomySupport, effectiveAutonomy } from '../../src/shared/autonomy'
+import { autonomyRaisedBy, autonomySupport, effectiveAutonomy } from '../../src/shared/autonomy'
+import type { AgentFamily } from '../../src/shared/types'
 
 function fakeSpawn(): { calls: { cmd: string; args: string[] }[]; spawnProcess: never } {
   const calls: { cmd: string; args: string[] }[] = []
@@ -167,5 +168,26 @@ describe('autonomy support matrix', () => {
       )
     ])
     expect(strings).not.toContain('\u2014')
+  })
+})
+
+describe('autonomyRaisedBy (runtime switch)', () => {
+  it('reports the higher level a switch would run at', () => {
+    expect(autonomyRaisedBy('claude', 'gemini', 'read')).toBe('full')
+    expect(autonomyRaisedBy('codex', 'kimi', 'full')).toBe('unenforced')
+    expect(autonomyRaisedBy('gemini', 'hermes', 'edit')).toBe('unenforced')
+  })
+
+  it('is undefined when the level stays the same or drops', () => {
+    expect(autonomyRaisedBy('claude', 'codex', 'read')).toBeUndefined()
+    expect(autonomyRaisedBy('claude', 'gemini', 'full')).toBeUndefined()
+    expect(autonomyRaisedBy('gemini', 'claude', 'edit')).toBeUndefined()
+    expect(autonomyRaisedBy('kimi', 'claude', 'read')).toBeUndefined()
+  })
+
+  it('treats an unknown runtime from a damaged save as not enforced instead of crashing', () => {
+    const bogus = 'toString' as AgentFamily
+    expect(autonomySupport(bogus).enforced).toBe(false)
+    expect(effectiveAutonomy(bogus, 'read')).toBeNull()
   })
 })

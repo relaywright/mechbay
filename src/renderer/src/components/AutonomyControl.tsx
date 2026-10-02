@@ -34,11 +34,7 @@ export function AutonomyControl({
             role="radio"
             aria-checked={shown === level}
             disabled={disabled || !support.available[level]}
-            title={
-              support.available[level]
-                ? `${AUTONOMY_HINTS[level]} ${USER_RULES_NOTE}`
-                : support.reason
-            }
+            title={support.available[level] ? AUTONOMY_HINTS[level] : support.reason}
             className={shown === level ? 'autonomy-segment is-selected' : 'autonomy-segment'}
             onClick={() => {
               if (level !== shown) onChange(level)
@@ -53,6 +49,7 @@ export function AutonomyControl({
           ? `Not enforced · ${support.reason}`
           : (support.reason ?? (shown ? AUTONOMY_HINTS[shown] : ''))}
       </p>
+      {support.enforced && <p className="autonomy-note autonomy-note-rules">{USER_RULES_NOTE}</p>}
     </div>
   )
 }
