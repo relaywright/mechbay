@@ -14,6 +14,7 @@ import { GeminiRunner } from './runners/gemini'
 import { HermesRunner } from './runners/hermes'
 import { SimRunner } from './runners/sim'
 import { registerIpc } from './ipc'
+import { LogStore, logDirFor, prepareLogStore } from './log-store'
 import { hasSameOrigin, isOpenableExternalUrl } from './external-links'
 import { MissionAlerts } from './mission-alerts'
 import { runCliAvailabilityCheck } from './cli-check'
@@ -184,7 +185,18 @@ app.whenReady().then(() => {
   const fsReader = new FsReader(buildFsWhitelist())
   state.on('stateChanged', () => fsReader.updateWhitelist(buildFsWhitelist()))
 
-  registerIpc({ win, state, runners, fsReader, secrets, demoMode })
+  // Mission logs live in per-mission files next to the saved bay, in a
+  // separate folder for demo mode. Each flushed batch goes to the window.
+  const logs = new LogStore({
+    dir: logDirFor(userData, demoMode),
+    onEntries: (entries) => {
+      if (!win.isDestroyed()) win.webContents.send(IPC.LOG_STREAM, entries)
+    }
+  })
+  prepareLogStore(logs, state)
+  app.on('before-quit', () => logs.flushAll())
+
+  registerIpc({ win, state, runners, fsReader, secrets, demoMode, logs })
 
   // Crash recovery: any deployment stuck in an active status is a
   // zombie from a previous crash or force-quit. Mark them failed and

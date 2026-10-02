@@ -14,7 +14,13 @@ import type {
   StateHealth
 } from '../shared/types'
 import { ulid } from '../shared/ulid'
-import { CURRENT_SCHEMA_VERSION, migrateState, type MigrationTable } from './state-migrations'
+import {
+  CURRENT_SCHEMA_VERSION,
+  isAppStateV2,
+  migrateState,
+  type LogChunkV2,
+  type MigrationTable
+} from './state-migrations'
 
 const GRID_W = 16
 const GRID_H = 16
@@ -83,7 +89,6 @@ function defaultState(userDataDir: string): AppState {
     // Seed facilities are unlinked until the user binds a project directory.
     facilities: seedFacilities(),
     deployments: [],
-    logChunks: [],
     settings: {
       projectsDir: path.join(os.homedir(), 'Projects'),
       concurrencyCap: 3,
@@ -192,6 +197,7 @@ export class StateManager extends EventEmitter {
   private cache: AppState
   private readOnly = false
   private health: StateHealth = { ok: true }
+  private legacyLogChunks: LogChunkV2[] = []
 
   constructor(
     store: StoreLike,
@@ -244,6 +250,7 @@ export class StateManager extends EventEmitter {
         console.info(
           `[state-manager] Upgraded saved bay from schema ${outcome.from} to ${CURRENT_SCHEMA_VERSION}${backup.path ? `; backup at ${backup.path}` : ''}`
         )
+        if (isAppStateV2(raw)) this.legacyLogChunks = raw.logChunks
         this.cache = this.repairAndPersist(outcome.state, true)
         break
       }
@@ -279,6 +286,13 @@ export class StateManager extends EventEmitter {
       }
     }
     this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
+  }
+
+  /** Schema 2 kept logs inside saved state. Returns them once for the log store to import. */
+  takeLegacyLogChunks(): LogChunkV2[] {
+    const chunks = this.legacyLogChunks
+    this.legacyLogChunks = []
+    return chunks
   }
 
   /** How the saved bay loaded. Not ok means this session never writes the saved file. */

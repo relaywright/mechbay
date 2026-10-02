@@ -28,6 +28,7 @@ vi.mock('electron', () => ({
 }))
 
 import { registerIpc } from '../../src/main/ipc'
+import { makeLogSink } from '../helpers/log-sink'
 
 const REJECTED = { ok: false, error: 'Scan again and pick projects from the list.' }
 
@@ -77,6 +78,7 @@ beforeEach(() => {
     win: { isDestroyed: () => false, webContents: { send: vi.fn() } } as unknown as BrowserWindow,
     state,
     runners: {} as never,
+    logs: makeLogSink().sink,
     fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
     secrets: {} as never
   })

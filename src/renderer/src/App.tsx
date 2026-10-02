@@ -22,6 +22,7 @@ import { CrewRoster } from './components/CrewRoster'
 import { MissionBoard } from './components/MissionBoard'
 import { fleetTelemetry, isActiveMission, noun, STATUS_LABELS } from './operations'
 import { colors, type } from './theme'
+import { useMissionLogs } from './mission-logs'
 
 type SidebarTab = 'operations' | 'log' | 'files' | 'journal'
 
@@ -47,6 +48,7 @@ function App(): React.JSX.Element {
   const [bootDone, setBootDone] = useState(false)
   const handleBootDone = useCallback(() => setBootDone(true), [])
   const dismissStateNotice = useCallback(() => setStateNoticeDismissed(true), [])
+  const missionLogs = useMissionLogs(state?.deployments ?? [])
 
   const canvasParentRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<BayScene | null>(null)
@@ -54,7 +56,7 @@ function App(): React.JSX.Element {
   const previousStateRef = useRef<AppState | null>(null)
   const latestStateRef = useRef<AppState | null>(null)
 
-  // Subscribe to IPC state + log chunks
+  // Subscribe to IPC state (logs arrive through useMissionLogs)
   useEffect(() => {
     window.mechbay
       .getState()
@@ -516,9 +518,7 @@ function App(): React.JSX.Element {
               />
             )}
 
-            {activeTab === 'log' && (
-              <LogPane logs={state?.logChunks ?? []} deployments={deploymentInfo} />
-            )}
+            {activeTab === 'log' && <LogPane logs={missionLogs} deployments={deploymentInfo} />}
 
             {activeTab === 'files' &&
               browsingFacilityId &&

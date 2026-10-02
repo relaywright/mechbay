@@ -45,6 +45,8 @@ describe('migration guard (Phase 0 Track B done criterion, S7)', () => {
       )
     }
     expect(manager.getHealth()).toEqual({ ok: true })
+    expect(manager.takeLegacyLogChunks()).toHaveLength(before.logChunks.length)
+    expect(manager.takeLegacyLogChunks()).toEqual([])
     const saved = JSON.parse(readFileSync(file, 'utf8')) as { state: { version: number } }
     expect(saved.state.version).toBe(CURRENT_SCHEMA_VERSION)
   })

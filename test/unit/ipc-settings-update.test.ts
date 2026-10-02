@@ -18,6 +18,7 @@ vi.mock('electron', () => ({
 }))
 
 import { registerIpc } from '../../src/main/ipc'
+import { makeLogSink } from '../helpers/log-sink'
 
 function setup(): {
   state: StateManager
@@ -48,6 +49,7 @@ function setup(): {
     win: { isDestroyed: () => false, webContents: { send: vi.fn() } } as unknown as BrowserWindow,
     state,
     runners,
+    logs: makeLogSink().sink,
     fsReader: {} as never,
     secrets: {} as never
   })

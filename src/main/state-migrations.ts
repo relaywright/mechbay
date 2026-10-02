@@ -139,10 +139,13 @@ const SAVED_SHAPES: Readonly<Record<number, (value: unknown) => boolean>> = {
  * `lastScanAt` (a timestamp nothing displayed), seeded empty
  * `recentDeploymentIds` and `companionNameOverrides`, and read
  * `pendingInput`; none of them carries anything a player made.
+ * `logChunks` also leaves saved state, but its lines are not lost:
+ * StateManager hands them to the log store (log-store.ts), which writes
+ * them to per-mission files at startup.
  */
 export function migrateV2ToV3(input: unknown): AppState {
   const s = input as AppStateV2
-  const { lastScanAt: _lastScanAt, settings, ...rest } = s
+  const { lastScanAt: _lastScanAt, logChunks: _logChunks, settings, ...rest } = s
   const { companionNameOverrides: _overrides, ...keptSettings } = settings
   return {
     ...rest,

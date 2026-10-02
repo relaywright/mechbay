@@ -6,6 +6,7 @@ describe('LogPane component logic', () => {
     return Array.from({ length: count }, (_, i) => ({
       id: `log-${i}`,
       deploymentId,
+      seq: i + 1,
       timestamp: Date.now() + i,
       stream: i % 3 === 0 ? 'stderr' : i % 2 === 0 ? 'system' : 'stdout',
       text: `Log line ${i}`
@@ -95,8 +96,22 @@ describe('LogPane component logic', () => {
   describe('deployment separator detection', () => {
     it('should detect deployment change between logs', () => {
       const logs: LogChunk[] = [
-        { id: '1', deploymentId: 'dep-1', timestamp: 1000, stream: 'stdout', text: 'line 1' },
-        { id: '2', deploymentId: 'dep-2', timestamp: 2000, stream: 'stdout', text: 'line 2' }
+        {
+          id: '1',
+          deploymentId: 'dep-1',
+          seq: 1,
+          timestamp: 1000,
+          stream: 'stdout',
+          text: 'line 1'
+        },
+        {
+          id: '2',
+          deploymentId: 'dep-2',
+          seq: 2,
+          timestamp: 2000,
+          stream: 'stdout',
+          text: 'line 2'
+        }
       ]
       const deploymentChanged = logs[0].deploymentId !== logs[1].deploymentId
       expect(deploymentChanged).toBe(true)
@@ -104,8 +119,22 @@ describe('LogPane component logic', () => {
 
     it('should detect time gap of 2+ seconds', () => {
       const logs: LogChunk[] = [
-        { id: '1', deploymentId: 'dep-1', timestamp: 1000, stream: 'stdout', text: 'line 1' },
-        { id: '2', deploymentId: 'dep-1', timestamp: 3500, stream: 'stdout', text: 'line 2' }
+        {
+          id: '1',
+          deploymentId: 'dep-1',
+          seq: 1,
+          timestamp: 1000,
+          stream: 'stdout',
+          text: 'line 1'
+        },
+        {
+          id: '2',
+          deploymentId: 'dep-1',
+          seq: 2,
+          timestamp: 3500,
+          stream: 'stdout',
+          text: 'line 2'
+        }
       ]
       const timeGap = logs[1].timestamp - logs[0].timestamp
       const hasGap = timeGap > 2000
@@ -114,8 +143,22 @@ describe('LogPane component logic', () => {
 
     it('should not detect time gap under 2 seconds', () => {
       const logs: LogChunk[] = [
-        { id: '1', deploymentId: 'dep-1', timestamp: 1000, stream: 'stdout', text: 'line 1' },
-        { id: '2', deploymentId: 'dep-1', timestamp: 1500, stream: 'stdout', text: 'line 2' }
+        {
+          id: '1',
+          deploymentId: 'dep-1',
+          seq: 1,
+          timestamp: 1000,
+          stream: 'stdout',
+          text: 'line 1'
+        },
+        {
+          id: '2',
+          deploymentId: 'dep-1',
+          seq: 2,
+          timestamp: 1500,
+          stream: 'stdout',
+          text: 'line 2'
+        }
       ]
       const timeGap = logs[1].timestamp - logs[0].timestamp
       const hasGap = timeGap > 2000
