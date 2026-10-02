@@ -203,9 +203,10 @@ app.whenReady().then(() => {
   } catch (err) {
     console.error('[boot] preparing mission logs failed:', err)
   }
-  // Closing MechBay recalls every running mission and cancels every queued
-  // one, then writes the last log lines (shutdownMissions does the flush),
-  // bounded at 8 seconds so a stuck agent cannot hold the app open.
+  // Closing MechBay refuses new missions, recalls every running one and
+  // cancels every queued one, waits for each to save its outcome, then
+  // writes the last log lines (shutdownMissions does the flush), bounded at
+  // 8 seconds so a stuck agent cannot hold the app open.
   const missions = new MissionRegistry()
   let quitting = false
   app.on('before-quit', (event) => {
@@ -214,6 +215,11 @@ app.whenReady().then(() => {
     event.preventDefault()
     if (quitting) return
     quitting = true
+    // The window goes away at once: the wait below is MechBay tidying up,
+    // not something to stare at or click into.
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.hide()
+    }
     void shutdownMissions({ state, missions, logs, timeoutMs: 8000 }).finally(() => app.exit(0))
   })
 
