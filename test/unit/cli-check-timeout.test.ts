@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { runCliAvailabilityCheck } from '../../src/main/cli-check'
 import { StateManager, type StoreLike } from '../../src/main/state-manager'
-import type { Runner, SpawnResult } from '../../src/main/runners/types'
+import type { Runner } from '../../src/main/runners/types'
 import type { AgentFamily } from '../../src/shared/types'
 
 function makeInMemoryStore(): StoreLike {
@@ -15,21 +15,27 @@ function makeInMemoryStore(): StoreLike {
   }
 }
 
+/** Availability checks never spawn, so spawn rejects if anything calls it. */
+function fakeRunner(isAvailable: Runner['isAvailable']): Runner {
+  return {
+    isAvailable,
+    spawn: () => Promise.reject(new Error('spawn is not used by availability checks'))
+  }
+}
+
 describe('runCliAvailabilityCheck — timeout and hang scenarios', () => {
   it('handles runner that never resolves (hangs)', async () => {
     const store = makeInMemoryStore()
     const state = new StateManager(store, '/tmp/cli-check-test')
 
-    const hangingRunner: Runner = {
-      isAvailable: () => new Promise(() => {}) // never resolves
-    }
+    const hangingRunner = fakeRunner(() => new Promise(() => {})) // never resolves
 
     const runners: Record<AgentFamily, Runner> = {
       claude: hangingRunner,
-      codex: { isAvailable: async () => true } as Runner,
-      kimi: { isAvailable: async () => false } as Runner,
-      gemini: { isAvailable: async () => true } as Runner,
-      hermes: { isAvailable: async () => false } as Runner
+      codex: fakeRunner(async () => true),
+      kimi: fakeRunner(async () => false),
+      gemini: fakeRunner(async () => true),
+      hermes: fakeRunner(async () => false)
     }
 
     // The current implementation uses Promise.all, so if one hangs, all hang
@@ -48,12 +54,10 @@ describe('runCliAvailabilityCheck — timeout and hang scenarios', () => {
     const store = makeInMemoryStore()
     const state = new StateManager(store, '/tmp/cli-check-test')
 
-    const slowRunner: Runner = {
-      isAvailable: async () => {
-        await new Promise((r) => setTimeout(r, 50)) // 50ms delay
-        return true
-      }
-    }
+    const slowRunner = fakeRunner(async () => {
+      await new Promise((r) => setTimeout(r, 50)) // 50ms delay
+      return true
+    })
 
     const runners: Record<AgentFamily, Runner> = {
       claude: slowRunner,
@@ -79,16 +83,13 @@ describe('runCliAvailabilityCheck — timeout and hang scenarios', () => {
     const store = makeInMemoryStore()
     const state = new StateManager(store, '/tmp/cli-check-test')
 
-    const fastRunner = (available: boolean): Runner => ({
-      isAvailable: async () => available
-    })
+    const fastRunner = (available: boolean): Runner => fakeRunner(async () => available)
 
-    const slowRunner = (available: boolean): Runner => ({
-      isAvailable: async () => {
+    const slowRunner = (available: boolean): Runner =>
+      fakeRunner(async () => {
         await new Promise((r) => setTimeout(r, 50))
         return available
-      }
-    })
+      })
 
     const runners: Record<AgentFamily, Runner> = {
       claude: fastRunner(true),
@@ -119,19 +120,17 @@ describe('runCliAvailabilityCheck — timeout and hang scenarios', () => {
     const store = makeInMemoryStore()
     const state = new StateManager(store, '/tmp/cli-check-test')
 
-    const delayedThrowRunner: Runner = {
-      isAvailable: async () => {
-        await new Promise((r) => setTimeout(r, 20))
-        throw new Error('delayed error')
-      }
-    }
+    const delayedThrowRunner = fakeRunner(async () => {
+      await new Promise((r) => setTimeout(r, 20))
+      throw new Error('delayed error')
+    })
 
     const runners: Record<AgentFamily, Runner> = {
       claude: delayedThrowRunner,
-      codex: { isAvailable: async () => true } as Runner,
-      kimi: { isAvailable: async () => true } as Runner,
-      gemini: { isAvailable: async () => true } as Runner,
-      hermes: { isAvailable: async () => true } as Runner
+      codex: fakeRunner(async () => true),
+      kimi: fakeRunner(async () => true),
+      gemini: fakeRunner(async () => true),
+      hermes: fakeRunner(async () => true)
     }
 
     // Should complete despite delayed throw
@@ -151,19 +150,15 @@ describe('runCliAvailabilityCheck — partial failure scenarios', () => {
     const state = new StateManager(store, '/tmp/cli-check-test')
 
     const runners: Record<AgentFamily, Runner> = {
-      claude: { isAvailable: async () => true } as Runner,
-      codex: {
-        isAvailable: async () => {
-          throw new Error('codex error')
-        }
-      } as Runner,
-      kimi: { isAvailable: async () => false } as Runner,
-      gemini: { isAvailable: async () => true } as Runner,
-      hermes: {
-        isAvailable: async () => {
-          throw new Error('hermes error')
-        }
-      } as Runner
+      claude: fakeRunner(async () => true),
+      codex: fakeRunner(async () => {
+        throw new Error('codex error')
+      }),
+      kimi: fakeRunner(async () => false),
+      gemini: fakeRunner(async () => true),
+      hermes: fakeRunner(async () => {
+        throw new Error('hermes error')
+      })
     }
 
     await runCliAvailabilityCheck(state, runners)
@@ -189,31 +184,21 @@ describe('runCliAvailabilityCheck — partial failure scenarios', () => {
     const state = new StateManager(store, '/tmp/cli-check-test')
 
     const runners: Record<AgentFamily, Runner> = {
-      claude: {
-        isAvailable: async () => {
-          throw new Error('error1')
-        }
-      } as Runner,
-      codex: {
-        isAvailable: async () => {
-          throw new Error('error2')
-        }
-      } as Runner,
-      kimi: {
-        isAvailable: async () => {
-          throw new Error('error3')
-        }
-      } as Runner,
-      gemini: {
-        isAvailable: async () => {
-          throw new Error('error4')
-        }
-      } as Runner,
-      hermes: {
-        isAvailable: async () => {
-          throw new Error('error5')
-        }
-      } as Runner
+      claude: fakeRunner(async () => {
+        throw new Error('error1')
+      }),
+      codex: fakeRunner(async () => {
+        throw new Error('error2')
+      }),
+      kimi: fakeRunner(async () => {
+        throw new Error('error3')
+      }),
+      gemini: fakeRunner(async () => {
+        throw new Error('error4')
+      }),
+      hermes: fakeRunner(async () => {
+        throw new Error('error5')
+      })
     }
 
     // Should not throw - should complete and mark all as unavailable

@@ -80,7 +80,12 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
-describe('IPC.DIFF_FILE_GET', () => {
+// These tests drive real git subprocesses. Each spawn costs a few hundred ms
+// on Windows, so under a full parallel suite run a test can pass Vitest's
+// 5 s default without anything being wrong.
+const GIT_TEST_TIMEOUT_MS = 20_000
+
+describe('IPC.DIFF_FILE_GET', { timeout: GIT_TEST_TIMEOUT_MS }, () => {
   beforeEach(() => handlers.clear())
 
   it('rejects an unknown deployment id', async () => {

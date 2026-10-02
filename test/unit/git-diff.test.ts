@@ -50,7 +50,12 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
-describe('git diff capture', () => {
+// These tests drive real git subprocesses. Each spawn costs a few hundred ms
+// on Windows, so under a full parallel suite run a test can pass Vitest's
+// 5 s default without anything being wrong.
+const GIT_TEST_TIMEOUT_MS = 20_000
+
+describe('git diff capture', { timeout: GIT_TEST_TIMEOUT_MS }, () => {
   it('captures a baseline and summarizes tracked plus untracked changes', async () => {
     const repoPath = await makeRepo()
     const baselineSha = await captureGitBaseline(repoPath)
@@ -130,7 +135,7 @@ describe('git diff capture', () => {
   })
 })
 
-describe('readFilePatch', () => {
+describe('readFilePatch', { timeout: GIT_TEST_TIMEOUT_MS }, () => {
   it('returns a unified-diff patch for a tracked change against the baseline', async () => {
     const repoPath = await makeRepo()
     const baselineSha = await captureGitBaseline(repoPath)

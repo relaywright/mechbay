@@ -58,7 +58,9 @@ function recordingRunner(calls: SpawnCall[]): Runner {
     ): Promise<SpawnResult> => {
       calls.push({ cwd, prompt, options })
       return {
-        stream: (async function* () {})(),
+        stream: (async function* () {
+          yield* []
+        })(),
         abort: () => {},
         exit: Promise.resolve(0)
       }

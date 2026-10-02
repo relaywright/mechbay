@@ -1,7 +1,15 @@
-import { Jimp, rgbaToInt, intToRGBA } from 'jimp'
+import { Jimp } from 'jimp'
 import { mkdir, copyFile, readdir, stat } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, dirname, basename } from 'path'
+
+/** Jimp's write() only accepts paths with an extension; check it instead of casting blindly. */
+type ImagePath = `${string}.${string}`
+function asImagePath(path: string): ImagePath {
+  if (!/\.[^./\\]+$/.test(path))
+    throw new Error(`Expected an image path with an extension: ${path}`)
+  return path as ImagePath
+}
 
 // Checkerboard detection colors (typical Gemini checker shades)
 const CHECKER_GRAY = { r: 128, g: 128, b: 128 }
@@ -94,7 +102,7 @@ export async function processImage(imagePath: string): Promise<void> {
   }
 
   // Write the processed image back
-  await image.write(imagePath)
+  await image.write(asImagePath(imagePath))
 }
 
 /**

@@ -187,7 +187,7 @@ describe('KimiRunner model pass-through', () => {
 describe('CliRunner environment pass-through', () => {
   it('merges explicit spawn env over process.env', async () => {
     const child = makeFakeChild()
-    const spawnProcess = vi.fn(() => child)
+    const spawnProcess = vi.fn((..._args: unknown[]) => child)
     const runner = new ClaudeRunner({
       which: async () => '/fake/claude',
       spawnProcess: spawnProcess as never
@@ -212,7 +212,7 @@ describe('CliRunner environment pass-through', () => {
 
   it('does not pass an env option when no explicit env is supplied', async () => {
     const child = makeFakeChild()
-    const spawnProcess = vi.fn(() => child)
+    const spawnProcess = vi.fn((..._args: unknown[]) => child)
     const runner = new ClaudeRunner({
       which: async () => '/fake/claude',
       spawnProcess: spawnProcess as never

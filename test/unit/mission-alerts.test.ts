@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { BrowserWindow } from 'electron'
 import type { AppState, Companion, Deployment, Facility } from '../../src/shared/types'
 import { StateManager, type StoreLike } from '../../src/main/state-manager'
@@ -16,7 +16,8 @@ vi.mock('electron', () => ({
 import {
   detectMissionEvents,
   formatMissionAlert,
-  MissionAlerts
+  MissionAlerts,
+  type NotifyOptions
 } from '../../src/main/mission-alerts'
 
 function deployment(overrides: Partial<Deployment>): Deployment {
@@ -170,7 +171,7 @@ describe('MissionAlerts', () => {
       setProgressBar: ReturnType<typeof vi.fn>
       on: ReturnType<typeof vi.fn>
     }
-    notify: ReturnType<typeof vi.fn>
+    notify: Mock<(opts: NotifyOptions) => void>
   } {
     const data: Record<string, unknown> = {}
     const store: StoreLike = {
@@ -198,7 +199,7 @@ describe('MissionAlerts', () => {
       setProgressBar: vi.fn(),
       on: vi.fn()
     }
-    const notify = vi.fn()
+    const notify = vi.fn<(opts: NotifyOptions) => void>()
     return { state, win, notify }
   }
 

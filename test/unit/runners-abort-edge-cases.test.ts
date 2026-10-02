@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { EventEmitter } from 'events'
 import { Readable } from 'stream'
 import { ClaudeRunner } from '../../src/main/runners/claude'
-import { CodexRunner } from '../../src/main/runners/codex'
 
 describe('ClaudeRunner — abort edge cases', () => {
   it('abort mid-stream stops yielding chunks', async () => {
@@ -14,15 +13,9 @@ describe('ClaudeRunner — abort edge cases', () => {
       exitCode: number | null
     }
 
-    // Create a slow stream that yields over time
-    let pushChunk: (() => void) | null = null
-    const chunks: string[] = []
-
     fakeChild.stdout = new Readable({
       read() {
-        if (pushChunk) {
-          pushChunk()
-        }
+        // No-op: the test feeds data with push()
       }
     })
     fakeChild.stderr = Readable.from([])

@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { mkdir, rm, writeFile, readFile } from 'fs/promises'
+import { mkdir, rm } from 'fs/promises'
 import { existsSync } from 'fs'
 import { Jimp, rgbaToInt, intToRGBA } from 'jimp'
+
+const asImagePath = (path: string): `${string}.${string}` => path as `${string}.${string}`
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -28,7 +30,7 @@ async function createCheckerboardPNG(
     }
   }
 
-  await image.write(path)
+  await image.write(asImagePath(path))
 }
 
 // Helper to create a solid color PNG
@@ -46,14 +48,7 @@ async function createSolidPNG(
     }
   }
 
-  await image.write(path)
-}
-
-// Helper to check if a pixel is transparent
-async function getPixelAlpha(path: string, x: number, y: number): Promise<number> {
-  const image = await Jimp.read(path)
-  const color = image.getPixelColor(x, y)
-  return intToRGBA(color).a
+  await image.write(asImagePath(path))
 }
 
 // Helper to load all alphas from an image
@@ -61,7 +56,7 @@ async function getAllAlphas(path: string): Promise<number[]> {
   const image = await Jimp.read(path)
   const alphas: number[] = []
 
-  image.scan(0, 0, image.bitmap.width, image.bitmap.height, (x, y, idx) => {
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, (_x, _y, idx) => {
     alphas.push(image.bitmap.data[idx + 3])
   })
 
@@ -153,7 +148,7 @@ describe('chromakey', () => {
       }
     }
 
-    await image.write(testFile)
+    await image.write(asImagePath(testFile))
 
     const { processImage } = await import('../../scripts/chromakey.js')
     await processImage(testFile)
@@ -171,11 +166,5 @@ describe('chromakey', () => {
         expect(color.b).toBe(0)
       }
     }
-
-    // Checkerboard pixels adjacent to mech should have some alpha (edge preservation)
-    // or at least the mech itself should be intact
-    const mechAdjacentPixel = intToRGBA(resultImage.getPixelColor(5, 7))
-    // Adjacent checkerboard pixel may or may not be transparent depending on edge logic
-    // but it shouldn't affect the mech
   })
 })
