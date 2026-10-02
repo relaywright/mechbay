@@ -32,7 +32,12 @@ vi.mock('electron', () => ({
   BrowserWindow: class {}
 }))
 
-import { executeDeployment, registerIpc, startQueuedMissions } from '../../src/main/ipc'
+import {
+  executeDeployment,
+  LAUNCHED_LINE,
+  registerIpc,
+  startQueuedMissions
+} from '../../src/main/ipc'
 
 const STORED_KEY = 'fw-stored-secret-1234567890'
 const ENV_KEY = 'sk-env-secret-0987654321'
@@ -569,5 +574,48 @@ describe('crash summaries never contain API keys', () => {
       expect(crashed?.status).toBe('failed')
       expect(crashed?.summary).toBe('runner setup leaked [redacted]')
     })
+  })
+})
+
+describe('the launch line', () => {
+  it('is the first line of a mission, written before the agent says anything', async () => {
+    const { state, send, companion, facility, deployment } = await setup()
+    const { sink, entries } = makeLogSink()
+    const runners = runnerWith(async () => streamOf([{ stream: 'stdout', text: 'hello\n' }]))
+
+    await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, {
+      win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
+      state,
+      runners,
+      missions: new MissionRegistry(),
+      logs: sink,
+      fsReader: {} as never,
+      secrets: secretsStub()
+    })
+
+    expect(entries[0]).toMatchObject({ stream: 'system', text: LAUNCHED_LINE })
+    expect(entries.slice(1).some((e) => e.stream === 'stdout' && e.text.includes('hello'))).toBe(
+      true
+    )
+  })
+
+  it('is not written when the agent could not be launched', async () => {
+    const { state, send, companion, facility, deployment } = await setup()
+    const { sink, entries } = makeLogSink()
+    const runners = runnerWith(async () => {
+      throw new Error('spawn failed')
+    })
+
+    await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, {
+      win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
+      state,
+      runners,
+      missions: new MissionRegistry(),
+      logs: sink,
+      fsReader: {} as never,
+      secrets: secretsStub()
+    })
+
+    expect(entries.map((e) => e.text)).not.toContain(LAUNCHED_LINE)
   })
 })

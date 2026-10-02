@@ -91,6 +91,10 @@ const FS_DIR_IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo
 /** After the agent exits, how long its last output may take to arrive. */
 const DRAIN_AFTER_EXIT_MS = 2000
 
+/** The first log line of every mission, written the moment the agent is launched. */
+export const LAUNCHED_LINE =
+  'Agent launched. It can take a few seconds to load its own setup before it reports in.\n'
+
 /**
  * Raw task text of queued deployments, by deployment id, with the secrets
  * known when it was queued. State keeps only a redacted copy for display, so
@@ -853,6 +857,10 @@ async function runDeployment(
       // it to the window and writes it to disk exactly as given.
       opts.logs.append(deploymentId, { ...p, text: redact(p.text) })
     }
+    // A CLI can take several seconds to load its own setup (plugins, tool
+    // servers, hooks) before it prints anything; say so instead of leaving
+    // the log on its idle screen.
+    emit({ stream: 'system', text: LAUNCHED_LINE })
 
     // Drain stream BEFORE awaiting exit — exit may resolve while chunks
     // are still queued. Sequential await guarantees all chunks reach renderer.
