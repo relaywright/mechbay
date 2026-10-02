@@ -102,7 +102,7 @@ export const BARKS: Record<MechClass, Record<CommsEvent, readonly string[]>> = {
     working: [
       'On station. Breaking ground at {facility}.',
       'In position. Commencing work.',
-      'Holding the line at {facility}.'
+      'Digging in at {facility}.'
     ],
     resumed: ['Orders received. Resuming.', 'Copy. Pressing forward.', 'Understood. Back to work.'],
     'awaiting-input': [
