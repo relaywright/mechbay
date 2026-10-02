@@ -93,7 +93,7 @@ async function runCompletedMission(
     stream: (async function* () {
       yield* []
     })(),
-    abort: () => {},
+    abort: async () => {},
     exit: Promise.resolve(0)
   }
   const runner: Runner = { isAvailable: async () => true, spawn: async () => done }
