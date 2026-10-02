@@ -474,5 +474,14 @@ project (allow rules, hooks) can permit more than the chosen level, and
 MechBay cannot remove them. The Settings panel says so under every
 control.
 
+**Checked 2026-10-02 (Claude Code 2.1.288):** a project whose
+`.claude/settings.json` allows `Write` and `Edit` did not get past Read
+only: under `-p --permission-mode plan`, Claude refused to create the
+file and reported no denial (so no `ExitPlanMode` entry reaches the
+debrief). Plan mode does save Claude's plan under `~/.claude/plans`,
+outside the project, so the Read only hint promises no change to
+*project* files. Codex `workspace-write` network blocking on Windows is
+still unchecked.
+
 **Source:** internal Track B plan (2026-10-02, Task 5); flags confirmed
 against the installed CLIs on clean profiles (Task 9 acceptance test)
