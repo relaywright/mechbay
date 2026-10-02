@@ -33,6 +33,13 @@ describe('gameSizeFor', () => {
     expect(renderScaleFor(size.width, size.height)).toBeCloseTo(MAX_RENDER_SCALE, 2)
   })
 
+  it('never draws more than 3 render pixels per device pixel in a short, wide panel', () => {
+    // 2000x121 CSS: holding the base view at 1x would take 5.3 render px per CSS px.
+    const size = gameSizeFor(2000, 121, 1)
+    expect(size.width).toBeLessThanOrEqual(2000 * 3)
+    expect(size.width / size.height).toBeCloseTo(2000 / 121, 1)
+  })
+
   it('falls back to the base aspect before the parent has been laid out', () => {
     expect(gameSizeFor(0, 0, 1)).toEqual({ width: BASE_VIEW_W, height: BASE_VIEW_H })
   })

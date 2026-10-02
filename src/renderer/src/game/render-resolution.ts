@@ -17,6 +17,12 @@ export const BASE_VIEW_H = 640
 export const MAX_RENDER_SCALE = 4
 /** Hard limit on either canvas side, well inside common WebGL texture limits. */
 const MAX_RENDER_SIDE = 8192
+/**
+ * Render pixels per device pixel, at most. Holding the base view at 1x in a
+ * short, wide panel would otherwise draw several times more pixels than the
+ * screen shows, for no gain in sharpness.
+ */
+const MAX_OVERSAMPLE = 3
 
 /** Render pixels per base-view pixel for a game of this size (base view contained). */
 export function renderScaleFor(gameW: number, gameH: number): number {
@@ -26,7 +32,8 @@ export function renderScaleFor(gameW: number, gameH: number): number {
 /**
  * Game (render) size for a parent of cssW × cssH CSS pixels at the given
  * devicePixelRatio: the parent's aspect, at device resolution, with the
- * resulting renderScale clamped to [1, MAX_RENDER_SCALE].
+ * resulting renderScale clamped to [1, MAX_RENDER_SCALE] (the floor gives way
+ * to MAX_OVERSAMPLE in very short panels).
  */
 export function gameSizeFor(
   cssW: number,
@@ -38,6 +45,10 @@ export function gameSizeFor(
   const h = cssH > 0 ? cssH : (w * BASE_VIEW_H) / BASE_VIEW_W
   const cssScale = renderScaleFor(w, h)
   const renderScale = Math.min(Math.max(cssScale * (dpr || 1), 1), MAX_RENDER_SCALE)
-  const pxPerCss = Math.min(renderScale / cssScale, MAX_RENDER_SIDE / Math.max(w, h))
+  const pxPerCss = Math.min(
+    renderScale / cssScale,
+    MAX_OVERSAMPLE * Math.max(dpr || 1, 1),
+    MAX_RENDER_SIDE / Math.max(w, h)
+  )
   return { width: Math.round(w * pxPerCss), height: Math.round(h * pxPerCss) }
 }
