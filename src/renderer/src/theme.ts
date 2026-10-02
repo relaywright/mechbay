@@ -19,7 +19,8 @@ export const colors = {
   bgPanelDarkAlt: '#0a0805', // was DARK_BG
   borderHudAlt: '#2a2520', // was BORDER_COLOR
   textMutedAlt: '#888', // was TEXT_MUTED
-  textDim: '#666', // was TEXT_DIM
+  // 5:1 on the panels. Was #666 (3.2:1), too faint to read.
+  textDim: '#8a9080',
   statusFailedLight: '#ff6b6b', // lighter shade for failed status
   statusFailedDark: '#c44', // darker shade for failed borders
 
@@ -60,6 +61,20 @@ export const colors = {
   ledAmber: '#ffcc33',
   ledRed: '#ff4444'
 }
+
+/**
+ * Type scale: the smallest text MechBay draws, in px. Keep in step with
+ * --fs-label, --fs-small and --fs-body in command.css. Nothing goes below
+ * `label`.
+ */
+export const fontSize = {
+  /** Captions, tags and other short uppercase labels. */
+  label: 11,
+  /** Secondary text: hints, meta lines, small buttons. */
+  small: 12,
+  /** Readable body text: log lines, descriptions, code. */
+  body: 13
+} as const
 
 export const type = {
   mono: "'IBM Plex Mono', 'Cascadia Code', monospace",

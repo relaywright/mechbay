@@ -1112,7 +1112,7 @@ export class BayScene extends Phaser.Scene {
         const s = isoToScreen(companion.homeTile)
         const label = this.add
           .text(s.x, s.y + 16, '⚠ NOT DEPLOYABLE', {
-            fontSize: '10px',
+            fontSize: '21px',
             color: '#ff4444',
             fontFamily: type.mono,
             fontStyle: 'bold',
@@ -1334,7 +1334,7 @@ export class BayScene extends Phaser.Scene {
     // Facility label below the sprite
     const label = this.add
       .text(s.x, s.y + FACILITY_DISPLAY_H * 0.3, name.toUpperCase(), {
-        fontSize: '20px',
+        fontSize: '26px',
         color: '#e9d8a9',
         fontFamily: 'IBM Plex Mono',
         fontStyle: 'normal',
@@ -1461,18 +1461,18 @@ export class BayScene extends Phaser.Scene {
     this.hideUnitPlate(companionId)
 
     const name = this.add
-      .text(0, -30, companion.name.toUpperCase(), {
+      .text(0, -42, companion.name.toUpperCase(), {
         fontFamily: type.mono,
-        fontSize: '15px',
+        fontSize: '18px',
         fontStyle: 'bold',
         color: colors.amber,
         resolution: 2
       })
       .setOrigin(0.5, 0)
     const rank = this.add
-      .text(0, -12, `${record.rank.title.toUpperCase()} · ${statusText}`, {
+      .text(0, -20, `${record.rank.title.toUpperCase()} · ${statusText}`, {
         fontFamily: type.mono,
-        fontSize: '12px',
+        fontSize: '16px',
         color: colors.textSecondary,
         resolution: 2
       })
@@ -1480,16 +1480,16 @@ export class BayScene extends Phaser.Scene {
     const width = Math.max(name.width, rank.width) + 22
     const bg = this.add.graphics()
     bg.fillStyle(hex(colors.bgPanelDark), 0.88)
-    bg.fillRect(-width / 2, -36, width, 38)
+    bg.fillRect(-width / 2, -46, width, 48)
     bg.lineStyle(1, AMBER, 0.45)
-    bg.strokeRect(-width / 2, -36, width, 38)
+    bg.strokeRect(-width / 2, -46, width, 48)
     // Status tick on the left edge, rank chevrons on the right.
     bg.fillStyle(this.mechStatusColor(companionId), 1)
-    bg.fillRect(-width / 2, -36, 3, 38)
+    bg.fillRect(-width / 2, -46, 3, 48)
     bg.lineStyle(1.5, AMBER, 0.9)
     for (let i = 0; i < record.rank.tier; i++) {
       const cx = width / 2 - 8
-      const cy = -30 + i * 4
+      const cy = -40 + i * 4
       bg.lineBetween(cx - 4, cy, cx, cy + 3)
       bg.lineBetween(cx, cy + 3, cx + 4, cy)
     }
@@ -1600,7 +1600,7 @@ export class BayScene extends Phaser.Scene {
       const tag = this.add
         .text(0, 0, 'QUEUED', {
           fontFamily: type.mono,
-          fontSize: '11px',
+          fontSize: '16px',
           color: '#c9c09a',
           backgroundColor: 'rgba(10,8,5,0.85)',
           padding: { x: 6, y: 2 },
@@ -2307,7 +2307,7 @@ export class BayScene extends Phaser.Scene {
       ? this.add
           .text(s.x, cy + size / 2 + 6, `NAV ▸ ${name.toUpperCase()}`, {
             fontFamily: type.mono,
-            fontSize: '12px',
+            fontSize: '16px',
             color: colors.phosphor,
             backgroundColor: 'rgba(7,10,6,0.8)',
             padding: { x: 5, y: 1 },
@@ -2859,7 +2859,7 @@ export class BayScene extends Phaser.Scene {
     const label = this.add
       .text(0, 0, message, {
         fontFamily: type.mono,
-        fontSize: '13px',
+        fontSize: '17px',
         fontStyle: 'bold',
         color: colors.cyan,
         resolution: 2

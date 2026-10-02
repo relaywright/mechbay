@@ -1,4 +1,9 @@
 :root {
+  /* Type scale: the smallest text MechBay draws. Keep in step with
+     fontSize in theme.ts. Nothing goes below --fs-label. */
+  --fs-label: 11px;
+  --fs-small: 12px;
+  --fs-body: 13px;
   --ink: #ecece2;
   --muted: #a5ac9e;
   --dim: #808a79;
@@ -95,12 +100,12 @@ input {
   color: var(--amber);
 }
 .brand-lockup h1 sup {
-  font: 400 11px var(--mono);
+  font: 400 var(--fs-small) var(--mono);
   vertical-align: middle;
   color: var(--dim);
 }
 .brand-lockup p {
-  font: 400 8px var(--mono);
+  font: 400 var(--fs-label) var(--mono);
   letter-spacing: 0.19em;
   color: var(--muted);
   margin: 0;
@@ -109,7 +114,7 @@ input {
   display: flex;
   align-items: center;
   gap: 10px;
-  font: 9px var(--mono);
+  font: var(--fs-label) var(--mono);
   color: #b8c3aa;
   letter-spacing: 0.08em;
 }
@@ -141,7 +146,7 @@ input {
   color: #d6dccd;
   border: 1px solid #404b36;
   padding: 10px 13px;
-  font: 500 11px var(--body);
+  font: 500 var(--fs-small) var(--body);
   transition:
     background 0.18s,
     border-color 0.18s;
@@ -178,7 +183,7 @@ input {
   padding-bottom: 23px;
 }
 .eyebrow {
-  font: 9px/1.5 var(--mono);
+  font: var(--fs-label)/1.5 var(--mono);
   color: var(--amber);
   letter-spacing: 0.12em;
 }
@@ -213,7 +218,7 @@ input {
   color: var(--amber);
 }
 .telemetry-label {
-  font: 8px var(--mono);
+  font: var(--fs-label) var(--mono);
   letter-spacing: 0.07em;
   color: var(--dim);
 }
@@ -255,7 +260,7 @@ input {
   position: absolute;
   z-index: 2;
   top: 18px;
-  font: 8px var(--mono);
+  font: var(--fs-label) var(--mono);
   color: #9ea991;
   letter-spacing: 0.06em;
   display: flex;
@@ -288,7 +293,7 @@ input {
   max-width: 520px;
 }
 .map-readout .eyebrow {
-  font-size: 7px;
+  font-size: var(--fs-label);
   letter-spacing: 0.12em;
   color: #b3c99a;
 }
@@ -304,7 +309,7 @@ input {
   white-space: nowrap;
   margin: 0;
   color: #9ca98f;
-  font: 11px var(--body);
+  font: var(--fs-small) var(--body);
 }
 .map-readout button {
   pointer-events: auto;
@@ -321,7 +326,7 @@ input {
   bottom: 24px;
   display: none;
   color: var(--dim);
-  font: 7px var(--mono);
+  font: var(--fs-label) var(--mono);
 }
 .crew-roster {
   flex-shrink: 0;
@@ -332,13 +337,13 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font: 8px/1.4 var(--mono);
+  font: var(--fs-label)/1.4 var(--mono);
   letter-spacing: 0.09em;
   color: #a3ae97;
 }
 .section-caption > span:last-child {
   color: #7e8b72;
-  font-size: 7px;
+  font-size: var(--fs-label);
 }
 .tiny-cross {
   color: var(--amber);
@@ -355,7 +360,7 @@ input {
   position: relative;
   text-align: left;
   min-width: 0;
-  height: 142px;
+  height: 156px;
   padding: 14px;
   background: linear-gradient(120deg, #20271c, #181f15);
   border: 1px solid #3c4432;
@@ -375,7 +380,7 @@ input {
 }
 .crew-number {
   display: block;
-  font: 7px var(--mono);
+  font: var(--fs-label) var(--mono);
   color: #a1aa94;
   letter-spacing: 0.1em;
 }
@@ -402,7 +407,7 @@ input {
 .crew-runtime {
   position: relative;
   display: block;
-  font: 10px var(--body);
+  font: var(--fs-small)/1.15 var(--body);
   color: #b6bfab;
 }
 .crew-status {
@@ -413,7 +418,7 @@ input {
   align-items: center;
   gap: 5px;
   text-transform: uppercase;
-  font: 7px var(--mono);
+  font: var(--fs-label)/1.15 var(--mono);
   letter-spacing: 0.05em;
 }
 .crew-status i,
@@ -450,7 +455,7 @@ input {
 }
 .sidebar-heading .eyebrow {
   color: var(--dim);
-  font-size: 8px;
+  font-size: var(--fs-label);
 }
 .sidebar-heading h2 {
   font: 500 29px var(--display);
@@ -481,7 +486,7 @@ input {
   border: 0;
   border-bottom: 2px solid transparent;
   color: #a5ad9e;
-  font: 8px var(--mono);
+  font: var(--fs-label) var(--mono);
   padding: 0 0 13px;
   white-space: nowrap;
 }
@@ -520,7 +525,7 @@ input {
 }
 .field-label {
   display: block;
-  font: 7px var(--mono);
+  font: var(--fs-label) var(--mono);
   letter-spacing: 0.1em;
   color: #adb79f;
   margin: 12px 0 7px;
@@ -534,7 +539,7 @@ input {
   border: 1px solid #3b4730;
   color: #e1e6d9;
   padding: 10px 9px;
-  font: 12px var(--body);
+  font: var(--fs-body) var(--body);
 }
 .primary-action {
   background: var(--amber);
@@ -568,7 +573,7 @@ input {
   background: none;
   border: 0;
   color: #b0bda0;
-  font: 10px var(--body);
+  font: var(--fs-small) var(--body);
   text-align: left;
 }
 .text-action:hover {
@@ -576,7 +581,7 @@ input {
 }
 .dispatch-hint {
   color: #cfb991;
-  font: 11px/1.5 var(--body);
+  font: var(--fs-small)/1.5 var(--body);
 }
 .mission-section,
 .facility-section {
@@ -594,12 +599,12 @@ input {
   color: #93a57a;
 }
 .mission-empty strong {
-  font: 500 12px var(--body);
+  font: 500 var(--fs-body) var(--body);
   color: #c5d0b8;
 }
 .mission-empty p {
   margin: 6px 0 0;
-  font: 11px/1.6 var(--body);
+  font: var(--fs-small)/1.6 var(--body);
   color: #9da991;
 }
 .mission-row-wrap {
@@ -635,7 +640,7 @@ input {
   background: transparent;
   border: 1px solid #ff6b6b;
   color: #ff6b6b;
-  font: 11px var(--body);
+  font: var(--fs-small) var(--body);
   padding: 3px 8px;
   cursor: pointer;
 }
@@ -651,7 +656,7 @@ input {
 .recall-error {
   margin: 0;
   color: #ff6b6b;
-  font: 11px/1.5 var(--body);
+  font: var(--fs-small)/1.5 var(--body);
   flex-basis: 100%;
 }
 .log-recall-strip {
@@ -666,7 +671,7 @@ input {
   align-items: center;
   gap: 8px;
   color: #d6dfcb;
-  font: 11px var(--body);
+  font: var(--fs-small) var(--body);
 }
 .log-recall-item .recall-control {
   padding: 0;
@@ -688,7 +693,7 @@ input {
   align-items: center;
   gap: 4px;
   color: var(--amber);
-  font: 7px var(--mono);
+  font: var(--fs-label) var(--mono);
   text-transform: uppercase;
 }
 .status-completed .mission-state {
@@ -705,14 +710,14 @@ input {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font: 11px/1.5 var(--body);
+  font: var(--fs-small)/1.5 var(--body);
   color: #aebda0;
   margin: 7px 0;
 }
 .mission-meta {
   display: flex;
   justify-content: space-between;
-  font: 8px var(--mono);
+  font: var(--fs-label) var(--mono);
   color: #929f84;
 }
 .mission-meta span span {
@@ -723,7 +728,7 @@ input {
   display: flex;
   gap: 9px;
   padding-top: 10px;
-  font: 8px var(--mono);
+  font: var(--fs-label) var(--mono);
 }
 .mission-delta span {
   color: #b7d48d;
@@ -751,7 +756,7 @@ input {
   border-bottom: 1px solid #2c3626;
   text-align: left;
   padding: 11px 0;
-  font: 11px var(--body);
+  font: var(--fs-small) var(--body);
 }
 .facility-row:last-child {
   border-bottom: 0;
@@ -760,13 +765,13 @@ input {
   color: var(--amber);
 }
 .facility-index {
-  font: 8px var(--mono);
+  font: var(--fs-label) var(--mono);
   color: #79876a;
 }
 .linked-label,
 .unlinked-label {
   margin-left: auto;
-  font: 8px var(--mono);
+  font: var(--fs-label) var(--mono);
 }
 .linked-label {
   color: #c5dca3;
@@ -794,7 +799,7 @@ input {
   gap: 15px;
   border-top: 1px solid var(--line);
   background: #161c14;
-  font: 7px var(--mono);
+  font: var(--fs-label) var(--mono);
   color: #9aa68d;
   flex-shrink: 0;
 }
@@ -827,7 +832,7 @@ input {
   padding: 12px;
   border: 1px solid #985d46;
   background: #38251c;
-  font: 12px/1.5 var(--body);
+  font: var(--fs-body)/1.5 var(--body);
   color: #f5bf9f;
 }
 .debrief-summary {
@@ -856,7 +861,7 @@ input {
   color: #e5a98b;
 }
 .debrief-summary span {
-  font: 8px var(--mono);
+  font: var(--fs-label) var(--mono);
   color: #b2bfa4;
   letter-spacing: 0.09em;
 }
@@ -878,33 +883,33 @@ input {
   font-size: 24px;
 }
 .debrief-note {
-  font: 10px/1.6 var(--body);
+  font: var(--fs-small)/1.6 var(--body);
   color: #a9b49f;
   margin: 12px 0;
 }
 .section-caption {
-  font-size: 9px;
+  font-size: var(--fs-label);
 }
 .section-caption > span:last-child,
 .field-label,
 .mission-state,
 .crew-status {
-  font-size: 8px;
+  font-size: var(--fs-label);
 }
 .command-tabs button {
-  font-size: 9px;
+  font-size: var(--fs-label);
 }
 .crew-number {
-  font-size: 8px;
+  font-size: var(--fs-label);
 }
 .map-corner {
-  font-size: 9px;
+  font-size: var(--fs-label);
 }
 .map-readout .eyebrow {
-  font-size: 8px;
+  font-size: var(--fs-label);
 }
 .debrief-summary span {
-  font-size: 9px;
+  font-size: var(--fs-label);
 }
 @keyframes signal-breathe {
   50% {
@@ -935,7 +940,7 @@ input {
     right: -6px;
   }
   .crew-name {
-    margin-top: 32px;
+    margin-top: 26px;
     font-size: 26px;
   }
   .crew-status {
@@ -945,7 +950,7 @@ input {
     gap: 32px;
   }
   .command-state {
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
 }
 @media (max-width: 1200px) {
@@ -1001,10 +1006,10 @@ input {
     padding-bottom: 16px;
   }
   .crew-card {
-    height: 119px;
+    height: 130px;
   }
   .crew-name {
-    margin-top: 18px;
+    margin-top: 10px;
   }
   .crew-portrait,
   .crew-schematic {
@@ -1092,14 +1097,14 @@ input {
     display: none;
   }
   .brand-lockup p {
-    font-size: 6px;
+    font-size: var(--fs-label);
   }
   .command-header nav {
     gap: 5px;
   }
   .command-header nav button {
     padding: 8px;
-    font-size: 10px;
+    font-size: var(--fs-small);
   }
   .settings-action span {
     display: none;
@@ -1119,10 +1124,10 @@ input {
     font-size: 27px;
   }
   .telemetry-label {
-    font-size: 6px;
+    font-size: var(--fs-label);
   }
   .eyebrow {
-    font-size: 7px;
+    font-size: var(--fs-label);
   }
   .eyebrow span {
     display: none;
@@ -1134,7 +1139,7 @@ input {
     inset: 30px 0 65px;
   }
   .map-corner {
-    font-size: 6px;
+    font-size: var(--fs-label);
   }
   .map-top-left {
     left: 12px;
@@ -1152,11 +1157,11 @@ input {
     bottom: 17px;
   }
   .map-readout strong {
-    font-size: 12px;
+    font-size: var(--fs-body);
   }
   .map-readout p {
     white-space: normal;
-    font-size: 10px;
+    font-size: var(--fs-small);
     max-width: 250px;
     line-height: 1.5;
   }
@@ -1184,13 +1189,13 @@ input {
     right: -10px;
   }
   .crew-name {
-    margin-top: 25px;
+    margin-top: 20px;
   }
   .section-caption {
-    font-size: 7px;
+    font-size: var(--fs-label);
   }
   .section-caption > span:last-child {
-    font-size: 6px;
+    font-size: var(--fs-label);
   }
   .operations-scroll {
     display: block;
@@ -1199,7 +1204,7 @@ input {
     border-right: 0;
   }
   .command-footer {
-    font-size: 6px;
+    font-size: var(--fs-label);
     padding: 0 14px;
   }
   .debrief-banner .dialog-heading {
@@ -1231,14 +1236,14 @@ input {
    positioned .crew-status (bottom: 11px) and the XP track (bottom: 0).
    Kept compact by design — .crew-card already clips overflow, so these
    rows must never rely on more vertical room than the smallest
-   breakpoint (119px, the max-height:820px block) leaves free. */
+   breakpoint (130px, the max-height:820px block) leaves free. */
 .crew-rank-line {
   position: relative;
   display: flex;
   align-items: center;
   gap: 3px;
-  margin-top: 3px;
-  font: 8px var(--mono);
+  margin-top: 1px;
+  font: var(--fs-label)/1.15 var(--mono);
   letter-spacing: 0.04em;
   color: #d7b064;
   text-transform: uppercase;
@@ -1250,7 +1255,7 @@ input {
 }
 .crew-rank-recruit {
   color: #7c8468;
-  font-size: 9px;
+  font-size: var(--fs-label);
   line-height: 1;
 }
 .crew-chevron {
@@ -1275,7 +1280,12 @@ input {
   right: 14px;
   bottom: 11px;
   display: block;
-  font: 7px var(--mono);
+  /* Shares the bottom row with .crew-status: never run into it. */
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--fs-label)/1.15 var(--mono);
   color: #8f9880;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1297,10 +1307,10 @@ input {
 }
 @media (min-width: 1550px) {
   .crew-rank-line {
-    font-size: 9px;
+    font-size: var(--fs-label);
   }
   .crew-stat-line {
-    font-size: 8px;
+    font-size: var(--fs-label);
   }
 }
 @media (min-width: 1550px) {
@@ -1338,7 +1348,7 @@ input {
   border: 0;
   padding: 6px 12px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--fs-small);
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1361,13 +1371,13 @@ input {
 .autonomy-note {
   margin: 6px 0 0;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--fs-small);
   line-height: 1.5;
   color: #abb0a3;
 }
 .autonomy-note-rules {
   margin-top: 2px;
-  font-size: 9px;
+  font-size: var(--fs-label);
   color: #80857a;
 }
 .debrief-blocked {
@@ -1379,13 +1389,13 @@ input {
 .debrief-blocked h3 {
   margin: 0 0 6px;
   color: #ff6b6b;
-  font-size: 10px;
+  font-size: var(--fs-small);
   letter-spacing: 0.12em;
 }
 .debrief-blocked ul {
   margin: 0;
   padding-left: 18px;
-  font-size: 11px;
+  font-size: var(--fs-small);
   line-height: 1.6;
 }
 .debrief-blocked code {
@@ -1393,7 +1403,7 @@ input {
 }
 .debrief-blocked p {
   margin: 8px 0 0;
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: #a9b49f;
 }
 
@@ -1635,7 +1645,7 @@ input {
   white-space: nowrap;
 }
 .comms-channel {
-  font: 8px/1 var(--mono);
+  font: var(--fs-label)/1 var(--mono);
   letter-spacing: 0.1em;
   color: var(--tone);
   white-space: nowrap;
@@ -1644,7 +1654,7 @@ input {
   position: relative;
   display: block;
   margin-top: 5px;
-  font: 500 12px/1.3 var(--body);
+  font: 500 var(--fs-body)/1.3 var(--body);
   color: #dfe5d4;
 }
 .comms-bark-ghost,
@@ -1673,7 +1683,7 @@ input {
   display: block;
   margin-top: 3px;
   overflow: hidden;
-  font: 9px/1.3 var(--mono);
+  font: var(--fs-label)/1.3 var(--mono);
   letter-spacing: 0.04em;
   color: #aab59f;
   white-space: nowrap;
@@ -1698,7 +1708,7 @@ input {
   gap: 8px;
 }
 .is-compact .comms-callsign {
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: #c9d0bf;
 }
 .is-compact .comms-channel,
@@ -1710,7 +1720,7 @@ input {
   flex: 1;
   min-width: 0;
   margin-top: 0;
-  font-size: 11px;
+  font-size: var(--fs-small);
   color: #b9c2ae;
 }
 .is-compact .comms-bark-ghost,
@@ -2261,7 +2271,7 @@ input {
   bottom: 11px;
   left: 50%;
   transform: translateX(-50%);
-  font: 500 9px var(--mono);
+  font: 500 var(--fs-label) var(--mono);
   letter-spacing: 0.08em;
 }
 .compass-caret {
@@ -2280,7 +2290,7 @@ input {
   left: 50%;
   transform: translateX(-50%);
   padding: 0 5px;
-  font: 500 9px var(--mono);
+  font: 500 var(--fs-label) var(--mono);
   background: #0b0f0a;
   border: 1px solid var(--phosphor-dim);
 }
@@ -2289,7 +2299,7 @@ input {
 }
 .cockpit-callout {
   padding: 2px 10px;
-  font: 500 11px var(--mono);
+  font: 500 var(--fs-small) var(--mono);
   letter-spacing: 0.14em;
   white-space: nowrap;
   background: #070a06d9;
@@ -2401,4 +2411,10 @@ input {
   60% {
     opacity: 0.3;
   }
+}
+
+/* A queued card's status reads "Queued · #1 in line" and needs the whole
+   bottom row; its destination is on the sortie board. */
+.crew-card.mission-queued .crew-stat-line {
+  display: none;
 }

@@ -8,7 +8,7 @@ import {
 import { ipcErrorMessage } from '../../../shared/bridge-errors'
 import { RUNTIME_ENV, RUNTIME_OPTIONS } from '../runtime-options'
 import { sfx } from '../audio/sfx'
-import { colors, type } from '../theme'
+import { colors, type, fontSize } from '../theme'
 import { AutonomyControl } from './AutonomyControl'
 
 interface SettingsModalProps {
@@ -638,7 +638,7 @@ const titleStyle: React.CSSProperties = {
 const subtitleStyle: React.CSSProperties = {
   marginTop: 4,
   color: colors.textSecondary,
-  fontSize: 9,
+  fontSize: fontSize.label,
   letterSpacing: type.hudTracking
 }
 const closeStyle: React.CSSProperties = {
@@ -666,11 +666,11 @@ const rowHeadingStyle: React.CSSProperties = {
 }
 const indexStyle: React.CSSProperties = {
   color: colors.orange,
-  fontSize: 9,
+  fontSize: fontSize.label,
   letterSpacing: type.labelTracking
 }
 const mechClassStyle: React.CSSProperties = { color: colors.amber, fontSize: 13, fontWeight: 800 }
-const familyStyle: React.CSSProperties = { color: colors.textMuted, fontSize: 9 }
+const familyStyle: React.CSSProperties = { color: colors.textMuted, fontSize: fontSize.label }
 const controlGridStyle: React.CSSProperties = { display: 'grid', gap: 9 }
 const fieldStyle: React.CSSProperties = {
   display: 'grid',
@@ -680,7 +680,7 @@ const fieldStyle: React.CSSProperties = {
 }
 const labelStyle: React.CSSProperties = {
   color: colors.textSecondary,
-  fontSize: 9,
+  fontSize: fontSize.label,
   letterSpacing: type.labelTracking
 }
 const inlineControlStyle: React.CSSProperties = { display: 'flex', minWidth: 0, gap: 6 }
@@ -691,7 +691,7 @@ const inputStyle: React.CSSProperties = {
   border: `1px solid ${colors.borderHud}`,
   color: colors.textPrimary,
   fontFamily: type.mono,
-  fontSize: 11,
+  fontSize: fontSize.small,
   padding: '6px 8px',
   outlineColor: colors.orange
 }
@@ -700,7 +700,7 @@ const actionButtonStyle: React.CSSProperties = {
   border: `1px solid ${colors.amber}`,
   color: colors.amber,
   fontFamily: type.mono,
-  fontSize: 9,
+  fontSize: fontSize.label,
   fontWeight: 800,
   padding: '5px 10px',
   cursor: 'pointer'
@@ -715,11 +715,11 @@ const keyHintStyle: React.CSSProperties = {
   gridColumn: 2,
   marginTop: 4,
   color: colors.textMuted,
-  fontSize: 9
+  fontSize: fontSize.label
 }
 const loginNoteStyle: React.CSSProperties = {
   color: colors.textSecondary,
-  fontSize: 10,
+  fontSize: fontSize.small,
   padding: '6px 0'
 }
 const confirmStyle: React.CSSProperties = {
@@ -732,7 +732,7 @@ const confirmStyle: React.CSSProperties = {
 const confirmTextStyle: React.CSSProperties = {
   margin: 0,
   color: colors.textPrimary,
-  fontSize: 10,
+  fontSize: fontSize.small,
   lineHeight: 1.5
 }
 const dangerActionStyle: React.CSSProperties = {
@@ -744,7 +744,7 @@ const dangerActionStyle: React.CSSProperties = {
 const errorStyle: React.CSSProperties = {
   gridColumn: 2,
   color: colors.statusFailedLight,
-  fontSize: 10,
+  fontSize: fontSize.small,
   marginTop: 4
 }
 const bayStyle: React.CSSProperties = {
@@ -758,17 +758,21 @@ const bayStyle: React.CSSProperties = {
 }
 const sectionLabelStyle: React.CSSProperties = {
   color: colors.amber,
-  fontSize: 11,
+  fontSize: fontSize.small,
   fontWeight: 800,
   letterSpacing: type.labelTracking
 }
-const bayHintStyle: React.CSSProperties = { color: colors.textSecondary, fontSize: 9, marginTop: 5 }
+const bayHintStyle: React.CSSProperties = {
+  color: colors.textSecondary,
+  fontSize: fontSize.label,
+  marginTop: 5
+}
 const toggleButtonStyle = (reduced: boolean): React.CSSProperties => ({
   background: reduced ? 'transparent' : colors.amberTint,
   border: `1px solid ${reduced ? colors.textMuted : colors.amber}`,
   color: reduced ? colors.textSecondary : colors.amber,
   fontFamily: type.mono,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 800,
   letterSpacing: type.hudTracking,
   padding: '8px 14px',
@@ -792,7 +796,7 @@ const volumeReadoutStyle = (enabled: boolean): React.CSSProperties => ({
   width: 34,
   textAlign: 'right',
   color: enabled ? colors.amber : colors.textMuted,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 800,
   fontVariantNumeric: 'tabular-nums'
 })
@@ -801,7 +805,7 @@ const dangerButtonStyle: React.CSSProperties = {
   border: `1px solid ${colors.statusFailed}`,
   color: colors.statusFailedLight,
   fontFamily: type.mono,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 800,
   letterSpacing: type.hudTracking,
   padding: '8px 14px',

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { StateHealth } from '../../../shared/types'
-import { colors, type } from '../theme'
+import { colors, type, fontSize } from '../theme'
 
 type Problem = Extract<StateHealth, { ok: false }>['reason']
 
@@ -79,7 +79,7 @@ const panelStyle: React.CSSProperties = {
 }
 const eyebrowStyle: React.CSSProperties = {
   color: colors.orange,
-  fontSize: 11,
+  fontSize: fontSize.small,
   letterSpacing: '0.16em'
 }
 const titleStyle: React.CSSProperties = {
@@ -90,7 +90,7 @@ const titleStyle: React.CSSProperties = {
 const bodyStyle: React.CSSProperties = { margin: 0, lineHeight: 1.55 }
 const pathStyle: React.CSSProperties = {
   marginTop: 12,
-  fontSize: 12,
+  fontSize: fontSize.body,
   wordBreak: 'break-all',
   color: colors.textMutedAlt
 }

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { Deployment } from '../../../shared/types'
 import { STATUS_LABELS } from '../operations'
+import { colors, fontSize } from '../theme'
 
 /**
  * Shown once on boot when the main process finds missions left open by a
@@ -88,7 +89,7 @@ const headerStyle: React.CSSProperties = {
 }
 
 const subheaderStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: fontSize.body,
   color: '#ccc',
   marginBottom: 16,
   lineHeight: 1.5
@@ -105,7 +106,7 @@ const listStyle: React.CSSProperties = {
 }
 
 const itemStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: fontSize.small,
   color: '#ccc',
   padding: '4px 0',
   borderBottom: '1px dotted #2a2520'
@@ -117,7 +118,7 @@ const idStyle: React.CSSProperties = {
 }
 
 const sepStyle: React.CSSProperties = {
-  color: '#555',
+  color: colors.textMuted,
   margin: '0 6px'
 }
 
@@ -127,7 +128,7 @@ const statusStyle: React.CSSProperties = {
 }
 
 const ellipsisStyle: React.CSSProperties = {
-  color: '#666'
+  color: colors.textMuted
 }
 
 const actionRowStyle: React.CSSProperties = {
@@ -140,7 +141,7 @@ const dismissButtonStyle: React.CSSProperties = {
   color: '#000',
   border: 0,
   padding: '8px 20px',
-  fontSize: 12,
+  fontSize: fontSize.body,
   fontWeight: 'bold',
   letterSpacing: '0.1em',
   cursor: 'pointer',

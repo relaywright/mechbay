@@ -6,7 +6,7 @@ import type {
   DeploymentStatus,
   Facility
 } from '../../../shared/types'
-import { colors, type } from '../theme'
+import { colors, type, fontSize } from '../theme'
 import { RUNTIME_OPTIONS } from '../runtime-options'
 import { computeServiceRecord } from '../service-record'
 import { runtimeSupportNote } from '../../../shared/runtime-support'
@@ -368,7 +368,7 @@ const panelStyle: React.CSSProperties = {
   background: colors.bgHud,
   border: `1px solid ${colors.borderHud}`,
   padding: 12,
-  fontSize: 12
+  fontSize: fontSize.body
 }
 
 const emptyPanelStyle: React.CSSProperties = {
@@ -385,7 +385,7 @@ const emptyHintStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   color: colors.textMuted,
-  fontSize: 11,
+  fontSize: fontSize.small,
   textAlign: 'center'
 }
 
@@ -400,7 +400,7 @@ const headerStyle: React.CSSProperties = {
 
 const selectedLabelStyle: React.CSSProperties = {
   color: colors.amber,
-  fontSize: 10,
+  fontSize: fontSize.small,
   letterSpacing: type.labelTracking,
   marginBottom: 4
 }
@@ -413,7 +413,7 @@ const nameStyle: React.CSSProperties = {
 }
 
 const metaStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: fontSize.small,
   color: colors.textSecondary,
   textTransform: 'uppercase',
   letterSpacing: '0.05em'
@@ -432,7 +432,7 @@ const availableBadgeStyle: React.CSSProperties = {
   color: colors.statusWorking,
   padding: '4px 10px',
   borderRadius: 12,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: '0.05em'
 }
@@ -453,13 +453,13 @@ const unavailableBadgeStyle: React.CSSProperties = {
   color: colors.statusFailed,
   padding: '4px 10px',
   borderRadius: 12,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: '0.05em'
 }
 
 const unavailableIconStyle: React.CSSProperties = {
-  fontSize: 10
+  fontSize: fontSize.small
 }
 
 const currentMissionStyle: React.CSSProperties = {
@@ -467,7 +467,7 @@ const currentMissionStyle: React.CSSProperties = {
 }
 
 const currentMissionLabelStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: '0.08em',
   color: colors.textSecondary,
@@ -476,13 +476,13 @@ const currentMissionLabelStyle: React.CSSProperties = {
 
 const supportNoteStyle: React.CSSProperties = {
   marginTop: 6,
-  fontSize: 11,
+  fontSize: fontSize.small,
   letterSpacing: '0.04em',
   color: colors.textSecondary
 }
 
 const lastActiveStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: fontSize.small,
   color: colors.textSecondary,
   marginBottom: 12,
   fontStyle: 'italic'
@@ -494,7 +494,7 @@ const historySectionStyle: React.CSSProperties = {
 }
 
 const historyHeaderStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: fontSize.small,
   color: colors.textMuted,
   letterSpacing: type.labelTracking,
   marginBottom: 8
@@ -510,7 +510,7 @@ const historyRowStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,
-  fontSize: 11
+  fontSize: fontSize.small
 }
 
 const facilityNameStyle: React.CSSProperties = {
@@ -535,7 +535,7 @@ const pulseAnimation: React.CSSProperties = {
 
 const relativeTimeStyle: React.CSSProperties = {
   color: colors.textSecondary,
-  fontSize: 10,
+  fontSize: fontSize.small,
   marginLeft: 'auto'
 }
 
@@ -550,7 +550,7 @@ const runtimeSectionStyle: React.CSSProperties = {
 }
 
 const runtimeHeaderStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: fontSize.small,
   color: colors.amber,
   letterSpacing: type.labelTracking,
   textTransform: 'uppercase'
@@ -561,7 +561,7 @@ const runtimeSelectStyle: React.CSSProperties = {
   border: `1px solid ${colors.borderHud}`,
   color: colors.textPrimary,
   fontFamily: type.mono,
-  fontSize: 11,
+  fontSize: fontSize.small,
   padding: '4px 6px'
 }
 
@@ -570,7 +570,7 @@ const modelInputStyle: React.CSSProperties = {
   border: `1px solid ${colors.borderHud}`,
   color: colors.textPrimary,
   fontFamily: type.mono,
-  fontSize: 11,
+  fontSize: fontSize.small,
   padding: '4px 6px'
 }
 
@@ -578,7 +578,7 @@ const applyButtonStyle: React.CSSProperties = {
   background: colors.amberTint,
   border: `1px solid ${colors.amber}`,
   color: colors.amber,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: '0.05em',
   textTransform: 'uppercase',
@@ -593,12 +593,12 @@ const applyButtonPendingStyle: React.CSSProperties = {
 
 const runtimeErrorStyle: React.CSSProperties = {
   color: colors.statusFailed,
-  fontSize: 10
+  fontSize: fontSize.small
 }
 
 const runtimeHintStyle: React.CSSProperties = {
   color: colors.textMuted,
-  fontSize: 10,
+  fontSize: fontSize.small,
   lineHeight: 1.4,
   fontStyle: 'italic'
 }
@@ -627,7 +627,7 @@ const rankTitleStyle: React.CSSProperties = {
 
 const rankNextStyle: React.CSSProperties = {
   color: colors.textMuted,
-  fontSize: 10
+  fontSize: fontSize.small
 }
 
 const xpTrackStyle: React.CSSProperties = {
@@ -657,20 +657,20 @@ const serviceStatStyle: React.CSSProperties = {
 }
 
 const serviceStatLabelStyle: React.CSSProperties = {
-  fontSize: 9,
+  fontSize: fontSize.label,
   color: colors.textMuted,
   letterSpacing: type.labelTracking
 }
 
 const serviceStatValueStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: fontSize.body,
   color: colors.textPrimary,
   fontWeight: 'bold'
 }
 
 const serviceFootnoteStyle: React.CSSProperties = {
   marginTop: 8,
-  fontSize: 9,
+  fontSize: fontSize.label,
   color: colors.textMuted,
   fontStyle: 'italic'
 }

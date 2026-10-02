@@ -409,7 +409,7 @@ function App(): React.JSX.Element {
                   color: '#9ea991',
                   border: '1px solid #404b36',
                   padding: '2px 7px',
-                  font: '8px var(--mono)',
+                  font: 'var(--fs-label) var(--mono)',
                   letterSpacing: '0.06em',
                   cursor: 'pointer'
                 }}

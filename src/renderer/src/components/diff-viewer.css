@@ -42,7 +42,7 @@
 
 .diff-viewer-message {
   padding: 14px;
-  font: 11px var(--mono, 'IBM Plex Mono', monospace);
+  font: var(--fs-small) var(--mono, 'IBM Plex Mono', monospace);
   color: #abb0a3;
 }
 
@@ -55,7 +55,7 @@
   background: rgba(239, 195, 109, 0.12);
   border-bottom: 1px solid #efc36d;
   color: #efc36d;
-  font: 10px var(--mono, 'IBM Plex Mono', monospace);
+  font: var(--fs-small) var(--mono, 'IBM Plex Mono', monospace);
   letter-spacing: 0.08em;
 }
 
@@ -75,7 +75,7 @@
   background: rgba(239, 195, 109, 0.14);
   border-bottom: 1px solid rgba(239, 195, 109, 0.35);
   color: #efc36d;
-  font: 10px var(--mono, 'IBM Plex Mono', monospace);
+  font: var(--fs-small) var(--mono, 'IBM Plex Mono', monospace);
   letter-spacing: 0.05em;
   white-space: nowrap;
 }
@@ -88,14 +88,14 @@
   grid-template-columns: 40px 40px 14px max-content;
   width: max-content;
   min-width: 100%;
-  font: 11px/1.5 var(--mono, 'IBM Plex Mono', monospace);
+  font: var(--fs-body)/1.5 var(--mono, 'IBM Plex Mono', monospace);
   white-space: pre;
 }
 
 .diff-line-no {
   padding: 0 6px;
   text-align: right;
-  color: #5c6154;
+  color: #7d8474;
   border-right: 1px solid #24261f;
   user-select: none;
 }
