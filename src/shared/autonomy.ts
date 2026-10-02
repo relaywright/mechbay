@@ -17,7 +17,7 @@ export const AUTONOMY_LABELS: Record<AutonomyLevel, string> = {
 }
 
 export const AUTONOMY_HINTS: Record<AutonomyLevel, string> = {
-  read: 'Can look through the project. The CLI blocks any change to files.',
+  read: 'Can look through the project. The CLI blocks any change to project files.',
   edit: 'Can change files in the project. Anything that needs more access is blocked.',
   full: 'Can change files and run any command without asking. Use it only on projects you can restore.'
 }

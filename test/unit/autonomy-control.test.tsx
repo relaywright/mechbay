@@ -29,7 +29,7 @@ describe('AutonomyControl', () => {
     render(<AutonomyControl runtime="claude" value="read" onChange={() => {}} />)
     expect(screen.getByText(/inside the project \(allow rules, hooks\)/)).toBeTruthy()
     expect(
-      screen.getByText('Can look through the project. The CLI blocks any change to files.')
+      screen.getByText('Can look through the project. The CLI blocks any change to project files.')
     ).toBeTruthy()
   })
 
