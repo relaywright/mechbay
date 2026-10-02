@@ -163,6 +163,12 @@ const FACILITY_SOURCE_H = 896
 
 /** Depth for overlays that must read above every mech and building. */
 const OVERLAY_DEPTH = 5000
+/**
+ * Facility names draw above every mech and building (those sort by screen y,
+ * up to about 1200) so a mech working at a facility never hides its name,
+ * and below the HUD overlays.
+ */
+const FACILITY_LABEL_DEPTH = 2000
 
 const hex = (value: string): number => Phaser.Display.Color.HexStringToColor(value).color
 const AMBER = hex(colors.amber)
@@ -1349,7 +1355,7 @@ export class BayScene extends Phaser.Scene {
         resolution: textResolutionForZoom(this.cameras.main.zoom)
       })
       .setOrigin(0.5)
-      .setDepth(500)
+      .setDepth(FACILITY_LABEL_DEPTH)
     this.facilityLabels.set(facilityId, label)
     this.buildFacilityFoundation(facilityId, tile)
   }
