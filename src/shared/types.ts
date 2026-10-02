@@ -129,6 +129,12 @@ export interface Deployment {
   autonomy?: AutonomyLevel | 'unenforced'
   /** Actions the CLI refused because they needed permission (redacted). */
   permissionDenials?: string[]
+  /**
+   * Set when the mission failed before its agent was launched (its building
+   * was removed, its runtime has no runner). It never left the bay, so the
+   * service record does not count it as a sortie.
+   */
+  neverLaunched?: true
 }
 
 export interface LogChunk {

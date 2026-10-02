@@ -137,17 +137,23 @@ describe('mission queue scheduling', () => {
     expect(status(broken.deploymentId)?.status).toBe('failed')
   })
 
-  it('keeps going after a mission has no runner', async () => {
+  it('keeps going after a mission waiting in line turns out to have no runner', async () => {
+    // The orphan waits behind a running mission, so it is the scheduler pass
+    // after that mission ends (not DEPLOY_START) that finds it has no runner.
     const { state, runs, deploy, status } = setup(1)
+    await deploy(0, 'running')
     state.updateState((s) => ({
       ...s,
       companions: s.companions.map((c, i) =>
-        i === 0 ? { ...c, runtime: 'nonexistent' as never } : c
+        i === 1 ? { ...c, runtime: 'nonexistent' as never } : c
       )
     }))
-    const orphan = await deploy(0, 'no runner')
-    await deploy(1, 'next')
-    await vi.waitFor(() => expect(runs.map((r) => r.prompt)).toEqual(['next']))
+    const orphan = await deploy(1, 'no runner')
+    await deploy(2, 'next')
+    expect(status(orphan.deploymentId)?.status).toBe('queued')
+    runs[0].finish(0)
+    await vi.waitFor(() => expect(runs.map((r) => r.prompt)).toEqual(['running', 'next']))
+    expect(status(orphan.deploymentId)).toMatchObject({ status: 'failed', neverLaunched: true })
     expect(status(orphan.deploymentId)?.summary).toMatch(/No runner/)
   })
 
@@ -171,6 +177,7 @@ describe('mission queue scheduling', () => {
     await vi.waitFor(() => expect(runs.map((r) => r.prompt)).toEqual(['running', 'next']))
     expect(status(stranded.deploymentId)).toMatchObject({
       status: 'failed',
+      neverLaunched: true,
       summary: 'This building was removed before the mission started.'
     })
     expect(queuedRawPromptIdsForTests()).not.toContain(stranded.deploymentId)
@@ -255,6 +262,45 @@ describe('mission queue scheduling', () => {
     expect(status(running.deploymentId)).toMatchObject({
       status: 'cancelled',
       summary: 'Recalled by the commander.'
+    })
+  })
+})
+
+describe('mission queue edge cases', () => {
+  beforeEach(() => vi.restoreAllMocks())
+
+  it('counts mission time from launch, not from when the mission joined the line', async () => {
+    const { runs, deploy, status } = setup(1)
+    await deploy(0, 'first')
+    const second = await deploy(1, 'second')
+    const joinedLine = status(second.deploymentId)!.startedAt
+    runs[0].finish(0)
+    await vi.waitFor(() => expect(runs.map((r) => r.prompt)).toEqual(['first', 'second']))
+    expect(status(second.deploymentId)!.startedAt).toBeGreaterThan(joinedLine)
+  })
+
+  it('a state listener that throws as a mission starts fails that mission, and the next one still starts', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { state, runs, deploy, status } = setup(1)
+    await deploy(0, 'running')
+    const unlucky = await deploy(1, 'unlucky')
+    await deploy(2, 'next')
+    let thrown = false
+    state.on('stateChanged', (s: { deployments: Deployment[] }) => {
+      const walking = s.deployments.some(
+        (d) => d.id === unlucky.deploymentId && d.status === 'walking-to'
+      )
+      if (walking && !thrown) {
+        thrown = true
+        throw new Error('window went away mid-update')
+      }
+    })
+    runs[0].finish(0)
+    await vi.waitFor(() => expect(runs.map((r) => r.prompt)).toEqual(['running', 'next']))
+    expect(status(unlucky.deploymentId)).toMatchObject({
+      status: 'failed',
+      neverLaunched: true,
+      summary: 'MechBay could not start this mission. Send it again.'
     })
   })
 })

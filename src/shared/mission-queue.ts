@@ -23,6 +23,17 @@ export function queuedInOrder(deployments: Deployment[]): Deployment[] {
   return deployments.filter((d) => d.status === 'queued').sort(byAge)
 }
 
+/**
+ * Sortie board order: running missions, then the line (in the same order as
+ * its "#N in line" labels), then ended missions newest first.
+ */
+export function boardOrder(deployments: Deployment[]): Deployment[] {
+  const group = (d: Deployment): number => (isActive(d.status) ? 0 : d.status === 'queued' ? 1 : 2)
+  return [...deployments].sort(
+    (a, b) => group(a) - group(b) || (group(a) === 1 ? byAge(a, b) : byAge(b, a))
+  )
+}
+
 /** 1-based place in line, or null when the mission is not queued. */
 export function queuePosition(deployments: Deployment[], id: string): number | null {
   const index = queuedInOrder(deployments).findIndex((d) => d.id === id)

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  boardOrder,
   capDeployments,
   freeSlots,
   hasOpenMission,
@@ -96,5 +97,27 @@ describe('mission queue rules', () => {
       d(`e${i}`, 'm1', 'failed', 1000 - i)
     )
     expect(capDeployments(ended)).toHaveLength(MAX_SAVED_MISSIONS)
+  })
+})
+
+describe('sortie board order', () => {
+  it('lists running missions, then the line in the same order as its #N labels, then ended ones newest first', () => {
+    const list = [
+      d('done-old', 'm1', 'completed', 10),
+      d('q-b', 'm2', 'queued', 50),
+      d('run', 'm3', 'working', 40),
+      d('q-a', 'm4', 'queued', 50),
+      d('done-new', 'm5', 'failed', 30)
+    ]
+    const order = boardOrder(list).map((x) => x.id)
+    expect(order).toEqual(['run', 'q-a', 'q-b', 'done-new', 'done-old'])
+    // Same tie-break as the "#N in line" label: q-a is #1.
+    expect(queuePosition(list, 'q-a')).toBe(1)
+  })
+
+  it('does not reorder the list it was given', () => {
+    const list = [d('b', 'm1', 'queued', 2), d('a', 'm2', 'queued', 1)]
+    boardOrder(list)
+    expect(list.map((x) => x.id)).toEqual(['b', 'a'])
   })
 })
