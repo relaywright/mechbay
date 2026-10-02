@@ -350,3 +350,26 @@ describe('ClaudeRunner — stream error handling', () => {
     expect(stderrChunks.join('')).toContain('stderr warning')
   })
 })
+
+describe('ClaudeRunner abort never rejects', () => {
+  it('resolves even when the injected killTree rejects', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const child = Object.assign(new EventEmitter(), {
+      stdout: Readable.from([]),
+      stderr: Readable.from([]),
+      kill: vi.fn(),
+      killed: false,
+      exitCode: null as number | null,
+      pid: 4321
+    })
+    const runner = new ClaudeRunner({
+      which: async () => '/usr/local/bin/claude',
+      spawnProcess: (() => child) as never,
+      killTree: async () => {
+        throw new Error('boom')
+      }
+    })
+    const result = await runner.spawn('/tmp', 'task')
+    await expect(result.abort()).resolves.toBeUndefined()
+  })
+})

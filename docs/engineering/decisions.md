@@ -356,3 +356,49 @@ nobody mistakes them for guarantees:
 
 **Source:** internal Track A plan (2026-10-01, Task 5b), Codex and Claude
 security reviews (2026-10-02)
+
+## 2026-10-02 · Stopping a mission ends the agent's whole process tree
+
+**Context:** An agent CLI rarely runs alone. On Windows the process MechBay
+starts is usually `cmd.exe` running an npm shim, which starts Node, which
+starts the agent, which starts its own tools (test runners, dev servers,
+git). Killing only the first process left the rest running in the project
+after the mission had "stopped". A review also found that stopping could
+throw if the tree kill failed, and could leave a hung `taskkill` behind.
+
+**Decision:** Stopping ends the whole tree, and never fails loudly:
+
+- _Windows:_ `taskkill /PID <pid> /T /F`, run from `System32` by absolute
+  path so a stray `taskkill.exe` in the project or on PATH is never the one
+  that runs. If taskkill cannot start, or reports a failure, MechBay still
+  ends the process it holds. A taskkill still running after the wait limit
+  is ended too.
+- _macOS and Linux:_ the agent starts as the leader of its own process
+  group, so the whole group gets SIGTERM, five seconds to clean up, then
+  SIGKILL.
+- Stopping never rejects and finishes within a fixed time: 10 seconds on
+  Windows, 15 on macOS and Linux. Asking twice reuses the first attempt.
+- Tests that start real processes only ever stop processes they started,
+  by PID, never by name.
+
+**Alternatives rejected:** Windows Job objects, which would catch every
+descendant, need a native module or a helper binary; that is a bigger
+change than this release needs. Killing processes by name would hit the
+player's own copies of the same tools.
+
+**Consequence:** Two risks remain, accepted on purpose:
+
+- _A tool that leaves the tree escapes._ On Windows, a process whose parent
+  shell has already exited is no longer linked to the tree, so `taskkill /T`
+  cannot find it. On macOS and Linux, a tool that starts its own session
+  (`setsid`, some daemons) leaves the process group. Either one keeps
+  running after the mission stops. A Job object is the future fix on
+  Windows.
+- _A narrow PID-reuse race on Windows._ If the agent exits on its own in
+  the moment between MechBay deciding to stop it and taskkill starting,
+  Windows could hand the same PID to a new, unrelated process, which
+  taskkill would then end. MechBay checks the process is still running
+  just before starting taskkill, so the window is milliseconds wide.
+
+**Source:** internal Track B plan (2026-10-02, Task 7), Claude adversarial
+review (2026-10-02; cross-family = Claude + Codex, Codex review queued)

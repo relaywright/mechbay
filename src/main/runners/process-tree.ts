@@ -43,7 +43,10 @@ function killChildOnly(child: ChildProcess, signal?: NodeJS.Signals): void {
  * on the whole tree, because the child MechBay holds is usually cmd.exe
  * running an npm shim. POSIX: the child leads its own process group
  * (spawned with detached: true), so the group gets SIGTERM, then SIGKILL.
- * Never rejects; resolves once the child has exited or `waitMs` has passed.
+ * Never rejects; resolves once the child has exited or the wait limit has
+ * passed: `waitMs` on Windows, `graceMs` + `waitMs` on POSIX (15 s by
+ * default). Resolving does not prove every descendant is gone: a tool that
+ * left the tree (re-parented on Windows, a new session on POSIX) escapes.
  */
 export async function killProcessTree(child: ChildProcess, deps: KillTreeDeps = {}): Promise<void> {
   const pid = child.pid
@@ -54,25 +57,47 @@ export async function killProcessTree(child: ChildProcess, deps: KillTreeDeps = 
   const waitMs = deps.waitMs ?? 10_000
 
   if ((deps.platform ?? process.platform) === 'win32') {
+    let killer: ChildProcess | undefined
+    let taskkillFinished = false
     const taskkillDone = new Promise<void>((resolve) => {
-      const killer = (deps.spawnProcess ?? nodeSpawn)(
-        taskkillPath(),
-        ['/PID', String(pid), '/T', '/F'],
-        { windowsHide: true, stdio: 'ignore' }
-      )
+      try {
+        killer = (deps.spawnProcess ?? nodeSpawn)(
+          taskkillPath(),
+          ['/PID', String(pid), '/T', '/F'],
+          { windowsHide: true, stdio: 'ignore' }
+        )
+      } catch (err) {
+        // spawn can throw synchronously (out of memory, say) instead of
+        // emitting 'error'; this function must still never reject.
+        console.warn('[process-tree] taskkill failed; falling back to killing the child only:', err)
+        taskkillFinished = true
+        killChildOnly(child)
+        resolve()
+        return
+      }
       killer.once('exit', (code) => {
+        taskkillFinished = true
         // A non-zero code can mean part of the tree was already gone; make
         // sure the process MechBay holds is not one of the survivors.
         if (code !== 0 && isRunning(child)) killChildOnly(child)
         resolve()
       })
       killer.once('error', (err) => {
+        taskkillFinished = true
         console.warn('[process-tree] taskkill failed; falling back to killing the child only:', err)
         killChildOnly(child)
         resolve()
       })
     })
     await Promise.race([taskkillDone.then(() => exited), delay(waitMs)])
+    // A taskkill still running after the wait limit is hung: do not leave it behind.
+    if (!taskkillFinished && killer) {
+      try {
+        killer.kill()
+      } catch {
+        // already gone
+      }
+    }
     return
   }
 
