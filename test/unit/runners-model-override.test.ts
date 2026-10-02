@@ -53,7 +53,12 @@ describe('ClaudeRunner model pass-through', () => {
     })
 
     await runner.spawn('/tmp', 'say hi', { model: 'claude-opus-4-8' })
-    expect(spawnCalls).toEqual([['claude', ['-p', '--model', 'claude-opus-4-8']]])
+    expect(spawnCalls).toEqual([
+      [
+        'claude',
+        ['-p', '--output-format', 'stream-json', '--verbose', '--model', 'claude-opus-4-8']
+      ]
+    ])
     expect(child.stdin.write).toHaveBeenCalledWith('say hi')
     expect(child.stdin.end).toHaveBeenCalled()
   })
@@ -70,7 +75,7 @@ describe('ClaudeRunner model pass-through', () => {
     })
 
     await runner.spawn('/tmp', 'say hi')
-    expect(spawnCalls).toEqual([['claude', ['-p']]])
+    expect(spawnCalls).toEqual([['claude', ['-p', '--output-format', 'stream-json', '--verbose']]])
     expect(child.stdin.write).toHaveBeenCalledWith('say hi')
     expect(child.stdin.end).toHaveBeenCalled()
   })

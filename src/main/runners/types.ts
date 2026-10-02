@@ -7,6 +7,8 @@
  * is a drop-in: implement `Runner`, register in the runner map.
  */
 
+import type { RunReport } from './claude-stream'
+
 export interface RunnerChunk {
   stream: 'stdout' | 'stderr'
   text: string
@@ -19,6 +21,8 @@ export interface SpawnResult {
   abort: () => void
   /** Resolves with the child's exit code (or -1 if killed by signal). */
   exit: Promise<number>
+  /** Facts the runner learned from the CLI's output (Claude only today). Read after the stream ends. */
+  report?: () => RunReport
 }
 
 /** Optional per-spawn overrides threaded through to the runner's argv. */

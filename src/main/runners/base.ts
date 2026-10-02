@@ -1,6 +1,8 @@
 import { spawn as nodeSpawn, ChildProcess } from 'child_process'
+import { StringDecoder } from 'string_decoder'
 import crossSpawn from 'cross-spawn'
 import type { Runner, RunnerSpawnOptions, SpawnResult, RunnerChunk } from './types'
+import type { StreamTransform } from './claude-stream'
 
 /**
  * Shared plumbing for CLI-backed runners (Claude/Codex/Kimi/Gemini).
@@ -50,6 +52,11 @@ export abstract class CliRunner implements Runner {
    * ~32k argv ceiling, or a CLI that only accepts stdin).
    */
   protected stdinInput(_prompt: string): string | null {
+    return null
+  }
+
+  /** Rewrite stdout before it reaches the log (for CLIs that print structured events). */
+  protected createStdoutTransform(): StreamTransform | null {
     return null
   }
 
@@ -111,10 +118,19 @@ export abstract class CliRunner implements Runner {
       child.on('error', () => resolve(-1))
     })
 
-    return { stream: this.toAsyncStream(child), abort, exit }
+    const transform = this.createStdoutTransform()
+    return {
+      stream: this.toAsyncStream(child, transform),
+      abort,
+      exit,
+      ...(transform ? { report: () => transform.report() } : {})
+    }
   }
 
-  private async *toAsyncStream(child: ChildProcess): AsyncIterable<RunnerChunk> {
+  private async *toAsyncStream(
+    child: ChildProcess,
+    transform: StreamTransform | null
+  ): AsyncIterable<RunnerChunk> {
     const queue: RunnerChunk[] = []
     let resolveNext: (() => void) | null = null
     let done = false
@@ -125,8 +141,18 @@ export abstract class CliRunner implements Runner {
       r?.()
     }
 
-    child.stdout?.on('data', (d) => {
-      queue.push({ stream: 'stdout', text: d.toString() })
+    // One decoder per stream, so a multi-byte character split across two
+    // chunks is not garbled.
+    const outDecoder = new StringDecoder('utf8')
+    const errDecoder = new StringDecoder('utf8')
+
+    const pushStdout = (text: string): void => {
+      const shown = transform ? transform.push(text) : text
+      if (shown) queue.push({ stream: 'stdout', text: shown })
+    }
+
+    child.stdout?.on('data', (d: Buffer) => {
+      pushStdout(outDecoder.write(d))
       wake()
     })
     child.stdout?.on('error', (err) => {
@@ -134,8 +160,9 @@ export abstract class CliRunner implements Runner {
       done = true
       wake()
     })
-    child.stderr?.on('data', (d) => {
-      queue.push({ stream: 'stderr', text: d.toString() })
+    child.stderr?.on('data', (d: Buffer) => {
+      const text = errDecoder.write(d)
+      if (text) queue.push({ stream: 'stderr', text })
       wake()
     })
     child.stderr?.on('error', (err) => {
@@ -144,6 +171,13 @@ export abstract class CliRunner implements Runner {
       wake()
     })
     child.on('close', () => {
+      pushStdout(outDecoder.end())
+      if (transform) {
+        const tail = transform.end()
+        if (tail) queue.push({ stream: 'stdout', text: tail })
+      }
+      const errTail = errDecoder.end()
+      if (errTail) queue.push({ stream: 'stderr', text: errTail })
       done = true
       wake()
     })
