@@ -660,20 +660,44 @@ export function startQueuedMissions(opts: IpcDeps): void {
         : !facility
           ? 'This building was removed before the mission started.'
           : `${facility.name} is no longer linked to a project folder.`
-      setDeployment(state, next.id, { status: 'failed', completedAt: Date.now(), summary })
+      setDeployment(state, next.id, {
+        status: 'failed',
+        completedAt: Date.now(),
+        summary,
+        neverLaunched: true
+      })
       continue
     }
-    setDeployment(state, next.id, { status: 'walking-to' })
-    // After a restart the raw text is gone; the stored copy differs from it
-    // only where a key was redacted.
-    launchMission(
-      next.id,
-      companion,
-      facility,
-      entry?.prompt ?? next.taskPrompt,
-      opts,
-      entry?.secrets
-    )
+    try {
+      // Mission time starts now: the wait in line is not time in the field.
+      setDeployment(state, next.id, { status: 'walking-to', startedAt: Date.now() })
+      // After a restart the raw text is gone; the stored copy differs from it
+      // only where a key was redacted.
+      launchMission(
+        next.id,
+        companion,
+        facility,
+        entry?.prompt ?? next.taskPrompt,
+        opts,
+        entry?.secrets
+      )
+    } catch (err) {
+      // A state listener that throws (the window going away mid-update) has
+      // already moved the mission out of the line, but nothing launched it.
+      // Fail it so it does not hold a slot and its mech forever.
+      console.error(`[queue] starting mission ${next.id} failed:`, err)
+      try {
+        setDeployment(state, next.id, {
+          status: 'failed',
+          completedAt: Date.now(),
+          summary: 'MechBay could not start this mission. Send it again.',
+          neverLaunched: true
+        })
+      } catch (markErr) {
+        // The cache already holds the failed status; only the listeners threw.
+        console.error(`[queue] marking mission ${next.id} failed:`, markErr)
+      }
+    }
   }
 }
 
@@ -739,7 +763,8 @@ async function runDeployment(
     setDeployment(state, deploymentId, {
       status: 'failed',
       completedAt: Date.now(),
-      summary: `No runner registered for runtime: ${effectiveRuntime}`
+      summary: `No runner registered for runtime: ${effectiveRuntime}`,
+      neverLaunched: true
     })
     return
   }

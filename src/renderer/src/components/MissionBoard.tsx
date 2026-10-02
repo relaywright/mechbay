@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { AppState, Deployment } from '../../../shared/types'
-import { isOpen } from '../../../shared/mission-queue'
+import type { AppState } from '../../../shared/types'
+import { boardOrder, isOpen } from '../../../shared/mission-queue'
 import {
   canDispatch,
   isActiveMission,
@@ -38,18 +38,7 @@ export function MissionBoard({
   const hasActiveMission = state.deployments.some(isActiveMission)
   const companion = state.companions.find((c) => c.id === selectedId) ?? state.companions[0]
   const target = linked.find((f) => f.id === targetId) ?? linked[0]
-  const missions = [...state.deployments]
-    .sort((a, b) => {
-      const priority = (d: Deployment): number =>
-        isActiveMission(d) ? 0 : d.status === 'queued' ? 1 : 2
-      // Waiting missions read in line order (#1 first); the rest newest first.
-      const age =
-        a.status === 'queued' && b.status === 'queued'
-          ? a.startedAt - b.startedAt
-          : b.startedAt - a.startedAt
-      return priority(a) - priority(b) || age
-    })
-    .slice(0, 6)
+  const missions = boardOrder(state.deployments).slice(0, 6)
 
   useEffect(() => {
     if (!hasActiveMission) return
