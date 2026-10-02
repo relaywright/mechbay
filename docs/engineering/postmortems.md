@@ -126,11 +126,13 @@ re-applied on each resize event.
 even after the canvas began rendering at the window's device-pixel
 resolution.
 
-**Root cause:** Cause not confirmed; the fix is defensive. The working
-theory: Phaser draws each text label into its own small canvas at a fixed
-resolution, and the camera then scales that texture by its zoom. On a
-maximized 4K window the camera zoom is about 2, so each label texel was
-stretched across about two screen pixels.
+**Root cause:** Phaser draws each text label into its own small canvas at
+a fixed resolution (1 by default), and the camera then scales that texture
+by its zoom. On a maximized 4K window the measured camera zoom was 2.09, so
+each label texel was stretched across about two screen pixels. Confirmed
+in Phaser 3.90's source (the WebGL text renderer divides by the style's
+resolution) and by an isolated before and after: changing only the label
+resolution removed the blur.
 
 **Fix:** A helper, `textResolutionForZoom(zoom)` in
 `src/renderer/src/game/text-resolution.ts`, picks a text resolution that
@@ -144,4 +146,5 @@ at the current zoom's resolution.
 render below screen resolution anywhere in the bay's zoom range, that the
 largest allowed camera zoom is covered, that a maximized 4K window renders
 labels at about 2x instead of 1x, and that invalid zooms fall back safely.
-Before and after screenshots at 1x and 4K confirm the change by eye.
+Before and after screenshots at 1x and 4K show sharp edges where the
+blur was, and a pixel diff that touches only the label boxes.
