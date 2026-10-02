@@ -47,16 +47,16 @@ npm install
 npm run demo
 ```
 
-Demo mode boots the bay with a built-in simulation runtime behind every mech. Drag any mech onto the seeded Reactor Control facility: it walks over, streams a scripted mission log in that mech's voice, edits real files in a real git-initialized workspace, and returns with a Mission Debrief showing a genuine diff. Nothing downstream of the runner is mocked; demo mode swaps only the agent process itself. Your real bay state is untouched (demo persists to a separate store), and the HUD shows a `◈ SIMULATION` badge so there's no confusion about which world you're in.
+Demo mode boots the bay with a built-in simulation runtime behind every mech. Drag any mech onto the seeded `reactor-control` facility: it walks over, streams a scripted mission log in that mech's voice, edits real files in a real git-initialized workspace, and returns with a Mission Debrief showing a genuine diff. Nothing downstream of the runner is mocked; demo mode swaps only the agent process itself. Your real bay state is untouched (demo persists to a separate store), and the HUD reads `SIMULATION ONLINE` so there's no confusion about which world you're in.
 
 Have a real agent CLI installed? `npm run dev` and deploy for real.
 
 ## What it does
 
 - Deploys real local agent processes into real project directories.
-- Maps five named mechs to Claude Code, Codex, Kimi on Fireworks AI, Gemini CLI, or any command-line agent you bring yourself.
+- Maps five named mechs to Claude Code, Codex, Kimi on Fireworks AI, Gemini CLI, or any command-line agent you bring yourself. The author runs Claude Code and Codex and checks them before every release; the others are wired the same way but not verified by the author.
 - Streams live output to the HUD; Raven can also show opt-in `INTENT` and `FINDINGS` thought cards.
-- Runs up to three deployments at once and places the rest in a FIFO queue.
+- Runs up to three deployments at once and queues the rest.
 - Captures a Mission Debrief after every run: changed files, insertions, deletions, and a built-in diff viewer. Click any changed file to read the exact lines the agent added and removed, new files included.
 - Renders a living bay: a hangar deck with hazard-striped landing pads, power conduits pulsing data between linked facilities, drifting haze, and sweeping searchlights. Scroll to zoom, drag empty ground to pan, and hit **RECENTER** to snap back.
 - Plays deploy cinematics: a target-lock reticle on the destination, a route line for the walk, a live data link while the mech works, a shockwave when it succeeds, and a red warning ring when it goes down.
@@ -69,23 +69,23 @@ Have a real agent CLI installed? `npm run dev` and deploy for real.
 
 ## The mechs
 
-| Mech           | Class role        | Runtime               | Requirements                                                       |
-| -------------- | ----------------- | --------------------- | ------------------------------------------------------------------ |
-| Atlas-Prime    | Heavy assault     | Claude Code           | `claude` on `PATH`                                                 |
-| Marauder-Prime | Surgical strike   | Codex                 | `codex` on `PATH`                                                  |
-| Raven-Prime    | Recon scout       | Kimi via Fireworks AI | `python` on `PATH` and a stored or environment `FIREWORKS_API_KEY` |
-| Catapult-Prime | Ranged multimodal | Gemini CLI            | `gemini` on `PATH`                                                 |
-| Locust-Prime   | Swarm courier     | Bring your own agent  | `MECHBAY_HERMES_CMD` set to a CLI command line                     |
+| Mech           | Class role        | Runtime               | Requirements                                                                                                        |
+| -------------- | ----------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Atlas-Prime    | Heavy assault     | Claude Code           | `claude` on `PATH`                                                                                                  |
+| Marauder-Prime | Surgical strike   | Codex                 | `codex` on `PATH`                                                                                                   |
+| Raven-Prime    | Recon scout       | Kimi via Fireworks AI | `python` on `PATH` and a stored or environment `FIREWORKS_API_KEY`. Bring your own key, not verified by the author. |
+| Catapult-Prime | Ranged multimodal | Gemini CLI            | `gemini` on `PATH`. Bring your own key, not verified by the author.                                                 |
+| Locust-Prime   | Swarm courier     | Bring your own agent  | `MECHBAY_HERMES_CMD` set to a CLI command line. Not verified by the author.                                         |
 
 An unconfigured mech shows `⚠ NOT DEPLOYABLE`. The rest of the bay remains usable.
 
-_Runtime integrations verified as of July 2026; MechBay degrades any unavailable runtime to NOT DEPLOYABLE rather than failing._
+_The author runs Claude Code and Codex with MechBay and checks them before every release. Kimi, Gemini, and bring-your-own agents are not verified by the author. Any runtime that is not set up shows NOT DEPLOYABLE instead of failing._
 
 ## Any mech, any runtime (bring your own key)
 
 Every mech's runtime is reassignable from the UI, so you're not stuck with the family it launched with. Select a mech, open its panel, and the **RUNTIME** section lets you:
 
-- Pick any of the five runtimes from a dropdown (the mech's native family is marked `— DEFAULT`).
+- Pick any of the five runtimes from a dropdown (the mech's native family is marked `· DEFAULT`).
 - Set an optional model override, passed straight through to that runtime's CLI:
 
 | Runtime          | Model flag                                    |
@@ -148,7 +148,7 @@ flowchart LR
   STATE --> SOUL
 ```
 
-One `Runner` interface is the entire boundary between MechBay and the outside world. Claude Code, Codex, Gemini, Kimi, a bring-your-own CLI, and the demo-mode simulator are each a drop-in implementation of it. Everything crossing the Electron IPC boundary is a serializable type declared in one shared registry, and every channel name lives in a single constants file. The suite is 374 unit and integration tests, and CI runs them plus a typecheck and a full production build on every push.
+One `Runner` interface is the entire boundary between MechBay and the outside world. Claude Code, Codex, Gemini, Kimi, a bring-your-own CLI, and the demo-mode simulator are each a drop-in implementation of it. Everything crossing the Electron IPC boundary is a serializable type declared in one shared registry, and every channel name lives in a single constants file. Unit and integration tests cover the runners, the IPC layer, state, and the bay's pure helpers. CI type-checks the app and the tests, lints, runs the tests on Windows and Linux, and builds the app on every pull request, and the same checks gate every release.
 
 ## Status
 
