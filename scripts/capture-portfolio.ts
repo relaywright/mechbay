@@ -77,7 +77,11 @@ try {
     await page.screenshot({ path: join(output, 'mechbay-deploy.png') })
     await dialog.getByRole('button', { name: 'Deploy mission', exact: true }).click()
     await page.getByRole('log').waitFor()
-    await page.waitForFunction(() => (window.__mechbayState?.logChunks.length ?? 0) >= 7)
+    // Logs left saved state in v1.4.2, so count rendered rows instead: seven
+    // lines plus the mission's separator row.
+    await page.waitForFunction(
+      () => (document.querySelector('[role="log"]')?.children.length ?? 0) >= 8
+    )
     await page.screenshot({ path: join(output, 'mechbay-mission.png') })
     await page.getByRole('button', { name: 'OPERATIONS', exact: true }).click()
     await page.waitForTimeout(2200)

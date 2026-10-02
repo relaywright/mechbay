@@ -187,7 +187,7 @@ export class SimRunner implements Runner {
 
     return {
       stream: queue.stream,
-      abort: () => finish(-1),
+      abort: async () => finish(-1),
       exit
     }
   }

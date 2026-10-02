@@ -1,6 +1,6 @@
 {
   "name": "mechbay",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "A BattleTech-inspired command bay for AI coding agents: deploy Claude Code, Codex and other CLI agents as mechs into your real project folders",
   "main": "./out/main/index.js",
   "author": "Sam Albanese <samalbanesedev@gmail.com>",
@@ -27,8 +27,10 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
     "test": "vitest run",
+    "test:real-cli": "cross-env MECHBAY_REAL_CLI=1 vitest run test/acceptance",
     "test:watch": "vitest",
     "smoke:electron": "npm run build && node --experimental-strip-types scripts/smoke-electron.ts",
+    "verify:missions": "npm run build && node --experimental-strip-types scripts/verify-missions.ts",
     "capture:demo": "node scripts/capture-demo.mjs",
     "capture:portfolio": "npm run build && node --experimental-strip-types scripts/capture-portfolio.ts && node --experimental-strip-types scripts/export-portfolio.ts",
     "chromakey": "node --experimental-strip-types scripts/chromakey.ts assets/mechs && node --experimental-strip-types scripts/chromakey.ts assets/facilities",

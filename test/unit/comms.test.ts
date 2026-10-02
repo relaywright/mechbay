@@ -138,16 +138,8 @@ describe('commsDetail', () => {
     expect(commsDetail('working', deployment('working'))).toBeUndefined()
   })
 
-  it('shows the exit code on failure and the pending question when blocked', () => {
+  it('shows the exit code on failure', () => {
     expect(commsDetail('failed', deployment('failed', { exitCode: 2 }))).toBe('Exit code 2')
-    expect(
-      commsDetail(
-        'awaiting-input',
-        deployment('awaiting-input', {
-          pendingInput: { prompt: 'Overwrite  the\nconfig?', detectedAt: 5 }
-        })
-      )
-    ).toBe('Overwrite the config?')
   })
 })
 

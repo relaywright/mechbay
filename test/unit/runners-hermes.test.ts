@@ -87,7 +87,7 @@ describe('HermesRunner (bring-your-own agent)', () => {
       [
         'custom-agent',
         ['--message', prompt, `--repeat=${prompt}:${prompt}`],
-        { cwd: '/facility/path', shell: false }
+        { cwd: '/facility/path', shell: false, detached: process.platform !== 'win32' }
       ]
     ])
     expect(child.stdin.write).not.toHaveBeenCalled()

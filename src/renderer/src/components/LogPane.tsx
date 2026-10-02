@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import type { LogChunk } from '../../../shared/types'
-import { colors, type } from '../theme'
+import type { Deployment, LogChunk } from '../../../shared/types'
+import { colors, type, fontSize } from '../theme'
+import { RecallButton } from './RecallButton'
 
 interface LogPaneProps {
   logs: LogChunk[]
   deployments?: { id: string; companionName: string; startedAt: number }[]
+  /** Queued and running missions, each with a recall control above the log. */
+  openMissions?: { deployment: Deployment; companionName: string }[]
 }
 
 interface LogLine {
@@ -21,11 +24,11 @@ interface LogLine {
 const MAX_VISIBLE_LOGS = 500
 const SCROLL_LOCK_THRESHOLD = 40
 
-export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Element {
+export function LogPane({ logs, deployments = [], openMissions }: LogPaneProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isAutoScrollLocked, setIsAutoScrollLocked] = useState(false)
   const [userHasScrolled, setUserHasScrolled] = useState(false)
-  const lastLogCountRef = useRef(0)
+  const lastLogIdRef = useRef<string | null>(null)
 
   // Build processed lines with separators between deployments
   const lines = useMemo((): LogLine[] => {
@@ -87,14 +90,15 @@ export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Ele
     return result
   }, [logs, deployments])
 
-  // Auto-scroll to bottom when new logs arrive (unless locked)
+  // Auto-scroll to bottom when a new line arrives (unless locked). Keyed on
+  // the newest line's id, not the count: once a long mission hits the view
+  // cap the count stays flat while lines keep arriving.
   useEffect(() => {
-    if (logs.length === lastLogCountRef.current) return
+    const lastId = logs.at(-1)?.id ?? null
+    if (lastId === lastLogIdRef.current) return
+    lastLogIdRef.current = lastId
 
-    const newLogsAdded = logs.length > lastLogCountRef.current
-    lastLogCountRef.current = logs.length
-
-    if (!isAutoScrollLocked && containerRef.current && newLogsAdded) {
+    if (!isAutoScrollLocked && containerRef.current && lastId !== null) {
       const container = containerRef.current
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -140,9 +144,21 @@ export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Ele
     setIsAutoScrollLocked(false)
   }, [])
 
-  // Empty state
+  const recallStrip =
+    openMissions && openMissions.length > 0 ? (
+      <div className="log-recall-strip" aria-label="Open missions">
+        {openMissions.map(({ deployment, companionName }) => (
+          <div key={deployment.id} className="log-recall-item">
+            <span>{companionName}</span>
+            <RecallButton deployment={deployment} />
+          </div>
+        ))}
+      </div>
+    ) : null
+
+  // Empty state. A mission that has not logged a line yet can still be recalled.
   if (logs.length === 0) {
-    return (
+    const empty = (
       <div style={emptyStateStyle}>
         <div style={emptyStateTextStyle}>
           <div className="eyebrow">MISSION CHANNEL / STANDING BY</div>
@@ -156,10 +172,19 @@ export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Ele
         </div>
       </div>
     )
+    return recallStrip ? (
+      <div style={containerStyle}>
+        {recallStrip}
+        {empty}
+      </div>
+    ) : (
+      empty
+    )
   }
 
   return (
     <div style={containerStyle}>
+      {recallStrip}
       <div
         ref={containerRef}
         onScroll={handleScroll}
@@ -253,7 +278,7 @@ const scrollAreaStyle: React.CSSProperties = {
   flex: 1,
   overflow: 'auto',
   fontFamily: type.mono,
-  fontSize: 11,
+  fontSize: fontSize.body,
   lineHeight: 1.5
 }
 
@@ -265,7 +290,7 @@ const emptyStateStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   fontFamily: type.mono,
-  fontSize: 11
+  fontSize: fontSize.body
 }
 
 const emptyStateTextStyle: React.CSSProperties = {
@@ -284,7 +309,7 @@ const lineStyle: React.CSSProperties = {
 }
 
 const streamBadgeStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: fontSize.small,
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
   flexShrink: 0,
@@ -304,7 +329,7 @@ const separatorStyle: React.CSSProperties = {
   padding: '8px 0',
   margin: '4px 0',
   color: colors.amber,
-  fontSize: 10,
+  fontSize: fontSize.small,
   letterSpacing: '0.1em'
 }
 
@@ -335,7 +360,7 @@ const jumpButtonStyle: React.CSSProperties = {
   border: `1px solid ${colors.amber}`,
   color: colors.amber,
   padding: '6px 12px',
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: '0.1em',
   cursor: 'pointer',
@@ -359,7 +384,7 @@ const findingsCardStyle: React.CSSProperties = {
 }
 
 const thoughtTagStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: fontSize.small,
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
   fontWeight: 'bold',
@@ -368,7 +393,7 @@ const thoughtTagStyle: React.CSSProperties = {
 
 const thoughtBodyStyle: React.CSSProperties = {
   color: colors.textPrimary,
-  fontSize: 12,
+  fontSize: fontSize.body,
   lineHeight: 1.5,
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word'

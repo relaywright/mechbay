@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
-import type { AppState, Deployment } from '../../../shared/types'
-import { canDispatch, isActiveMission, missionDuration, noun, STATUS_LABELS } from '../operations'
+import type { AppState } from '../../../shared/types'
+import { boardOrder, isOpen } from '../../../shared/mission-queue'
+import {
+  canDispatch,
+  isActiveMission,
+  missionDuration,
+  missionStatusLabel,
+  noun
+} from '../operations'
+import { RecallButton } from './RecallButton'
 import { CREW, RUNTIME_NAMES } from '../crew'
 
 export function MissionBoard({
@@ -30,13 +38,7 @@ export function MissionBoard({
   const hasActiveMission = state.deployments.some(isActiveMission)
   const companion = state.companions.find((c) => c.id === selectedId) ?? state.companions[0]
   const target = linked.find((f) => f.id === targetId) ?? linked[0]
-  const missions = [...state.deployments]
-    .sort((a, b) => {
-      const priority = (d: Deployment): number =>
-        isActiveMission(d) ? 0 : d.status === 'queued' ? 1 : 2
-      return priority(a) - priority(b) || b.startedAt - a.startedAt
-    })
-    .slice(0, 6)
+  const missions = boardOrder(state.deployments).slice(0, 6)
 
   useEffect(() => {
     if (!hasActiveMission) return
@@ -128,40 +130,43 @@ export function MissionBoard({
           missions.map((d) => {
             const mech = state.companions.find((c) => c.id === d.companionId)
             const facility = state.facilities.find((f) => f.id === d.facilityId)
+            // A recalled mission's partial work is reviewable too.
+            const reviewable =
+              d.status === 'completed' || (d.status === 'cancelled' && Boolean(d.diffStats))
             return (
-              <button
-                key={d.id}
-                className={`mission-row status-${d.status}`}
-                onClick={() => (d.status === 'completed' ? onReview(d.id) : onLog())}
-                aria-label={
-                  d.status === 'completed'
-                    ? `Review mission: ${mech?.name}`
-                    : `View mission log: ${mech?.name}`
-                }
-              >
-                <div className="mission-row-top">
-                  <strong>{mech?.name ?? 'Archived mech'}</strong>
-                  <span className="mission-state">
-                    <i />
-                    {STATUS_LABELS[d.status]}
-                  </span>
-                </div>
-                <span className="mission-objective">{d.taskPrompt}</span>
-                <div className="mission-meta">
-                  <span>{facility?.name ?? 'Archived facility'}</span>
-                  <span>
-                    {missionDuration(d, now)} <span aria-hidden="true">↗</span>
-                  </span>
-                </div>
-                {d.diffStats && (
-                  <div className="mission-delta">
-                    {d.diffStats.filesChanged} {noun(d.diffStats.filesChanged, 'file')}{' '}
-                    <span>+{d.diffStats.insertions}</span>
-                    <em>−{d.diffStats.deletions}</em>
-                    <b>View debrief →</b>
+              <div className="mission-row-wrap" key={d.id}>
+                <button
+                  className={`mission-row status-${d.status}`}
+                  onClick={() => (reviewable ? onReview(d.id) : onLog())}
+                  aria-label={
+                    reviewable ? `Review mission: ${mech?.name}` : `View mission log: ${mech?.name}`
+                  }
+                >
+                  <div className="mission-row-top">
+                    <strong>{mech?.name ?? 'Archived mech'}</strong>
+                    <span className="mission-state">
+                      <i />
+                      {missionStatusLabel(d, state.deployments)}
+                    </span>
                   </div>
-                )}
-              </button>
+                  <span className="mission-objective">{d.taskPrompt}</span>
+                  <div className="mission-meta">
+                    <span>{facility?.name ?? 'Archived facility'}</span>
+                    <span>
+                      {missionDuration(d, now)} <span aria-hidden="true">↗</span>
+                    </span>
+                  </div>
+                  {d.diffStats && (
+                    <div className="mission-delta">
+                      {d.diffStats.filesChanged} {noun(d.diffStats.filesChanged, 'file')}{' '}
+                      <span>+{d.diffStats.insertions}</span>
+                      <em>−{d.diffStats.deletions}</em>
+                      <b>View debrief →</b>
+                    </div>
+                  )}
+                </button>
+                {isOpen(d.status) && <RecallButton deployment={d} />}
+              </div>
             )
           })
         )}

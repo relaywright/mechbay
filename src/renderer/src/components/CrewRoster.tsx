@@ -1,6 +1,6 @@
 import type { AppState } from '../../../shared/types'
 import { CREW, RUNTIME_NAMES } from '../crew'
-import { currentMission, STATUS_LABELS } from '../operations'
+import { currentMission, missionStatusLabel } from '../operations'
 import { computeServiceRecord } from '../service-record'
 import { runtimeSupportNote } from '../../../shared/runtime-support'
 
@@ -94,17 +94,19 @@ export function CrewRoster({
                 <RankInsignia tier={rank.tier} />
                 <span className="crew-rank-title">{rank.title}</span>
               </span>
-              <span className="crew-stat-line">{statLine}</span>
-              <span
-                className={`crew-status ${mission ? 'engaged' : companion.cliAvailable ? 'ready' : 'offline'}`}
-                title={runtimeSupportNote(companion.runtime ?? companion.family) ?? undefined}
-              >
-                <i />
-                {mission
-                  ? STATUS_LABELS[mission.status]
-                  : companion.cliAvailable
-                    ? 'Ready'
-                    : 'Setup needed'}
+              <span className="crew-foot">
+                <span
+                  className={`crew-status ${mission ? 'engaged' : companion.cliAvailable ? 'ready' : 'offline'}`}
+                  title={runtimeSupportNote(companion.runtime ?? companion.family) ?? undefined}
+                >
+                  <i />
+                  {mission
+                    ? missionStatusLabel(mission, state.deployments)
+                    : companion.cliAvailable
+                      ? 'Ready'
+                      : 'Setup needed'}
+                </span>
+                <span className="crew-stat-line">{statLine}</span>
               </span>
               <span
                 className="crew-xp-track"

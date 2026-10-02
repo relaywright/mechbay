@@ -40,9 +40,9 @@ const COMPANION: Companion = {
   spriteKey: 'mech-atlas',
   homeTile: { x: 4, y: 10 },
   cliAvailable: true,
-  recentDeploymentIds: [],
   soulPath: '/tmp/atlas/soul.md',
-  memoryPath: '/tmp/atlas/memory.md'
+  memoryPath: '/tmp/atlas/memory.md',
+  autonomy: 'edit'
 }
 
 const FACILITY: Facility = {
@@ -123,17 +123,14 @@ describe('formatMissionAlert', () => {
     expect(body).toBe('Failed. Exit 1.')
   })
 
-  it('formats an awaiting-input mission using the pending prompt', () => {
+  it('formats an awaiting-input mission', () => {
     const event = {
       status: 'awaiting-input' as const,
-      deployment: deployment({
-        status: 'awaiting-input',
-        pendingInput: { prompt: 'Which package manager should I use?', detectedAt: 5_000 }
-      })
+      deployment: deployment({ status: 'awaiting-input' })
     }
     const { title, body } = formatMissionAlert(event, baseState())
     expect(title).toBe('Atlas-Prime needs input')
-    expect(body).toBe('Which package manager should I use?')
+    expect(body).toBe('Research Lab · Waiting for your input.')
   })
 
   it('truncates long bodies to roughly 120 characters', () => {

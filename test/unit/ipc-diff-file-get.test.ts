@@ -24,6 +24,8 @@ vi.mock('electron', () => ({
 }))
 
 import { registerIpc } from '../../src/main/ipc'
+import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 async function runGit(repoPath: string, args: string[]): Promise<void> {
   await execFileAsync('git', ['-C', repoPath, ...args], { windowsHide: true })
@@ -65,6 +67,8 @@ function setup(): {
     win: { isDestroyed: () => false, webContents: { send: vi.fn() } } as unknown as BrowserWindow,
     state,
     runners,
+    missions: new MissionRegistry(),
+    logs: makeLogSink().sink,
     fsReader: {} as never,
     secrets: {} as never
   })

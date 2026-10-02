@@ -11,3 +11,7 @@
 *.mp4 binary
 *.webm binary
 *.woff2 binary
+
+# Windows batch files: cmd.exe can misread LF-only scripts (labels, GOTO).
+*.cmd text eol=crlf
+*.bat text eol=crlf

@@ -1,0 +1,43 @@
+{
+	"state": {
+		"version": 2,
+		"companions": [
+			{ "id": "01J9Z0C0MP000000000000ATLS", "family": "claude", "mechClass": "atlas", "name": "Atlas-Prime", "spriteKey": "mech-atlas", "homeTile": { "x": 4, "y": 10 }, "cliAvailable": true, "recentDeploymentIds": [], "soulPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000ATLS\\soul.md", "memoryPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000ATLS\\memory.md", "lastMemoryUpdateAt": 1727800000000 },
+			{ "id": "01J9Z0C0MP000000000000MRDR", "family": "codex", "mechClass": "marauder", "name": "Scalpel", "spriteKey": "mech-marauder", "homeTile": { "x": 6, "y": 10 }, "cliAvailable": true, "recentDeploymentIds": [], "soulPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000MRDR\\soul.md", "memoryPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000MRDR\\memory.md", "runtime": "codex", "model": "gpt-5.6-terra" },
+			{ "id": "01J9Z0C0MP000000000000RVN0", "family": "kimi", "mechClass": "raven", "name": "Raven-Prime", "spriteKey": "mech-raven", "homeTile": { "x": 8, "y": 10 }, "cliAvailable": false, "recentDeploymentIds": [], "soulPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000RVN0\\soul.md", "memoryPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000RVN0\\memory.md" },
+			{ "id": "01J9Z0C0MP000000000000CTPT", "family": "gemini", "mechClass": "catapult", "name": "Catapult-Prime", "spriteKey": "mech-catapult", "homeTile": { "x": 10, "y": 10 }, "cliAvailable": false, "recentDeploymentIds": [], "soulPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000CTPT\\soul.md", "memoryPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000CTPT\\memory.md" },
+			{ "id": "01J9Z0C0MP000000000000LCST", "family": "hermes", "mechClass": "locust", "name": "Locust-Prime", "spriteKey": "mech-locust", "homeTile": { "x": 12, "y": 10 }, "cliAvailable": false, "recentDeploymentIds": [], "soulPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000LCST\\soul.md", "memoryPath": "C:\\Users\\pilot\\AppData\\Roaming\\mechbay\\mechbay\\companions\\01J9Z0C0MP000000000000LCST\\memory.md" }
+		],
+		"facilities": [
+			{ "id": "01J9Z0F0AC000000000000SECB", "facilityType": "security-bay", "name": "Security Bay", "tile": { "x": 3, "y": 3 }, "path": "C:\\Users\\pilot\\Projects\\storefront", "source": "manual", "discoveredAt": 1727700000000 },
+			{ "id": "01J9Z0F0AC000000000000RLAB", "facilityType": "research-lab", "name": "Research Lab", "tile": { "x": 8, "y": 3 }, "path": "", "source": "manual", "discoveredAt": 1727700000000 },
+			{ "id": "01J9Z0F0AC000000000000FNDR", "facilityType": "foundry", "name": "Foundry", "tile": { "x": 13, "y": 3 }, "path": "C:\\Users\\pilot\\Projects\\order-sync", "source": "manual", "discoveredAt": 1727700000000 },
+			{ "id": "01J9Z0F0AC000000000000SLVG", "facilityType": "salvage-dock", "name": "Salvage Dock", "tile": { "x": 3, "y": 13 }, "path": "", "source": "manual", "discoveredAt": 1727700000000 },
+			{ "id": "01J9Z0F0AC000000000000CMDC", "facilityType": "command-center", "name": "Command Center", "tile": { "x": 8, "y": 6 }, "path": "", "source": "manual", "discoveredAt": 1727700000000 },
+			{ "id": "01J9Z0F0AC000000000000DARC", "facilityType": "data-archive", "name": "Data Archive", "tile": { "x": 13, "y": 13 }, "path": "", "source": "manual", "discoveredAt": 1727700000000 },
+			{ "id": "01J9Z0F0AC000000000000PICK", "facilityType": "foundry", "name": "newsletter-tools", "tile": { "x": 5, "y": 7 }, "path": "C:\\Users\\pilot\\Projects\\newsletter-tools", "source": "manual", "discoveredAt": 1727750000000 }
+		],
+		"deployments": [
+			{ "id": "01J9Z1D0EP000000000000005", "companionId": "01J9Z0C0MP000000000000MRDR", "facilityId": "01J9Z0F0AC000000000000FNDR", "taskPrompt": "Add a retry with backoff to the order sync job", "status": "completed", "startedAt": 1727810000000, "completedAt": 1727810420000, "exitCode": 0, "summary": "Completed. 2 files changed, +41 \u221212.", "diffStats": { "filesChanged": 2, "insertions": 41, "deletions": 12 }, "diffFiles": [ { "path": "src/sync.ts", "insertions": 35, "deletions": 12 }, { "path": "test/sync.test.ts", "insertions": 6, "deletions": 0 } ], "baselineSha": "4f1c2a9e8b7d6c5f4e3d2c1b0a9f8e7d6c5b4a39" },
+			{ "id": "01J9Z1D0EP000000000000004", "companionId": "01J9Z0C0MP000000000000ATLS", "facilityId": "01J9Z0F0AC000000000000SECB", "taskPrompt": "Audit the checkout form for missing input validation", "quickPromptUsed": "audit", "status": "completed", "startedAt": 1727805000000, "completedAt": 1727805300000, "exitCode": 0, "summary": "Completed. No file changes detected.", "diffStats": { "filesChanged": 0, "insertions": 0, "deletions": 0 }, "diffFiles": [] },
+			{ "id": "01J9Z1D0EP000000000000003", "companionId": "01J9Z0C0MP000000000000ATLS", "facilityId": "01J9Z0F0AC000000000000PICK", "taskPrompt": "Fix the broken unsubscribe link", "status": "failed", "startedAt": 1727803000000, "completedAt": 1727803060000, "exitCode": 1, "summary": "Failed. Exit 1." },
+			{ "id": "01J9Z1D0EP000000000000002", "companionId": "01J9Z0C0MP000000000000MRDR", "facilityId": "01J9Z0F0AC000000000000SECB", "taskPrompt": "Rename the cart helpers", "status": "cancelled", "startedAt": 1727802000000, "completedAt": 1727802010000 },
+			{ "id": "01J9Z1D0EP000000000000001", "companionId": "01J9Z0C0MP000000000000ATLS", "facilityId": "01J9Z0F0AC000000000000FNDR", "taskPrompt": "Write a README for the sync job", "status": "failed", "startedAt": 1727801000000, "completedAt": 1727801500000, "summary": "Interrupted by app crash" }
+		],
+		"logChunks": [
+			{ "id": "01J9Z1L0G0000000000000001", "deploymentId": "01J9Z1D0EP000000000000005", "timestamp": 1727810001000, "stream": "stdout", "text": "Reading src/sync.ts" },
+			{ "id": "01J9Z1L0G0000000000000002", "deploymentId": "01J9Z1D0EP000000000000005", "timestamp": 1727810002000, "stream": "thought", "text": "Retry belongs around the fetch call only.", "thoughtKind": "intent" },
+			{ "id": "01J9Z1L0G0000000000000003", "deploymentId": "01J9Z1D0EP000000000000005", "timestamp": 1727810419000, "stream": "stdout", "text": "Tests pass." },
+			{ "id": "01J9Z1L0G0000000000000004", "deploymentId": "01J9Z1D0EP000000000000003", "timestamp": 1727803059000, "stream": "stderr", "text": "error: npm ERR! missing script: lint" }
+		],
+		"settings": {
+			"projectsDir": "C:\\Users\\pilot\\Projects",
+			"concurrencyCap": 3,
+			"ignoredMarkers": ["node_modules", "dist", "build", ".next", "__pycache__", "Archived Projects DO NOT SCAN"],
+			"companionNameOverrides": {},
+			"reduceMotion": true,
+			"crtOverlay": false
+		},
+		"lastScanAt": 1727760000000
+	}
+}

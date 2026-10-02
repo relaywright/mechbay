@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { BrowserWindow } from 'electron'
@@ -7,11 +7,15 @@ import { IPC } from '../../src/shared/ipc-channels'
 import { StateManager, type StoreLike } from '../../src/main/state-manager'
 import type { Runner, RunnerChunk, SpawnResult } from '../../src/main/runners/types'
 import type { AgentFamily, Companion, Deployment, Facility, LogChunk } from '../../src/shared/types'
+import { LogStore } from '../../src/main/log-store'
+import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 /**
  * An agent that echoes its environment (or an error that quotes a key)
  * must never put an API key into the live log, the saved log, the mission
- * summary, or the mech's memory. Keys come from Settings (SecretsManager)
+ * summary, or the mech's memory. Text is redacted before it reaches the
+ * log store, so the window and the log file on disk both get the clean copy. Keys come from Settings (SecretsManager)
  * and from the environment variables the runners read.
  */
 
@@ -28,7 +32,12 @@ vi.mock('electron', () => ({
   BrowserWindow: class {}
 }))
 
-import { executeDeployment, registerIpc } from '../../src/main/ipc'
+import {
+  executeDeployment,
+  LAUNCHED_LINE,
+  registerIpc,
+  startQueuedMissions
+} from '../../src/main/ipc'
 
 const STORED_KEY = 'fw-stored-secret-1234567890'
 const ENV_KEY = 'sk-env-secret-0987654321'
@@ -61,7 +70,7 @@ function streamOf(chunks: RunnerChunk[]): SpawnResult {
     stream: (async function* () {
       yield* chunks
     })(),
-    abort: () => {},
+    abort: async () => {},
     exit: Promise.resolve(0)
   }
 }
@@ -72,6 +81,7 @@ async function setup(): Promise<{
   companion: Companion
   facility: Facility
   deployment: Deployment
+  dir: string
 }> {
   const dir = await mkdtemp(path.join(tmpdir(), 'mechbay-log-redaction-'))
   tempDirs.push(dir)
@@ -106,7 +116,32 @@ async function setup(): Promise<{
     startedAt: Date.now()
   }
   state.updateState((prev) => ({ ...prev, deployments: [deployment, ...prev.deployments] }))
-  return { state, send: vi.fn(), companion, facility, deployment }
+  return { state, send: vi.fn(), companion, facility, deployment, dir }
+}
+
+/**
+ * The production log path: a real LogStore that sends each flushed batch to
+ * the window (as index.ts wires it) and writes it under `dir`/logs.
+ */
+function diskLogs(
+  dir: string,
+  send: ReturnType<typeof vi.fn>
+): { logs: LogStore; sentTexts: () => string[]; savedTexts: () => Promise<string[]> } {
+  const logDir = path.join(dir, 'logs')
+  const toWindow = send as unknown as (channel: string, entries: LogChunk[]) => void
+  return {
+    logs: new LogStore({ dir: logDir, onEntries: (entries) => toWindow(IPC.LOG_STREAM, entries) }),
+    sentTexts: () =>
+      send.mock.calls.flatMap(([, entries]) => (entries as LogChunk[]).map((e) => e.text)),
+    savedTexts: async () => {
+      const texts: string[] = []
+      for (const name of await readdir(logDir)) {
+        const lines = (await readFile(path.join(logDir, name), 'utf8')).split('\n')
+        for (const line of lines.filter(Boolean)) texts.push((JSON.parse(line) as LogChunk).text)
+      }
+      return texts
+    }
+  }
 }
 
 function secretsStub(): never {
@@ -119,27 +154,27 @@ function secretsStub(): never {
 describe('deployment logs never contain API keys', () => {
   it('redacts stored and environment keys from streamed and saved log chunks', async () => {
     vi.stubEnv('OPENAI_API_KEY', ENV_KEY)
-    const { state, send, companion, facility, deployment } = await setup()
+    const { state, send, companion, facility, deployment, dir } = await setup()
     const runners = runnerWith(async () =>
       streamOf([
         { stream: 'stdout', text: `FIREWORKS_API_KEY=${STORED_KEY}\n` },
         { stream: 'stderr', text: `OPENAI_API_KEY=${ENV_KEY}\n` }
       ])
     )
+    const { logs, sentTexts, savedTexts } = diskLogs(dir, send)
 
     await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
+      logs,
       fsReader: {} as never,
       secrets: secretsStub()
     })
 
-    const sent = send.mock.calls.map(([, chunk]) => (chunk as LogChunk).text).join('\n')
-    const saved = state
-      .getState()
-      .logChunks.map((chunk) => chunk.text)
-      .join('\n')
+    const sent = sentTexts().join('\n')
+    const saved = (await savedTexts()).join('\n')
     for (const text of [sent, saved]) {
       expect(text).toContain('FIREWORKS_API_KEY=[redacted]')
       expect(text).toContain('OPENAI_API_KEY=[redacted]')
@@ -158,6 +193,8 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
+      logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
     })
@@ -176,6 +213,7 @@ describe('deployment logs never contain API keys', () => {
     const envFor = vi.fn(() => launchEnv)
     const spawnedEnvs: unknown[] = []
     const { state, send, companion, facility, deployment } = await setup()
+    const { sink, entries } = makeLogSink()
     const runners = runnerWith(async (_cwd, _prompt, spawnOpts) => {
       spawnedEnvs.push(spawnOpts?.env)
       return streamOf([
@@ -188,6 +226,8 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
+      logs: sink,
       fsReader: {} as never,
       secrets: {
         envFor,
@@ -198,10 +238,7 @@ describe('deployment logs never contain API keys', () => {
     expect(envFor).toHaveBeenCalledTimes(1)
     expect(spawnedEnvs).toEqual([launchEnv])
     expect(spawnedEnvs[0]).toBe(launchEnv)
-    const saved = state
-      .getState()
-      .logChunks.map((chunk) => chunk.text)
-      .join('\n')
+    const saved = entries.map((chunk) => chunk.text).join('\n')
     expect(saved).toContain('FIREWORKS_API_KEY=[redacted]')
     expect(saved).toContain('MY_SERVICE_TOKEN=[redacted]')
     expect(saved).not.toContain(NEW_KEY)
@@ -214,6 +251,7 @@ describe('deployment logs never contain API keys', () => {
     vi.stubEnv('GITHUB_TOKEN', GITHUB_TOKEN)
     vi.stubEnv('Db_Password', DB_PASSWORD)
     const { state, send, companion, facility, deployment } = await setup()
+    const { sink, entries } = makeLogSink()
     const runners = runnerWith(async () =>
       streamOf([{ stream: 'stdout', text: `GITHUB_TOKEN=${GITHUB_TOKEN} pw=${DB_PASSWORD}\n` }])
     )
@@ -222,14 +260,13 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
+      logs: sink,
       fsReader: {} as never,
       secrets: secretsStub()
     })
 
-    const saved = state
-      .getState()
-      .logChunks.map((chunk) => chunk.text)
-      .join('\n')
+    const saved = entries.map((chunk) => chunk.text).join('\n')
     expect(saved).toContain('GITHUB_TOKEN=[redacted] pw=[redacted]')
     expect(saved).not.toContain(GITHUB_TOKEN)
     expect(saved).not.toContain(DB_PASSWORD)
@@ -243,7 +280,8 @@ describe('deployment logs never contain API keys', () => {
       '-----END TEST PRIVATE KEY-----'
     ]
     vi.stubEnv('SERVICE_PRIVATE_KEY', pemLines.join('\n'))
-    const { state, send, companion, facility, deployment } = await setup()
+    const { state, send, companion, facility, deployment, dir } = await setup()
+    const { logs, sentTexts, savedTexts } = diskLogs(dir, send)
     // `cat key.pem` output, split across chunks the way a pipe delivers it.
     const runners = runnerWith(async () =>
       streamOf([
@@ -257,12 +295,15 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
+      logs,
       fsReader: {} as never,
       secrets: secretsStub()
     })
 
-    const sent = send.mock.calls.map(([, chunk]) => (chunk as LogChunk).text)
-    const saved = state.getState().logChunks.map((chunk) => chunk.text)
+    const sent = sentTexts()
+    const saved = await savedTexts()
+    expect(sent.length).toBeGreaterThanOrEqual(pemLines.length)
     expect(saved.length).toBeGreaterThanOrEqual(pemLines.length)
     for (const text of [...sent, ...saved]) {
       for (const line of pemLines) expect(text).not.toContain(line)
@@ -278,6 +319,8 @@ describe('task text is redacted where it is stored, never where it runs', () => 
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners: runnerWith(async () => streamOf([])),
+      missions: new MissionRegistry(),
+      logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
     })
@@ -290,15 +333,18 @@ describe('task text is redacted where it is stored, never where it runs', () => 
   it('stores a redacted task for display and runs the raw one, for both started and queued missions', async () => {
     registeredHandlers.clear()
     const { state, send, companion, facility } = await setup()
+    // A mech holds one open mission at a time, so a second mech queues.
+    const mate = { ...companion, id: 'companion-queue-mate', name: 'Queue-Mate' }
     state.updateState((prev) => ({
       ...prev,
-      companions: prev.companions.map((c) => (c.id === companion.id ? companion : c)),
+      companions: [...prev.companions.map((c) => (c.id === companion.id ? companion : c)), mate],
       facilities: [...prev.facilities, facility],
       deployments: [],
       settings: { ...prev.settings, concurrencyCap: 1 }
     }))
     let finishFirst: (code: number) => void = () => {}
     const spawnedPrompts: string[] = []
+    const { sink, entries } = makeLogSink()
     registerIpc({
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
@@ -307,21 +353,26 @@ describe('task text is redacted where it is stored, never where it runs', () => 
         if (spawnedPrompts.length > 1) return streamOf([])
         return { ...streamOf([]), exit: new Promise<number>((resolve) => (finishFirst = resolve)) }
       }),
+      missions: new MissionRegistry(),
+      logs: sink,
       fsReader: {} as never,
       secrets: secretsStub()
     })
     const deployStart = registeredHandlers.get(IPC.DEPLOY_START)
     if (!deployStart) throw new Error('DEPLOY_START handler was not registered')
-    const start = async (taskPrompt: string): Promise<{ deploymentId: string; status: string }> =>
-      (await deployStart(
-        {},
-        { companionId: companion.id, facilityId: facility.id, taskPrompt }
-      )) as { deploymentId: string; status: string }
+    const start = async (
+      taskPrompt: string,
+      companionId = companion.id
+    ): Promise<{ deploymentId: string; status: string }> =>
+      (await deployStart({}, { companionId, facilityId: facility.id, taskPrompt })) as {
+        deploymentId: string
+        status: string
+      }
 
     const first = await start(`First run uses ${STORED_KEY}`)
     // Real git runs for the baseline first, which is slow under a busy suite.
     await vi.waitFor(() => expect(spawnedPrompts).toHaveLength(1), { timeout: 15_000 })
-    const second = await start(`Queued run uses ${STORED_KEY}`)
+    const second = await start(`Queued run uses ${STORED_KEY}`, mate.id)
     expect(second.status).toBe('queued')
 
     const stored = (id: string): string | undefined =>
@@ -342,15 +393,18 @@ describe('task text is redacted where it is stored, never where it runs', () => 
       { timeout: 15_000 }
     )
     expect(JSON.stringify(state.getState())).not.toContain(STORED_KEY)
+    expect(JSON.stringify(entries)).not.toContain(STORED_KEY)
   }, 40_000)
 
   it('still redacts the key a queued task quoted after that key is replaced in Settings', async () => {
     const REPLACED_KEY = 'fw-replacement-secret-2468024680'
     registeredHandlers.clear()
     const { state, send, companion, facility } = await setup()
+    // A second mech (same memory file) queues behind the first.
+    const mate = { ...companion, id: 'companion-queue-mate', name: 'Queue-Mate' }
     state.updateState((prev) => ({
       ...prev,
-      companions: prev.companions.map((c) => (c.id === companion.id ? companion : c)),
+      companions: [...prev.companions.map((c) => (c.id === companion.id ? companion : c)), mate],
       facilities: [...prev.facilities, facility],
       deployments: [],
       settings: { ...prev.settings, concurrencyCap: 1 }
@@ -358,6 +412,7 @@ describe('task text is redacted where it is stored, never where it runs', () => 
     let storedKey = STORED_KEY
     let finishFirst: (code: number) => void = () => {}
     let spawns = 0
+    const { sink, entries } = makeLogSink()
     registerIpc({
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
@@ -375,6 +430,8 @@ describe('task text is redacted where it is stored, never where it runs', () => 
         exit.catch(() => undefined) // executeDeployment awaits it after the stream drains
         return { ...streamOf([{ stream: 'stdout', text: prompt }]), exit }
       }),
+      missions: new MissionRegistry(),
+      logs: sink,
       fsReader: {} as never,
       secrets: {
         envFor: vi.fn(() => ({ FIREWORKS_API_KEY: storedKey })),
@@ -383,15 +440,18 @@ describe('task text is redacted where it is stored, never where it runs', () => 
     })
     const deployStart = registeredHandlers.get(IPC.DEPLOY_START)
     if (!deployStart) throw new Error('DEPLOY_START handler was not registered')
-    const start = async (taskPrompt: string): Promise<{ deploymentId: string; status: string }> =>
-      (await deployStart(
-        {},
-        { companionId: companion.id, facilityId: facility.id, taskPrompt }
-      )) as { deploymentId: string; status: string }
+    const start = async (
+      taskPrompt: string,
+      companionId = companion.id
+    ): Promise<{ deploymentId: string; status: string }> =>
+      (await deployStart({}, { companionId, facilityId: facility.id, taskPrompt })) as {
+        deploymentId: string
+        status: string
+      }
 
     await start('Hold the slot')
     await vi.waitFor(() => expect(spawns).toBe(1), { timeout: 15_000 })
-    const queued = await start(`Rotate away from ${STORED_KEY}`)
+    const queued = await start(`Rotate away from ${STORED_KEY}`, mate.id)
     expect(queued.status).toBe('queued')
 
     // Sam replaces the stored key before the queued mission starts.
@@ -406,9 +466,8 @@ describe('task text is redacted where it is stored, never where it runs', () => 
       { timeout: 15_000 }
     )
     const done = state.getState().deployments.find((d) => d.id === queued.deploymentId)
-    const log = state
-      .getState()
-      .logChunks.filter((chunk) => chunk.deploymentId === queued.deploymentId)
+    const log = entries
+      .filter((chunk) => chunk.deploymentId === queued.deploymentId)
       .map((chunk) => chunk.text)
       .join('\n')
     const memory = await readFile(companion.memoryPath, 'utf8')
@@ -449,11 +508,18 @@ describe('crash summaries never contain API keys', () => {
     registeredHandlers.clear()
     const { state, send, facility } = await setup()
     const seeded = state.getState().companions[0]
-    state.updateState((prev) => ({ ...prev, facilities: [...prev.facilities, facility] }))
+    // Clear setup's open mission: a mech holds one open mission at a time.
+    state.updateState((prev) => ({
+      ...prev,
+      facilities: [...prev.facilities, facility],
+      deployments: []
+    }))
     registerIpc({
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners: runnersCrashingOn(seeded.runtime ?? seeded.family),
+      missions: new MissionRegistry(),
+      logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
     })
@@ -490,18 +556,66 @@ describe('crash summaries never contain API keys', () => {
       deployments: [...prev.deployments, queued]
     }))
 
-    await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, {
+    const opts = {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners: runnersCrashingOn(queuedCompanion.runtime ?? queuedCompanion.family),
+      missions: new MissionRegistry(),
+      logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
-    })
+    }
+    await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, opts)
+    // In the app the scheduler runs after every mission ends; run it here.
+    startQueuedMissions(opts)
 
     await vi.waitFor(() => {
       const crashed = state.getState().deployments.find((d) => d.id === queued.id)
       expect(crashed?.status).toBe('failed')
       expect(crashed?.summary).toBe('runner setup leaked [redacted]')
     })
+  })
+})
+
+describe('the launch line', () => {
+  it('is the first line of a mission, written before the agent says anything', async () => {
+    const { state, send, companion, facility, deployment } = await setup()
+    const { sink, entries } = makeLogSink()
+    const runners = runnerWith(async () => streamOf([{ stream: 'stdout', text: 'hello\n' }]))
+
+    await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, {
+      win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
+      state,
+      runners,
+      missions: new MissionRegistry(),
+      logs: sink,
+      fsReader: {} as never,
+      secrets: secretsStub()
+    })
+
+    expect(entries[0]).toMatchObject({ stream: 'system', text: LAUNCHED_LINE })
+    expect(entries.slice(1).some((e) => e.stream === 'stdout' && e.text.includes('hello'))).toBe(
+      true
+    )
+  })
+
+  it('is not written when the agent could not be launched', async () => {
+    const { state, send, companion, facility, deployment } = await setup()
+    const { sink, entries } = makeLogSink()
+    const runners = runnerWith(async () => {
+      throw new Error('spawn failed')
+    })
+
+    await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, {
+      win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
+      state,
+      runners,
+      missions: new MissionRegistry(),
+      logs: sink,
+      fsReader: {} as never,
+      secrets: secretsStub()
+    })
+
+    expect(entries.map((e) => e.text)).not.toContain(LAUNCHED_LINE)
   })
 })

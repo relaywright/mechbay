@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AppState } from '../../../shared/types'
 import { lanceHeat } from '../cockpit'
 import { fleetTelemetry, STATUS_LABELS } from '../operations'
+import { concurrencyCap } from '../../../shared/mission-queue'
 
 const TICKER_INTERVAL_MS = 4000
 
@@ -36,7 +37,7 @@ function tickerItems(state: AppState | null): string[] {
  */
 function LanceGauge({ state }: { state: AppState | null }): React.JSX.Element {
   const heat = state ? lanceHeat(state) : null
-  const cap = heat?.cap ?? state?.settings.concurrencyCap ?? 3
+  const cap = heat?.cap ?? concurrencyCap(state?.settings.concurrencyCap)
   const active = heat?.active ?? 0
   return (
     <span
@@ -64,11 +65,14 @@ function LanceGauge({ state }: { state: AppState | null }): React.JSX.Element {
 export function HudHeader({
   state,
   demo,
+  notSaving,
   onBulkImportClick,
   onSettingsClick
 }: {
   state: AppState | null
   demo: boolean
+  /** The saved bay is read-only this session (StateHealth not ok). */
+  notSaving?: boolean
   onBulkImportClick: () => void
   onSettingsClick: () => void
 }): React.JSX.Element {
@@ -103,6 +107,17 @@ export function HudHeader({
       <div className="command-state">
         <span className="status-dot" />
         <span>{demo ? 'SIMULATION ONLINE' : 'LOCAL COMMAND ONLINE'}</span>
+        {notSaving && (
+          <>
+            <span className="header-separator">/</span>
+            <span
+              className="not-saving"
+              title="The saved bay is read-only this session. Changes are not saved."
+            >
+              NOT SAVING
+            </span>
+          </>
+        )}
         <span className="header-separator">/</span>
         <LanceGauge state={state} />
         <span className="header-separator">/</span>

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import Phaser from 'phaser'
-import type { AppState, Deployment } from '../../shared/types'
+import type { AppState, Deployment, StateHealth } from '../../shared/types'
+import { ipcErrorMessage } from '../../shared/bridge-errors'
+import { isOpen } from '../../shared/mission-queue'
 import { BayScene } from './game/BayScene'
 import { bus } from './bus'
 import { DeployModal } from './components/DeployModal'
 import { CrashRecoveryModal } from './components/CrashRecoveryModal'
+import { StateRecoveryModal } from './components/StateRecoveryModal'
 import { DebriefModal } from './components/DebriefModal'
 import { FileBrowser } from './components/FileBrowser'
 import { JournalTab } from './components/JournalTab'
@@ -24,6 +27,7 @@ import { TelemetryStrip } from './components/TelemetryStrip'
 import { MissionBoard } from './components/MissionBoard'
 import { fleetTelemetry, isActiveMission, noun, STATUS_LABELS } from './operations'
 import { colors, type } from './theme'
+import { useMissionLogs } from './mission-logs'
 import { sfx } from './audio/sfx'
 import { resolveSoundSettings } from '../../shared/sound-settings'
 
@@ -40,6 +44,8 @@ function App(): React.JSX.Element {
     facilityId: string
   } | null>(null)
   const [recoveryZombies, setRecoveryZombies] = useState<Deployment[] | null>(null)
+  const [stateHealth, setStateHealth] = useState<StateHealth | null>(null)
+  const [stateNoticeDismissed, setStateNoticeDismissed] = useState(false)
   const [browsingFacilityId, setBrowsingFacilityId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<SidebarTab>('operations')
   const [demo, setDemo] = useState(false)
@@ -51,6 +57,8 @@ function App(): React.JSX.Element {
   const [debriefQueue, setDebriefQueue] = useState<string[]>([])
   const [bootDone, setBootDone] = useState(false)
   const handleBootDone = useCallback(() => setBootDone(true), [])
+  const dismissStateNotice = useCallback(() => setStateNoticeDismissed(true), [])
+  const missionLogs = useMissionLogs(state?.deployments ?? [])
   // Flips as the splash starts fading, so the HUD's staggered reveal overlaps it.
   const [bootRevealed, setBootRevealed] = useState(false)
   const handleBootReveal = useCallback(() => setBootRevealed(true), [])
@@ -61,7 +69,7 @@ function App(): React.JSX.Element {
   const previousStateRef = useRef<AppState | null>(null)
   const latestStateRef = useRef<AppState | null>(null)
 
-  // Subscribe to IPC state + log chunks
+  // Subscribe to IPC state (logs arrive through useMissionLogs)
   useEffect(() => {
     window.mechbay
       .getState()
@@ -71,11 +79,15 @@ function App(): React.JSX.Element {
         setState(initialState)
         setSelectedCompanionId(initialState.companions[0]?.id ?? null)
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(ipcErrorMessage(e)))
+    void window.mechbay
+      .getStateHealth()
+      .then(setStateHealth)
+      .catch((e) => console.error('[app] getStateHealth failed:', e))
     void window.mechbay
       .getAppMode()
       .then((mode) => setDemo(mode.demo))
-      .catch(() => {})
+      .catch((e) => console.error('[app] getAppMode failed:', e))
     const offState = window.mechbay.onStateChange((nextState) => {
       const previousState = previousStateRef.current
       if (previousState) {
@@ -206,9 +218,7 @@ function App(): React.JSX.Element {
             setActiveTab('files')
           }
         })
-        .catch((e) =>
-          alert(`Could not link building: ${e instanceof Error ? e.message : String(e)}`)
-        )
+        .catch((e) => alert(`Could not link building: ${ipcErrorMessage(e)}`))
     }
     const offEmptyTile = (payload: { tile: { x: number; y: number } }): void => {
       window.mechbay
@@ -220,9 +230,7 @@ function App(): React.JSX.Element {
             setActiveTab('files')
           }
         })
-        .catch((e) =>
-          alert(`Could not place building: ${e instanceof Error ? e.message : String(e)}`)
-        )
+        .catch((e) => alert(`Could not place building: ${ipcErrorMessage(e)}`))
     }
     const offFacilityRightClick = (payload: { facilityId: string }): void => {
       const facility = latestStateRef.current?.facilities.find(
@@ -249,9 +257,7 @@ function App(): React.JSX.Element {
             return null
           })
         })
-        .catch((e) =>
-          alert(`Could not decommission building: ${e instanceof Error ? e.message : String(e)}`)
-        )
+        .catch((e) => alert(`Could not decommission building: ${ipcErrorMessage(e)}`))
     }
     bus.on('dropOnFacility', offDrop)
     bus.on('companionSelected', offSelect)
@@ -301,6 +307,18 @@ function App(): React.JSX.Element {
     }))
   }, [state])
 
+  // Queued and running missions, for the recall strip above the log.
+  const openMissions = useMemo(() => {
+    if (!state) return []
+    const companionMap = new Map(state.companions.map((c) => [c.id, c]))
+    return state.deployments
+      .filter((d) => isOpen(d.status))
+      .map((deployment) => ({
+        deployment,
+        companionName: companionMap.get(deployment.companionId)?.name ?? 'Unknown'
+      }))
+  }, [state])
+
   const selectCompanion = (id: string): void => {
     setSelectedCompanionId(id)
     sceneRef.current?.setSelectedCompanion(id)
@@ -333,10 +351,16 @@ function App(): React.JSX.Element {
   const debriefFacility = state?.facilities.find(
     (facility) => facility.id === debriefDeployment?.facilityId
   )
+  // Shown once per launch; the NOT SAVING chip stays after it is dismissed.
+  const showStateNotice =
+    !stateNoticeDismissed &&
+    stateHealth !== null &&
+    (!stateHealth.ok || Boolean(stateHealth.notice))
   const otherModalOpen = Boolean(
     pendingDeploy ||
     bulkImportOpen ||
     settingsOpen ||
+    showStateNotice ||
     (recoveryZombies && recoveryZombies.length > 0)
   )
 
@@ -353,6 +377,7 @@ function App(): React.JSX.Element {
       <HudHeader
         state={state}
         demo={demo}
+        notSaving={stateHealth?.ok === false}
         onBulkImportClick={() => setBulkImportOpen(true)}
         onSettingsClick={() => setSettingsOpen(true)}
       />
@@ -384,7 +409,7 @@ function App(): React.JSX.Element {
                   color: '#9ea991',
                   border: '1px solid #404b36',
                   padding: '2px 7px',
-                  font: '8px var(--mono)',
+                  font: 'var(--fs-label) var(--mono)',
                   letterSpacing: '0.06em',
                   cursor: 'pointer'
                 }}
@@ -527,7 +552,11 @@ function App(): React.JSX.Element {
             )}
 
             {activeTab === 'log' && (
-              <LogPane logs={state?.logChunks ?? []} deployments={deploymentInfo} />
+              <LogPane
+                logs={missionLogs}
+                deployments={deploymentInfo}
+                openMissions={openMissions}
+              />
             )}
 
             {activeTab === 'files' &&
@@ -564,6 +593,10 @@ function App(): React.JSX.Element {
 
       {recoveryZombies && recoveryZombies.length > 0 && (
         <CrashRecoveryModal zombies={recoveryZombies} onDismiss={() => setRecoveryZombies(null)} />
+      )}
+
+      {stateHealth && showStateNotice && (
+        <StateRecoveryModal health={stateHealth} onDismiss={dismissStateNotice} />
       )}
 
       {bulkImportOpen && <BulkImportModal onClose={() => setBulkImportOpen(false)} />}
@@ -622,7 +655,7 @@ function App(): React.JSX.Element {
                     setPendingDeploy(null)
                     setActiveTab('log')
                   })
-                  .catch((e) => setDeployError(e instanceof Error ? e.message : String(e)))
+                  .catch((e) => setDeployError(ipcErrorMessage(e)))
                   .finally(() => setDeploying(false))
               }}
             />

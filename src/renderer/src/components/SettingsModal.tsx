@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentFamily, Companion } from '../../../shared/types'
+import type { AgentFamily, Companion, CompanionConfigurePayload } from '../../../shared/types'
+import {
+  DEFAULT_AUTONOMY,
+  autonomyRaisedBy,
+  type EffectiveAutonomy
+} from '../../../shared/autonomy'
+import { ipcErrorMessage } from '../../../shared/bridge-errors'
 import { RUNTIME_ENV, RUNTIME_OPTIONS } from '../runtime-options'
 import { sfx } from '../audio/sfx'
-import { colors, type } from '../theme'
+import { colors, type, fontSize } from '../theme'
+import { AutonomyControl } from './AutonomyControl'
 
 interface SettingsModalProps {
   companions: Companion[]
@@ -372,25 +379,52 @@ function MechSettingsRow({
   const [runtime, setRuntime] = useState<AgentFamily>(companion.runtime ?? companion.family)
   const [model, setModel] = useState(companion.model ?? '')
   const [keyValue, setKeyValue] = useState('')
-  const [pending, setPending] = useState<'name' | 'runtime' | 'key' | null>(null)
+  const [pending, setPending] = useState<'name' | 'runtime' | 'autonomy' | 'key' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The saved runtime, not the dropdown's unapplied choice: a level change
+  // saves at once and is checked against the runtime the mech runs today.
+  const savedRuntime = companion.runtime ?? companion.family
 
-  const configure = async (kind: 'name' | 'runtime'): Promise<void> => {
+  const apply = async (
+    kind: 'name' | 'runtime' | 'autonomy',
+    payload: CompanionConfigurePayload
+  ): Promise<void> => {
     setPending(kind)
     setError(null)
     try {
-      const result = await window.mechbay.configureCompanion(
-        kind === 'name'
-          ? { companionId: companion.id, name }
-          : { companionId: companion.id, runtime, model }
-      )
+      const result = await window.mechbay.configureCompanion(payload)
       if (!result.ok) setError(result.error)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      console.error('[settings] configureCompanion failed', err)
+      setError(ipcErrorMessage(err))
     } finally {
       setPending(null)
     }
   }
+
+  // A runtime switch that would let missions do more than today (Read only on
+  // Claude runs at Full on Gemini) waits for an explicit confirmation.
+  const [confirmRaise, setConfirmRaise] = useState<EffectiveAutonomy | null>(null)
+
+  const saveName = (): Promise<void> => apply('name', { companionId: companion.id, name })
+
+  const applyRuntime = async (accepted?: EffectiveAutonomy): Promise<void> => {
+    const raised = autonomyRaisedBy(savedRuntime, runtime, companion.autonomy ?? DEFAULT_AUTONOMY)
+    if (raised !== undefined && accepted !== raised) {
+      setError(null)
+      setConfirmRaise(raised)
+      return
+    }
+    setConfirmRaise(null)
+    await apply('runtime', {
+      companionId: companion.id,
+      runtime,
+      model,
+      ...(raised !== undefined ? { acceptAutonomy: raised } : {})
+    })
+  }
+
+  const runtimeLabel = RUNTIME_OPTIONS.find((o) => o.value === runtime)?.label ?? runtime
 
   const saveSecret = async (value: string): Promise<void> => {
     setPending('key')
@@ -434,7 +468,7 @@ function MechSettingsRow({
               type="button"
               style={actionButtonStyle}
               disabled={pending !== null}
-              onClick={() => void configure('name')}
+              onClick={() => void saveName()}
             >
               SAVE
             </button>
@@ -451,6 +485,7 @@ function MechSettingsRow({
                 setRuntime(event.target.value as AgentFamily)
                 setKeyValue('')
                 setError(null)
+                setConfirmRaise(null)
               }}
             >
               {RUNTIME_OPTIONS.map((option) => (
@@ -469,12 +504,56 @@ function MechSettingsRow({
               type="button"
               style={actionButtonStyle}
               disabled={pending !== null}
-              onClick={() => void configure('runtime')}
+              onClick={() => void applyRuntime()}
             >
               APPLY
             </button>
           </span>
         </label>
+
+        {confirmRaise && (
+          <div style={fieldStyle}>
+            <span />
+            <div role="alert" aria-label="Confirm runtime switch" style={confirmStyle}>
+              <p style={confirmTextStyle}>
+                {confirmRaise === 'unenforced'
+                  ? `${runtimeLabel} controls its own permissions, so MechBay cannot limit what this mech does.`
+                  : `On ${runtimeLabel}, this mech runs at Full: it can change files and run any command without asking.`}{' '}
+                Missions already waiting in the queue will run this way too.
+              </p>
+              <span style={inlineControlStyle}>
+                <button
+                  type="button"
+                  style={dangerActionStyle}
+                  disabled={pending !== null}
+                  onClick={() => void applyRuntime(confirmRaise)}
+                >
+                  SWITCH ANYWAY
+                </button>
+                <button
+                  type="button"
+                  style={clearButtonStyle}
+                  disabled={pending !== null}
+                  onClick={() => setConfirmRaise(null)}
+                >
+                  CANCEL
+                </button>
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div style={fieldStyle}>
+          <span style={labelStyle}>AUTONOMY</span>
+          <AutonomyControl
+            runtime={savedRuntime}
+            value={companion.autonomy ?? DEFAULT_AUTONOMY}
+            disabled={pending !== null}
+            onChange={(level) =>
+              void apply('autonomy', { companionId: companion.id, autonomy: level })
+            }
+          />
+        </div>
 
         <div style={fieldStyle}>
           <span style={labelStyle}>API KEY</span>
@@ -559,7 +638,7 @@ const titleStyle: React.CSSProperties = {
 const subtitleStyle: React.CSSProperties = {
   marginTop: 4,
   color: colors.textSecondary,
-  fontSize: 9,
+  fontSize: fontSize.label,
   letterSpacing: type.hudTracking
 }
 const closeStyle: React.CSSProperties = {
@@ -587,11 +666,11 @@ const rowHeadingStyle: React.CSSProperties = {
 }
 const indexStyle: React.CSSProperties = {
   color: colors.orange,
-  fontSize: 9,
+  fontSize: fontSize.label,
   letterSpacing: type.labelTracking
 }
 const mechClassStyle: React.CSSProperties = { color: colors.amber, fontSize: 13, fontWeight: 800 }
-const familyStyle: React.CSSProperties = { color: colors.textMuted, fontSize: 9 }
+const familyStyle: React.CSSProperties = { color: colors.textMuted, fontSize: fontSize.label }
 const controlGridStyle: React.CSSProperties = { display: 'grid', gap: 9 }
 const fieldStyle: React.CSSProperties = {
   display: 'grid',
@@ -601,7 +680,7 @@ const fieldStyle: React.CSSProperties = {
 }
 const labelStyle: React.CSSProperties = {
   color: colors.textSecondary,
-  fontSize: 9,
+  fontSize: fontSize.label,
   letterSpacing: type.labelTracking
 }
 const inlineControlStyle: React.CSSProperties = { display: 'flex', minWidth: 0, gap: 6 }
@@ -612,7 +691,7 @@ const inputStyle: React.CSSProperties = {
   border: `1px solid ${colors.borderHud}`,
   color: colors.textPrimary,
   fontFamily: type.mono,
-  fontSize: 11,
+  fontSize: fontSize.small,
   padding: '6px 8px',
   outlineColor: colors.orange
 }
@@ -621,7 +700,7 @@ const actionButtonStyle: React.CSSProperties = {
   border: `1px solid ${colors.amber}`,
   color: colors.amber,
   fontFamily: type.mono,
-  fontSize: 9,
+  fontSize: fontSize.label,
   fontWeight: 800,
   padding: '5px 10px',
   cursor: 'pointer'
@@ -636,17 +715,36 @@ const keyHintStyle: React.CSSProperties = {
   gridColumn: 2,
   marginTop: 4,
   color: colors.textMuted,
-  fontSize: 9
+  fontSize: fontSize.label
 }
 const loginNoteStyle: React.CSSProperties = {
   color: colors.textSecondary,
-  fontSize: 10,
+  fontSize: fontSize.small,
   padding: '6px 0'
+}
+const confirmStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 8,
+  padding: '8px 10px',
+  border: `1px solid ${colors.statusFailedLight}`,
+  background: 'rgba(255, 107, 107, 0.08)'
+}
+const confirmTextStyle: React.CSSProperties = {
+  margin: 0,
+  color: colors.textPrimary,
+  fontSize: fontSize.small,
+  lineHeight: 1.5
+}
+const dangerActionStyle: React.CSSProperties = {
+  ...actionButtonStyle,
+  background: 'transparent',
+  borderColor: colors.statusFailedLight,
+  color: colors.statusFailedLight
 }
 const errorStyle: React.CSSProperties = {
   gridColumn: 2,
   color: colors.statusFailedLight,
-  fontSize: 10,
+  fontSize: fontSize.small,
   marginTop: 4
 }
 const bayStyle: React.CSSProperties = {
@@ -660,17 +758,21 @@ const bayStyle: React.CSSProperties = {
 }
 const sectionLabelStyle: React.CSSProperties = {
   color: colors.amber,
-  fontSize: 11,
+  fontSize: fontSize.small,
   fontWeight: 800,
   letterSpacing: type.labelTracking
 }
-const bayHintStyle: React.CSSProperties = { color: colors.textSecondary, fontSize: 9, marginTop: 5 }
+const bayHintStyle: React.CSSProperties = {
+  color: colors.textSecondary,
+  fontSize: fontSize.label,
+  marginTop: 5
+}
 const toggleButtonStyle = (reduced: boolean): React.CSSProperties => ({
   background: reduced ? 'transparent' : colors.amberTint,
   border: `1px solid ${reduced ? colors.textMuted : colors.amber}`,
   color: reduced ? colors.textSecondary : colors.amber,
   fontFamily: type.mono,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 800,
   letterSpacing: type.hudTracking,
   padding: '8px 14px',
@@ -694,7 +796,7 @@ const volumeReadoutStyle = (enabled: boolean): React.CSSProperties => ({
   width: 34,
   textAlign: 'right',
   color: enabled ? colors.amber : colors.textMuted,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 800,
   fontVariantNumeric: 'tabular-nums'
 })
@@ -703,7 +805,7 @@ const dangerButtonStyle: React.CSSProperties = {
   border: `1px solid ${colors.statusFailed}`,
   color: colors.statusFailedLight,
   fontFamily: type.mono,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 800,
   letterSpacing: type.hudTracking,
   padding: '8px 14px',

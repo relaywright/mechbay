@@ -6,6 +6,8 @@
  * cross IPC boundaries cleanly.
  */
 
+import type { AutonomyLevel, EffectiveAutonomy } from './autonomy'
+
 export type AgentFamily = 'claude' | 'codex' | 'kimi' | 'gemini' | 'hermes'
 
 export interface AppMode {
@@ -43,7 +45,6 @@ export interface Companion {
   spriteKey: string
   homeTile: { x: number; y: number }
   cliAvailable: boolean
-  recentDeploymentIds: string[]
   soulPath: string
   memoryPath: string
   lastMemoryUpdateAt?: number
@@ -56,6 +57,8 @@ export interface Companion {
   runtime?: AgentFamily
   /** Optional model override passed through to the runtime CLI. */
   model?: string
+  /** How much this mech may do without asking (P0-12). Saves from v1.4.0 get DEFAULT_AUTONOMY. */
+  autonomy: AutonomyLevel
 }
 
 export interface Facility {
@@ -66,7 +69,6 @@ export interface Facility {
   tile: { x: number; y: number }
   source: 'auto-scan' | 'manual'
   discoveredAt: number
-  decommissioned?: boolean
 }
 
 export interface DiffFileStat {
@@ -119,12 +121,28 @@ export interface Deployment {
   diffStats?: { filesChanged: number; insertions: number; deletions: number }
   diffFiles?: DiffFileStat[]
   baselineSha?: string
-  pendingInput?: { prompt: string; detectedAt: number }
+  /**
+   * The Autonomy level the mission actually ran at, or 'unenforced' when
+   * the runtime controls its own permissions. Absent on missions from
+   * before v1.4.2.
+   */
+  autonomy?: AutonomyLevel | 'unenforced'
+  /** Actions the CLI refused because they needed permission (redacted). */
+  permissionDenials?: string[]
+  /**
+   * Set when the mission failed before its agent was launched (its building
+   * was removed, its runtime has no runner). It never left the bay, so the
+   * service record does not count it as a sortie.
+   */
+  neverLaunched?: true
 }
 
 export interface LogChunk {
+  /** `<deploymentId>:<seq>` */
   id: string
   deploymentId: string
+  /** 1-based position within its mission. */
+  seq: number
   timestamp: number
   stream: 'stdout' | 'stderr' | 'system' | 'thought'
   text: string
@@ -139,12 +157,23 @@ export interface LogChunk {
 }
 
 /**
- * Bump this literal when the seed shape changes incompatibly. The
- * StateManager migration wipes any cached state whose version doesn't
- * match (TODO(Wave 5): preserve user-facing settings + deployments
- * history across bumps once those become editable / valuable).
+ * Saved-state schema. Bump only together with a new entry in
+ * src/main/state-migrations.ts; the saved bay is migrated, never wiped.
  */
-export type StateSchemaVersion = 2
+export type StateSchemaVersion = 3
+
+/**
+ * How the saved bay loaded (P0-14). When `ok` is false the session is
+ * read-only: nothing is written over the saved file.
+ */
+export type StateHealth =
+  | { ok: true; notice?: string }
+  | {
+      ok: false
+      reason: 'newer-version' | 'migration-failed' | 'read-failed'
+      message: string
+      statePath?: string
+    }
 
 /** Payload for SOUL_READ IPC call. */
 export interface SoulReadPayload {
@@ -196,6 +225,13 @@ export interface CompanionConfigurePayload {
   runtime?: AgentFamily
   model?: string
   name?: string
+  autonomy?: AutonomyLevel
+  /**
+   * Required when a runtime switch raises the level missions really run at
+   * (Read only on Claude becomes Full on Gemini): the level the user saw and
+   * confirmed. A request without it, or with a different level, is rejected.
+   */
+  acceptAutonomy?: EffectiveAutonomy
 }
 
 /** Result for COMPANION_CONFIGURE IPC call. */
@@ -209,12 +245,10 @@ export interface AppState {
   companions: Companion[]
   facilities: Facility[]
   deployments: Deployment[]
-  logChunks: LogChunk[]
   settings: {
     projectsDir: string
     concurrencyCap: number
     ignoredMarkers: string[]
-    companionNameOverrides: Record<string, string>
     /**
      * When true, the bay suppresses decorative motion (idle breathing,
      * beacon blinks, walk bob, dust) — the accessibility escape hatch.
@@ -246,5 +280,4 @@ export interface AppState {
      */
     soundVolume?: number
   }
-  lastScanAt?: number
 }

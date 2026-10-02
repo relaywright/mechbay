@@ -7,6 +7,7 @@
  * terse, all caps, one line at a time — about the lance as a whole.
  */
 import type { AppState, Deployment } from '../../shared/types'
+import { concurrencyCap } from '../../shared/mission-queue'
 
 export type CalloutTone = 'nominal' | 'warning' | 'critical'
 
@@ -120,7 +121,8 @@ export interface LanceHeat {
  * slot is taken; anything more waits in the queue.
  */
 export function lanceHeat(state: AppState): LanceHeat {
-  const cap = Math.max(1, state.settings.concurrencyCap)
+  // The scheduler's own reading of the cap, so the gauge and the queue agree.
+  const cap = concurrencyCap(state.settings.concurrencyCap)
   const active = state.deployments.filter((d) => ACTIVE.has(d.status)).length
   const queued = state.deployments.filter((d) => d.status === 'queued').length
   const level = Math.min(1, active / cap)

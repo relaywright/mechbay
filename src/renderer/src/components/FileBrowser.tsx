@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FsNode } from '../../../shared/types'
+import { colors, fontSize } from '../theme'
 
 /**
  * Read-only file browser that lives inside the sidebar's right pane.
@@ -208,7 +209,7 @@ const breadcrumbStyle: React.CSSProperties = {
 
 const facilityLabelStyle: React.CSSProperties = {
   color: '#ffcc33',
-  fontSize: 11,
+  fontSize: fontSize.small,
   letterSpacing: '0.15em'
 }
 
@@ -216,7 +217,7 @@ const backButtonStyle: React.CSSProperties = {
   background: 'transparent',
   border: '1px solid #e85f00',
   color: '#e85f00',
-  fontSize: 10,
+  fontSize: fontSize.small,
   padding: '2px 8px',
   cursor: 'pointer',
   fontFamily: 'inherit',
@@ -224,7 +225,7 @@ const backButtonStyle: React.CSSProperties = {
 }
 
 const filePathStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: fontSize.small,
   color: '#888',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -235,7 +236,7 @@ const filePathStyle: React.CSSProperties = {
 const treePaneStyle: React.CSSProperties = {
   flex: 1,
   overflow: 'auto',
-  fontSize: 11,
+  fontSize: fontSize.small,
   fontFamily: 'inherit'
 }
 
@@ -253,12 +254,12 @@ const iconStyle: React.CSSProperties = {
   display: 'inline-block',
   width: 10,
   color: '#e85f00',
-  fontSize: 9
+  fontSize: fontSize.label
 }
 
 const sizeStyle: React.CSSProperties = {
-  color: '#555',
-  fontSize: 10,
+  color: colors.textMuted,
+  fontSize: fontSize.small,
   marginLeft: 'auto',
   paddingLeft: 6
 }
@@ -266,7 +267,7 @@ const sizeStyle: React.CSSProperties = {
 const contentStyle: React.CSSProperties = {
   background: '#0a0805',
   color: '#ccc',
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontFamily: 'inherit',
   flex: 1,
   overflow: 'auto',
@@ -277,12 +278,12 @@ const contentStyle: React.CSSProperties = {
 
 const errorStyle: React.CSSProperties = {
   color: '#f44',
-  fontSize: 11,
+  fontSize: fontSize.small,
   padding: '6px 0'
 }
 
 const mutedStyle: React.CSSProperties = {
-  color: '#666',
-  fontSize: 11,
+  color: colors.textMuted,
+  fontSize: fontSize.small,
   padding: '6px 0'
 }

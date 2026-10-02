@@ -18,6 +18,8 @@ vi.mock('electron', () => ({
 }))
 
 import { registerIpc } from '../../src/main/ipc'
+import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 const store = (): StoreLike => {
   const data: Record<string, unknown> = {}
@@ -46,6 +48,8 @@ function setup(): {
     win: { isDestroyed: () => false, webContents: { send: vi.fn() } } as unknown as BrowserWindow,
     state,
     runners,
+    missions: new MissionRegistry(),
+    logs: makeLogSink().sink,
     fsReader: {} as never,
     secrets: {} as never
   })
@@ -88,7 +92,7 @@ describe('IPC.FACILITY_REMOVE', () => {
     }))
     expect(await remove({ facilityId: facility.id })).toEqual({
       ok: false,
-      error: `«${facility.name}» has an active deployment. Wait for it to finish first.`
+      error: `${facility.name} has an active mission. Wait for it to return, or recall it first.`
     })
     expect(state.getState().facilities.some((candidate) => candidate.id === facility.id)).toBe(true)
   })

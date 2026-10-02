@@ -197,3 +197,26 @@ describe('computeServiceRecord', () => {
     expect(record.rank.progress).toBeCloseTo(250 / 300)
   })
 })
+
+describe('computeServiceRecord and missions that never launched', () => {
+  it('does not count a mission that failed before it left the bay', () => {
+    const record = computeServiceRecord(COMPANION_A, [
+      deployment({ status: 'completed', startedAt: 1_000, completedAt: 61_000 }),
+      deployment({
+        status: 'failed',
+        neverLaunched: true,
+        startedAt: 1_000,
+        completedAt: 500_000,
+        summary: 'This building was removed before the mission started.'
+      })
+    ])
+    expect(record).toMatchObject({ sorties: 1, completed: 1, failed: 0, timeInFieldMs: 60_000 })
+  })
+
+  it('still counts a mission that launched and then failed', () => {
+    const record = computeServiceRecord(COMPANION_A, [
+      deployment({ status: 'failed', exitCode: 1, startedAt: 1_000, completedAt: 31_000 })
+    ])
+    expect(record).toMatchObject({ sorties: 1, failed: 1, timeInFieldMs: 30_000 })
+  })
+})

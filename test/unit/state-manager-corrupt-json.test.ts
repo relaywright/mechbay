@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { StateManager, type StoreLike } from '../../src/main/state-manager'
+import { CURRENT_SCHEMA_VERSION } from '../../src/main/state-migrations'
 
 describe('StateManager — corrupt/malformed state handling', () => {
   it('falls back to defaults when stored state is corrupt JSON', () => {
@@ -14,7 +15,7 @@ describe('StateManager — corrupt/malformed state handling', () => {
     const state = sm.getState()
 
     // Should have seeded fresh defaults despite corrupt store
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(CURRENT_SCHEMA_VERSION)
     expect(state.companions).toHaveLength(5)
     expect(state.facilities).toHaveLength(6)
     expect(state.deployments).toEqual([])
@@ -31,7 +32,7 @@ describe('StateManager — corrupt/malformed state handling', () => {
     const sm = new StateManager(nullStore, '/tmp/mechbay-test')
     const state = sm.getState()
 
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(CURRENT_SCHEMA_VERSION)
     expect(state.companions).toHaveLength(5)
   })
 
@@ -45,7 +46,7 @@ describe('StateManager — corrupt/malformed state handling', () => {
     const sm = new StateManager(primitiveStore, '/tmp/mechbay-test')
     const state = sm.getState()
 
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(CURRENT_SCHEMA_VERSION)
     expect(Array.isArray(state.companions)).toBe(true)
   })
 
@@ -78,7 +79,7 @@ describe('StateManager — corrupt/malformed state handling', () => {
     const sm = new StateManager(throwingStore, '/tmp/mechbay-test')
     const state = sm.getState()
 
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(CURRENT_SCHEMA_VERSION)
     expect(state.companions).toHaveLength(5)
   })
 
@@ -94,7 +95,7 @@ describe('StateManager — corrupt/malformed state handling', () => {
     const sm = new StateManager(throwingHasStore, '/tmp/mechbay-test')
     const state = sm.getState()
 
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(CURRENT_SCHEMA_VERSION)
     expect(state.companions).toHaveLength(5)
   })
 })
@@ -128,7 +129,7 @@ describe('StateManager — store write failures', () => {
 
     // updateState should NOT throw even if persistence fails (it catches and logs)
     expect(() => {
-      sm.updateState((s) => ({ ...s, lastScanAt: 1234 }))
+      sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 4 } }))
     }).not.toThrow()
   })
 
@@ -164,7 +165,7 @@ describe('StateManager — store write failures', () => {
     })
 
     // Should not throw - the error is caught internally
-    sm.updateState((s) => ({ ...s, lastScanAt: 5678 }))
+    sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 4 } }))
 
     // Event should have been emitted before the persistence attempt
     expect(emitted).toBe(true)
@@ -203,7 +204,7 @@ describe('StateManager — store write failures', () => {
       capturedErr = err
     })
 
-    sm.updateState((s) => ({ ...s, lastScanAt: 9999 }))
+    sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 4 } }))
 
     expect(persistFailedEmitted).toBe(true)
     expect(capturedErr).toBeInstanceOf(Error)
@@ -231,7 +232,7 @@ describe('StateManager — zombie sweep edge cases', () => {
     expect(sm.sweepZombieDeployments()).toEqual([])
   })
 
-  it('sweepZombieDeployments preserves non-active statuses', () => {
+  it('sweepZombieDeployments preserves ended missions and cancels queued ones', () => {
     const store = makeInMemoryStore()
     const sm = new StateManager(store, '/tmp/zombie-test')
 
@@ -277,16 +278,19 @@ describe('StateManager — zombie sweep edge cases', () => {
       ]
     }))
 
+    // A queued mission is cancelled rather than started unattended.
     const zombies = sm.sweepZombieDeployments()
-    expect(zombies).toEqual([])
+    expect(zombies.map((z) => [z.id, z.status])).toEqual([['d4', 'cancelled']])
 
-    // All non-active statuses should be unchanged
+    // Ended missions are unchanged.
     const state = sm.getState()
-    expect(
-      state.deployments.every((d) =>
-        ['completed', 'failed', 'cancelled', 'queued'].includes(d.status)
-      )
-    ).toBe(true)
+    expect(state.deployments.map((d) => d.status)).toEqual([
+      'completed',
+      'failed',
+      'cancelled',
+      'cancelled'
+    ])
+    expect(state.deployments.find((d) => d.id === 'd3')?.completedAt).toBe(6)
   })
 
   it('sweepZombieDeployments marks all active statuses as failed', () => {
@@ -334,6 +338,8 @@ describe('StateManager — zombie sweep edge cases', () => {
     const zombies = sm.sweepZombieDeployments()
     expect(zombies).toHaveLength(4)
     expect(zombies.every((z) => z.status === 'failed')).toBe(true)
-    expect(zombies.every((z) => z.summary === 'Interrupted by app crash')).toBe(true)
+    expect(
+      zombies.every((z) => z.summary === 'Interrupted when MechBay closed unexpectedly.')
+    ).toBe(true)
   })
 })

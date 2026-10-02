@@ -9,8 +9,7 @@
 import { Notification, type BrowserWindow } from 'electron'
 import type { AppState, Deployment, DeploymentStatus } from '../shared/types'
 import type { StateManager } from './state-manager'
-
-const ACTIVE_STATUSES: DeploymentStatus[] = ['walking-to', 'working', 'awaiting-input', 'returning']
+import { isActive } from '../shared/mission-queue'
 
 export type MissionEventStatus = 'completed' | 'failed' | 'awaiting-input'
 
@@ -78,14 +77,12 @@ export function formatMissionAlert(
   }
 
   // awaiting-input
-  const body = deployment.pendingInput?.prompt
-    ? deployment.pendingInput.prompt
-    : `${facilityName} · Waiting for your input.`
+  const body = `${facilityName} · Waiting for your input.`
   return { title: `${name} needs input`, body: truncate(body, 120) }
 }
 
 function hasActiveDeployment(deployments: Deployment[]): boolean {
-  return deployments.some((d) => ACTIVE_STATUSES.includes(d.status))
+  return deployments.some((d) => isActive(d.status))
 }
 
 export interface NotifyOptions {

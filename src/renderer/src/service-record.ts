@@ -88,6 +88,7 @@ export function computeServiceRecord(
 
   for (const d of mine) {
     if (d.status !== 'completed' && d.status !== 'failed') continue
+    if (d.neverLaunched) continue
 
     if (d.status === 'completed') {
       completed++

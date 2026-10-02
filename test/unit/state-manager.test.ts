@@ -18,7 +18,7 @@ describe('StateManager', () => {
     const sm = new StateManager(store, '/tmp/mechbay-test')
     const state = sm.getState()
 
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(3)
     expect(state.companions).toHaveLength(5)
     expect(state.companions.map((c) => c.family).sort()).toEqual([
       'claude',
@@ -44,9 +44,9 @@ describe('StateManager', () => {
     ])
   })
 
-  it('re-seeds state when cached version is stale (schema migration)', () => {
+  it('starts a fresh bay when the saved schema predates the first release', () => {
     const store = makeInMemoryStore()
-    // Pre-populate store with v1 data (no facilities) to simulate pre-migration
+    // Schema 1 never shipped, so there is nothing to migrate from
     store.set('state', {
       version: 1,
       companions: [],
@@ -57,9 +57,10 @@ describe('StateManager', () => {
     })
     const sm = new StateManager(store, '/tmp/mechbay-test')
     const state = sm.getState()
-    expect(state.version).toBe(2)
+    expect(state.version).toBe(3)
     expect(state.companions).toHaveLength(5)
     expect(state.facilities).toHaveLength(6)
+    expect(sm.getHealth()).toMatchObject({ ok: true, notice: expect.stringContaining('fresh') })
   })
 
   it('seeds canonical mech-class mapping per spec §6', () => {
@@ -95,12 +96,12 @@ describe('StateManager', () => {
   it('persists updates via updateState()', () => {
     const store = makeInMemoryStore()
     const sm = new StateManager(store, '/tmp/mechbay-test')
-    sm.updateState((s) => ({ ...s, lastScanAt: 1234 }))
-    expect(sm.getState().lastScanAt).toBe(1234)
+    sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 5 } }))
+    expect(sm.getState().settings.concurrencyCap).toBe(5)
 
     // Verify persistence reaches the store
     const sm2 = new StateManager(store, '/tmp/mechbay-test')
-    expect(sm2.getState().lastScanAt).toBe(1234)
+    expect(sm2.getState().settings.concurrencyCap).toBe(5)
   })
 
   it('emits stateChanged events on update', () => {
@@ -110,8 +111,8 @@ describe('StateManager', () => {
     sm.on('stateChanged', () => {
       calls++
     })
-    sm.updateState((s) => ({ ...s, lastScanAt: 5678 }))
-    sm.updateState((s) => ({ ...s, lastScanAt: 9999 }))
+    sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 4 } }))
+    sm.updateState((s) => ({ ...s, settings: { ...s.settings, concurrencyCap: 5 } }))
     expect(calls).toBe(2)
   })
 
@@ -151,12 +152,51 @@ describe('StateManager', () => {
     const zombies = sm.sweepZombieDeployments()
     expect(zombies).toHaveLength(2)
     expect(zombies.every((z) => z.status === 'failed')).toBe(true)
-    expect(zombies.every((z) => z.summary === 'Interrupted by app crash')).toBe(true)
+    expect(
+      zombies.every((z) => z.summary === 'Interrupted when MechBay closed unexpectedly.')
+    ).toBe(true)
 
     const stored = sm.getState().deployments
     expect(stored.find((d) => d.id === 'z1')!.status).toBe('failed')
     expect(stored.find((d) => d.id === 'z2')!.status).toBe('failed')
     expect(stored.find((d) => d.id === 'done1')!.status).toBe('completed')
+  })
+
+  it('cancels missions that were still queued', () => {
+    const sm = new StateManager(makeInMemoryStore(), '/tmp/zombie-queued-test')
+    sm.updateState((s) => ({
+      ...s,
+      deployments: [
+        {
+          id: 'q1',
+          companionId: 'c1',
+          facilityId: 'f1',
+          taskPrompt: 'still waiting',
+          status: 'queued',
+          startedAt: 1
+        },
+        {
+          id: 'w1',
+          companionId: 'c2',
+          facilityId: 'f2',
+          taskPrompt: 'was running',
+          status: 'working',
+          startedAt: 2
+        }
+      ]
+    }))
+
+    const changed = sm.sweepZombieDeployments()
+    expect(changed.map((d) => [d.id, d.status])).toEqual([
+      ['q1', 'cancelled'],
+      ['w1', 'failed']
+    ])
+    const queued = sm.getState().deployments.find((d) => d.id === 'q1')!
+    expect(queued.status).toBe('cancelled')
+    expect(queued.summary).toBe('Cancelled: MechBay closed before it started.')
+    expect(queued.completedAt).toEqual(expect.any(Number))
+    // Idempotent: a second sweep finds nothing left open.
+    expect(sm.sweepZombieDeployments()).toEqual([])
   })
 
   it('sweepZombieDeployments is a no-op when no active deployments exist', () => {

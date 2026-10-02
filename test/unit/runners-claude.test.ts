@@ -78,7 +78,7 @@ describe('ClaudeRunner.spawn', () => {
     expect(stderrChunks.join('')).toBe('err')
   })
 
-  it('abort() sends SIGTERM to the child', async () => {
+  it('abort() stops the process tree once', async () => {
     const fakeChild = new EventEmitter() as EventEmitter & {
       stdout: Readable
       stderr: Readable
@@ -87,15 +87,19 @@ describe('ClaudeRunner.spawn', () => {
     fakeChild.stdout = Readable.from([])
     fakeChild.stderr = Readable.from([])
     fakeChild.kill = vi.fn()
+    const killTree = vi.fn(async () => {})
 
     const runner = new ClaudeRunner({
       which: async () => '/usr/local/bin/claude',
-      spawnProcess: (() => fakeChild) as never
+      spawnProcess: (() => fakeChild) as never,
+      killTree
     })
 
     const result = await runner.spawn('/tmp', 'noop')
-    result.abort()
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM')
+    await result.abort()
+    await result.abort()
+    expect(killTree).toHaveBeenCalledTimes(1)
+    expect(killTree).toHaveBeenCalledWith(fakeChild)
 
     setTimeout(() => fakeChild.emit('close', 0), 5)
     setTimeout(() => fakeChild.emit('exit', 143), 6)

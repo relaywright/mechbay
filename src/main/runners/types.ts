@@ -7,6 +7,9 @@
  * is a drop-in: implement `Runner`, register in the runner map.
  */
 
+import type { RunReport } from './claude-stream'
+import type { AutonomyLevel } from '../../shared/autonomy'
+
 export interface RunnerChunk {
   stream: 'stdout' | 'stderr'
   text: string
@@ -15,10 +18,20 @@ export interface RunnerChunk {
 export interface SpawnResult {
   /** Async iterable of stdout/stderr chunks. Yields until the child exits. */
   stream: AsyncIterable<RunnerChunk>
-  /** Send SIGTERM. Caller is responsible for fallback to SIGKILL after grace. */
-  abort: () => void
+  /** End the agent and every process it started. Safe to call more than once; resolves when done. */
+  abort: () => Promise<void>
+  /** OS process id of the launched child, when known. */
+  pid?: number
   /** Resolves with the child's exit code (or -1 if killed by signal). */
   exit: Promise<number>
+  /** Facts the runner learned from the CLI's output (Claude only today). Read after the stream ends. */
+  report?: () => RunReport
+  /**
+   * Stop reading the output and end `stream`, for when the agent has exited
+   * but a process it started still holds the output open. That process's
+   * later output is discarded instead of collected.
+   */
+  detachOutput?: () => void
 }
 
 /** Optional per-spawn overrides threaded through to the runner's argv. */
@@ -27,6 +40,8 @@ export interface RunnerSpawnOptions {
   model?: string
   /** Environment variables injected into this process only. */
   env?: Record<string, string>
+  /** Permission level; each runner maps it to its CLI's own flags. Defaults to DEFAULT_AUTONOMY. */
+  autonomy?: AutonomyLevel
 }
 
 export interface Runner {

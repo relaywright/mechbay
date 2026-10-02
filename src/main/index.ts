@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 import icon from '../../resources/icon.png?asset'
 import { StateManager } from './state-manager'
+import { openStateStore } from './state-store'
 import { scaffoldSoulAndMemory } from './soul-memory'
 import { FsReader } from './fs-reader'
 import { ClaudeRunner } from './runners/claude'
@@ -12,7 +13,10 @@ import { KimiRunner } from './runners/kimi'
 import { GeminiRunner } from './runners/gemini'
 import { HermesRunner } from './runners/hermes'
 import { SimRunner } from './runners/sim'
-import { registerIpc } from './ipc'
+import { collectSecretValues, registerIpc } from './ipc'
+import { redactSecrets } from './redact'
+import { LogStore, logDirFor, prepareLogStore } from './log-store'
+import { MissionRegistry, shutdownMissions } from './mission-registry'
 import { hasSameOrigin, isOpenableExternalUrl } from './external-links'
 import { MissionAlerts } from './mission-alerts'
 import { runCliAvailabilityCheck } from './cli-check'
@@ -112,8 +116,13 @@ app.whenReady().then(() => {
 
   // ─── MechBay subsystems ───────────────────────────────────────
   const demoMode = isDemoMode()
-  const store = new Store({ name: demoMode ? 'mechbay-state-demo' : 'mechbay-state' })
-  const state = new StateManager(store, app.getPath('userData'))
+  const userData = app.getPath('userData')
+  const opened = openStateStore({
+    dir: userData,
+    name: demoMode ? 'mechbay-state-demo' : 'mechbay-state',
+    createStore: (name) => new Store({ name })
+  })
+  const state = new StateManager(opened.store, userData, { startupNotice: opened.notice })
   const secrets = new SecretsManager(new Store({ name: 'mechbay-secrets' }))
 
   if (demoMode) {
@@ -178,7 +187,43 @@ app.whenReady().then(() => {
   const fsReader = new FsReader(buildFsWhitelist())
   state.on('stateChanged', () => fsReader.updateWhitelist(buildFsWhitelist()))
 
-  registerIpc({ win, state, runners, fsReader, secrets, demoMode })
+  // Mission logs live in per-mission files next to the saved bay, in a
+  // separate folder for demo mode. Each flushed batch goes to the window.
+  const logs = new LogStore({
+    dir: logDirFor(userData, demoMode),
+    onEntries: (entries) => {
+      if (!win.isDestroyed()) win.webContents.send(IPC.LOG_STREAM, entries)
+    }
+  })
+  // A failure here must not stop the bay from opening: missions still log
+  // live, only the old-log import or cleanup is skipped.
+  try {
+    const bootSecrets = collectSecretValues({ runners, secrets })
+    prepareLogStore(logs, state, { redact: (text) => redactSecrets(text, bootSecrets) })
+  } catch (err) {
+    console.error('[boot] preparing mission logs failed:', err)
+  }
+  // Closing MechBay refuses new missions, recalls every running one and
+  // cancels every queued one, waits for each to save its outcome, then
+  // writes the last log lines (shutdownMissions does the flush), bounded at
+  // 8 seconds so a stuck agent cannot hold the app open.
+  const missions = new MissionRegistry()
+  let quitting = false
+  app.on('before-quit', (event) => {
+    // A second quit while shutting down waits for the first; app.exit below
+    // ends the app without emitting before-quit again.
+    event.preventDefault()
+    if (quitting) return
+    quitting = true
+    // The window goes away at once: the wait below is MechBay tidying up,
+    // not something to stare at or click into.
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.hide()
+    }
+    void shutdownMissions({ state, missions, logs, timeoutMs: 8000 }).finally(() => app.exit(0))
+  })
+
+  registerIpc({ win, state, runners, fsReader, secrets, demoMode, logs, missions })
 
   // Crash recovery: any deployment stuck in an active status is a
   // zombie from a previous crash or force-quit. Mark them failed and

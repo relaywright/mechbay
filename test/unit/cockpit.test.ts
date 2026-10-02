@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { AppState, Deployment } from '../../src/shared/types'
+import { DEFAULT_CONCURRENCY_CAP } from '../../src/shared/mission-queue'
 import {
   compassPoint,
   computeCallouts,
@@ -115,10 +116,12 @@ describe('lanceHeat', () => {
     expect(hot).toMatchObject({ active: 3, queued: 1, level: 1, band: 'hot' })
   })
 
-  it('ignores finished missions and guards a zero cap', () => {
+  it('ignores finished missions and reads a zero cap the way the scheduler does', () => {
+    // The queue runs DEFAULT_CONCURRENCY_CAP missions when the saved cap is
+    // unusable, so the gauge shows that many slots too.
     expect(lanceHeat(state([deployment('a', 'completed')], true, 0))).toMatchObject({
       active: 0,
-      cap: 1,
+      cap: DEFAULT_CONCURRENCY_CAP,
       band: 'cool'
     })
   })

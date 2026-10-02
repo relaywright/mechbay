@@ -20,11 +20,13 @@ import type {
   BulkImportRunResult,
   CompanionConfigurePayload,
   CompanionConfigureResult,
-  DiffFileGetResult
+  DiffFileGetResult,
+  SimpleActionResult,
+  StateHealth
 } from '../shared/types'
 import { seedFacilities, type StateManager } from './state-manager'
 import type { SecretsManager } from './secrets'
-import type { Runner } from './runners/types'
+import type { Runner, SpawnResult } from './runners/types'
 import { ulid } from '../shared/ulid'
 import { clampSoundVolume } from '../shared/sound-settings'
 import { scanProjects, type DiscoveredProject } from './project-scanner'
@@ -46,6 +48,26 @@ import {
   resolveInRepo
 } from './git-diff'
 import { redactSecrets } from './redact'
+import type { MissionLogSink } from './log-store'
+import type { MissionRegistry } from './mission-registry'
+import { readUntilExitDrained } from './drain-output'
+import { NotYetAvailableError } from '../shared/bridge-errors'
+import {
+  capDeployments,
+  hasOpenMission,
+  isOpen,
+  isTerminal,
+  missionsToStart
+} from '../shared/mission-queue'
+import { setDeployment } from './deployment-patch'
+import {
+  AUTONOMY_LABELS,
+  AUTONOMY_LEVELS,
+  DEFAULT_AUTONOMY,
+  autonomyRaisedBy,
+  autonomySupport,
+  effectiveAutonomy
+} from '../shared/autonomy'
 
 const GRID_W = 16
 const GRID_H = 16
@@ -57,12 +79,22 @@ export interface IpcDeps {
   fsReader: FsReader
   secrets: SecretsManager
   demoMode?: boolean
+  /** Mission logs (log-store.ts). Text is redacted before it is appended. */
+  logs: MissionLogSink & {
+    history: (missionId: string, afterSeq?: number) => Promise<LogChunk[]>
+  }
+  /** Abort handles of running agents, for recall and for closing MechBay. */
+  missions: MissionRegistry
 }
 
 const FS_DIR_IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'out']
 
-const ACTIVE_STATUSES: DeploymentStatus[] = ['walking-to', 'working', 'awaiting-input', 'returning']
-const BLOCKING_STATUSES: DeploymentStatus[] = [...ACTIVE_STATUSES, 'queued']
+/** After the agent exits, how long its last output may take to arrive. */
+const DRAIN_AFTER_EXIT_MS = 2000
+
+/** The first log line of every mission, written the moment the agent is launched. */
+export const LAUNCHED_LINE =
+  'Agent launched. It can take a few seconds to load its own setup before it reports in.\n'
 
 /**
  * Raw task text of queued deployments, by deployment id, with the secrets
@@ -72,6 +104,11 @@ const BLOCKING_STATUSES: DeploymentStatus[] = [...ACTIVE_STATUSES, 'queued']
  * quotes redacted even if Settings replaces that key before the run.
  */
 const queuedRawPrompts = new Map<string, { prompt: string; secrets: string[] }>()
+
+/** Test seam: ids of missions whose raw prompt is still held in memory. */
+export function queuedRawPromptIdsForTests(): string[] {
+  return [...queuedRawPrompts.keys()]
+}
 
 export function registerIpc(opts: IpcDeps): void {
   const { win, state, runners, fsReader, secrets } = opts
@@ -165,13 +202,12 @@ export function registerIpc(opts: IpcDeps): void {
     const facility = current.facilities.find((candidate) => candidate.id === args.facilityId)
     if (!facility) return { ok: false, error: `Facility not found: ${args.facilityId}` }
     const active = current.deployments.some(
-      (deployment) =>
-        deployment.facilityId === facility.id && BLOCKING_STATUSES.includes(deployment.status)
+      (deployment) => deployment.facilityId === facility.id && isOpen(deployment.status)
     )
     if (active) {
       return {
         ok: false,
-        error: `«${facility.name}» has an active deployment. Wait for it to finish first.`
+        error: `${facility.name} has an active mission. Wait for it to return, or recall it first.`
       }
     }
     state.updateState((prev) => ({
@@ -182,14 +218,10 @@ export function registerIpc(opts: IpcDeps): void {
   })
 
   ipcMain.handle(IPC.FIELD_RESET, () => {
-    if (
-      state
-        .getState()
-        .deployments.some((deployment) => BLOCKING_STATUSES.includes(deployment.status))
-    ) {
+    if (state.getState().deployments.some((deployment) => isOpen(deployment.status))) {
       return {
         ok: false,
-        error: 'Deployments are active. Wait for them to finish before resetting the field.'
+        error: 'Missions are still running. Wait for them to return, or recall them first.'
       }
     }
     state.updateState((prev) => ({ ...prev, facilities: seedFacilities() }))
@@ -293,6 +325,7 @@ export function registerIpc(opts: IpcDeps): void {
   })
 
   ipcMain.handle(IPC.STATE_GET, () => state.getState())
+  ipcMain.handle(IPC.STATE_HEALTH_GET, (): StateHealth => state.getHealth())
 
   // Canonical paths of the projects the most recent scan returned. Bulk
   // import only accepts these: an imported folder joins the File Browser
@@ -316,7 +349,6 @@ export function registerIpc(opts: IpcDeps): void {
         .map((project) => canonicalPath(project.path))
         .filter((canonical): canonical is string => canonical !== null)
     )
-    state.updateState((prev) => ({ ...prev, lastScanAt: Date.now() }))
     return results
   })
 
@@ -331,6 +363,7 @@ export function registerIpc(opts: IpcDeps): void {
         quickPromptUsed?: string
       }
     ) => {
+      if (opts.missions.closing) throw new Error('MechBay is closing.')
       const deploymentId = ulid()
       const s = state.getState()
       const companion = s.companions.find((c) => c.id === args.companionId)
@@ -339,14 +372,16 @@ export function registerIpc(opts: IpcDeps): void {
       if (!facility) throw new Error(`Facility not found: ${args.facilityId}`)
       if (!facility.path) {
         throw new Error(
-          `${facility.name} isn't linked to a project folder yet. Click the building to link it to a project directory, or use BULK IMPORT (top bar).`
+          `${facility.name} isn't linked to a project folder yet. Click the building to link it to a project folder, or use BULK IMPORT in the top bar.`
+        )
+      }
+      if (hasOpenMission(s.deployments, companion.id)) {
+        throw new Error(
+          `${companion.name} is already on a mission. Wait for it to return, or recall it first.`
         )
       }
 
-      const activeCount = s.deployments.filter((d) => ACTIVE_STATUSES.includes(d.status)).length
-      const status: DeploymentStatus =
-        activeCount >= s.settings.concurrencyCap ? 'queued' : 'walking-to'
-
+      // Every mission enters the queue; the scheduler decides when it starts.
       const secretsNow = collectSecretValues(opts)
       const deployment: Deployment = {
         id: deploymentId,
@@ -355,41 +390,72 @@ export function registerIpc(opts: IpcDeps): void {
         // Saved state and the UI see the redacted copy; the runner gets the raw one.
         taskPrompt: redactSecrets(args.taskPrompt, secretsNow),
         quickPromptUsed: args.quickPromptUsed,
-        status,
+        status: 'queued',
         startedAt: Date.now()
       }
-
       state.updateState((prev) => ({
         ...prev,
-        deployments: [deployment, ...prev.deployments].slice(0, 200)
+        deployments: capDeployments([deployment, ...prev.deployments])
       }))
-
-      if (status === 'queued') {
-        queuedRawPrompts.set(deploymentId, { prompt: args.taskPrompt, secrets: secretsNow })
-      }
-      if (status === 'walking-to') {
-        // Fire and forget — execution updates state asynchronously. Attach
-        // a catch so sync throws (e.g. runner lookup miss) don't become
-        // unhandled rejections; they land in the deployment as 'failed'.
-        executeDeployment(deploymentId, companion, facility, args.taskPrompt, opts).catch((err) => {
-          const message = redactSecrets(
-            err instanceof Error ? err.message : String(err),
-            collectSecretValues(opts)
-          )
-          console.error(`[ipc] executeDeployment(${deploymentId}) crashed:`, message)
-          state.updateState((prev) => ({
-            ...prev,
-            deployments: prev.deployments.map((d) =>
-              d.id === deploymentId
-                ? { ...d, status: 'failed', completedAt: Date.now(), summary: message }
-                : d
-            )
-          }))
-        })
-      }
+      queuedRawPrompts.set(deploymentId, { prompt: args.taskPrompt, secrets: secretsNow })
+      startQueuedMissions(opts)
+      const status =
+        state.getState().deployments.find((d) => d.id === deploymentId)?.status ?? 'queued'
       return { deploymentId, status }
     }
   )
+
+  // The mission id comes from the renderer; the log store refuses anything
+  // that is not a plain id before it touches a file.
+  ipcMain.handle(IPC.LOG_HISTORY, (_e, missionId: string, afterSeq?: number) =>
+    opts.logs.history(String(missionId), Number(afterSeq) || 0)
+  )
+
+  // Cancel a queued mission, or recall a running one (P0-11).
+  ipcMain.handle(IPC.DEPLOY_ABORT, async (_e, missionId: string): Promise<SimpleActionResult> => {
+    const mission = state.getState().deployments.find((d) => d.id === missionId)
+    if (!mission) return { ok: false, error: 'Mission not found.' }
+    if (isTerminal(mission.status)) return { ok: false, error: 'This mission has already ended.' }
+    if (mission.status === 'queued') {
+      setDeployment(state, missionId, {
+        status: 'cancelled',
+        completedAt: Date.now(),
+        summary: 'Cancelled before it started.'
+      })
+      // It will never run: drop the raw prompt now.
+      queuedRawPrompts.delete(missionId)
+      startQueuedMissions(opts)
+      return { ok: true }
+    }
+    // Running (walking out, working, waiting for input, returning). Mark it
+    // first so the exit that follows cannot change the outcome.
+    setDeployment(state, missionId, {
+      status: 'cancelled',
+      completedAt: Date.now(),
+      summary: 'Recalled by the commander.'
+    })
+    // No handle yet means the agent is still starting: the launch sees the
+    // cancelled status and stops it, or never starts it.
+    try {
+      await opts.missions.get(missionId)?.abort()
+    } catch (err) {
+      // Already marked cancelled; the mission's exit still ends it.
+      console.error(`[ipc] abort failed for recalled mission ${missionId}:`, err)
+    }
+    // The mission's own exit reruns the queue too; this covers an agent that
+    // outlives its time-bounded stop, so the missions behind it never stall.
+    startQueuedMissions(opts)
+    return { ok: true }
+  })
+
+  // Contract stubs (spec 7.5), replaced by the task that ships the feature:
+  // review (Phase 1).
+  ipcMain.handle(IPC.REVIEW_APPROVE, () => {
+    throw new NotYetAvailableError('Reviewing changes before they are kept arrives in v1.5.')
+  })
+  ipcMain.handle(IPC.REVIEW_REJECT, () => {
+    throw new NotYetAvailableError('Reviewing changes before they are kept arrives in v1.5.')
+  })
 
   // Soul/Memory read/write handlers for Journal tab. Pass the SAME base
   // dir the StateManager seeded companion.soulPath/memoryPath with —
@@ -507,27 +573,56 @@ export function registerIpc(opts: IpcDeps): void {
       if (payload.name !== undefined && (!name || name.length > 24)) {
         return { ok: false, error: 'Name must be 1-24 characters' }
       }
-      if (runtime === undefined) {
-        if (name) {
-          state.updateState((prev) => ({
-            ...prev,
-            companions: prev.companions.map((candidate) =>
-              candidate.id === companionId ? { ...candidate, name } : candidate
-            )
-          }))
-        }
-        return { ok: true, cliAvailable: companion.cliAvailable }
+      const autonomy = payload.autonomy
+      if (autonomy !== undefined && !AUTONOMY_LEVELS.includes(autonomy)) {
+        return { ok: false, error: `Unknown Autonomy level: ${String(autonomy)}` }
       }
-      if (!(runtime in runners)) {
+      if (runtime !== undefined && !Object.hasOwn(runners, runtime)) {
         return { ok: false, error: `Unknown runtime: ${runtime}` }
       }
+      const savedRuntime = companion.runtime ?? companion.family
+      const savedLevel = companion.autonomy ?? DEFAULT_AUTONOMY
+      const targetRuntime = runtime ?? savedRuntime
+      if (runtime !== undefined && autonomy === undefined) {
+        // A runtime switch must never quietly give a mech more than it has
+        // today: Read only on Claude would run at Full on Gemini.
+        const raised = autonomyRaisedBy(savedRuntime, runtime, savedLevel)
+        if (raised !== undefined && payload.acceptAutonomy !== raised) {
+          const label = raised === 'unenforced' ? 'Not enforced' : AUTONOMY_LABELS[raised]
+          return {
+            ok: false,
+            error: `This runtime would raise the mech's Autonomy to ${label}. Confirm the switch to continue.`
+          }
+        }
+      }
+      if (autonomy !== undefined) {
+        const support = autonomySupport(targetRuntime)
+        if (!support.available[autonomy]) {
+          return {
+            ok: false,
+            error:
+              `${AUTONOMY_LABELS[autonomy]} is not available for this runtime. ${support.reason ?? ''}`.trim()
+          }
+        }
+      }
 
-      let cliAvailable: boolean
-      try {
-        cliAvailable = await runners[runtime].isAvailable()
-      } catch (err) {
-        console.warn(`[ipc] isAvailable() threw for runtime ${runtime}:`, err)
-        cliAvailable = false
+      let cliAvailable = companion.cliAvailable
+      if (runtime !== undefined) {
+        try {
+          cliAvailable = await runners[runtime].isAvailable()
+        } catch (err) {
+          console.warn(`[ipc] isAvailable() threw for runtime ${runtime}:`, err)
+          cliAvailable = false
+        }
+        // The checks above were made against the settings before the await;
+        // if another change landed meanwhile, they no longer hold.
+        const now = state.getState().companions.find((c) => c.id === companionId)
+        if (
+          (now?.runtime ?? now?.family) !== savedRuntime ||
+          (now?.autonomy ?? DEFAULT_AUTONOMY) !== savedLevel
+        ) {
+          return { ok: false, error: 'Settings changed while saving. Try again.' }
+        }
       }
 
       state.updateState((prev) => ({
@@ -536,18 +631,127 @@ export function registerIpc(opts: IpcDeps): void {
           c.id === companionId
             ? {
                 ...c,
-                runtime,
-                model: payload.model?.trim() || undefined,
-                cliAvailable,
-                ...(name ? { name } : {})
+                ...(name ? { name } : {}),
+                ...(autonomy ? { autonomy } : {}),
+                ...(runtime !== undefined
+                  ? { runtime, model: payload.model?.trim() || undefined, cliAvailable }
+                  : {})
               }
             : c
         )
       }))
-
       return { ok: true, cliAvailable }
     }
   )
+}
+
+/**
+ * Start queued missions while there are free slots (P0-10): oldest first,
+ * one per mech, up to the concurrency cap. Runs after every new mission
+ * and after every mission ends, however it ends.
+ */
+export function startQueuedMissions(opts: IpcDeps): void {
+  const { state } = opts
+  // Closing: shutdown cancels every waiting mission, so none may start.
+  if (opts.missions.closing) return
+  // A raw prompt is kept only while its mission waits. Anything that ended a
+  // queued mission elsewhere (the boot sweep, for one) leaves an entry that
+  // no mission will ever read: drop it here.
+  const waiting = new Set(
+    state
+      .getState()
+      .deployments.filter((d) => d.status === 'queued')
+      .map((d) => d.id)
+  )
+  for (const id of queuedRawPrompts.keys()) {
+    if (!waiting.has(id)) queuedRawPrompts.delete(id)
+  }
+
+  for (;;) {
+    const next = missionsToStart(state.getState())[0]
+    if (!next) return
+    const s = state.getState()
+    const companion = s.companions.find((c) => c.id === next.companionId)
+    const facility = s.facilities.find((f) => f.id === next.facilityId)
+    // Read and forget the raw prompt: from here the mission either runs or ends.
+    const entry = queuedRawPrompts.get(next.id)
+    queuedRawPrompts.delete(next.id)
+    if (!companion || !facility || !facility.path) {
+      const summary = !companion
+        ? 'This mech no longer exists.'
+        : !facility
+          ? 'This building was removed before the mission started.'
+          : `${facility.name} is no longer linked to a project folder.`
+      setDeployment(state, next.id, {
+        status: 'failed',
+        completedAt: Date.now(),
+        summary,
+        neverLaunched: true
+      })
+      continue
+    }
+    try {
+      // Mission time starts now: the wait in line is not time in the field.
+      setDeployment(state, next.id, { status: 'walking-to', startedAt: Date.now() })
+      // After a restart the raw text is gone; the stored copy differs from it
+      // only where a key was redacted.
+      launchMission(
+        next.id,
+        companion,
+        facility,
+        entry?.prompt ?? next.taskPrompt,
+        opts,
+        entry?.secrets
+      )
+    } catch (err) {
+      // A state listener that throws (the window going away mid-update) has
+      // already moved the mission out of the line, but nothing launched it.
+      // Fail it so it does not hold a slot and its mech forever.
+      console.error(`[queue] starting mission ${next.id} failed:`, err)
+      try {
+        setDeployment(state, next.id, {
+          status: 'failed',
+          completedAt: Date.now(),
+          summary: 'MechBay could not start this mission. Send it again.',
+          neverLaunched: true
+        })
+      } catch (markErr) {
+        // The cache already holds the failed status; only the listeners threw.
+        console.error(`[queue] marking mission ${next.id} failed:`, markErr)
+      }
+    }
+  }
+}
+
+function launchMission(
+  id: string,
+  companion: Companion,
+  facility: Facility,
+  taskPrompt: string,
+  opts: IpcDeps,
+  queuedSecrets: readonly string[] = []
+): void {
+  // Fire and forget: execution updates state asynchronously. A crash lands
+  // in the mission as 'failed', and the queue moves on either way.
+  const run = executeDeployment(id, companion, facility, taskPrompt, opts, queuedSecrets).catch(
+    (err) => {
+      const message = redactSecrets(err instanceof Error ? err.message : String(err), [
+        ...collectSecretValues(opts),
+        ...queuedSecrets
+      ])
+      console.error(`[ipc] executeDeployment(${id}) crashed:`, message)
+      setDeployment(opts.state, id, { status: 'failed', completedAt: Date.now(), summary: message })
+    }
+  )
+  // Closing MechBay waits for this run to save its outcome before it exits.
+  opts.missions.track(run)
+  void run.finally(() => {
+    try {
+      startQueuedMissions(opts)
+    } catch (err) {
+      console.error('[ipc] startQueuedMissions failed after a mission ended:', err)
+    }
+  })
 }
 
 export async function executeDeployment(
@@ -559,23 +763,34 @@ export async function executeDeployment(
   /** Secrets known when a queued task was entered, redacted alongside today's. */
   extraSecrets: readonly string[] = []
 ): Promise<void> {
-  const { win, state, runners } = opts
+  try {
+    await runDeployment(deploymentId, companion, facility, taskPrompt, opts, extraSecrets)
+  } finally {
+    // Every exit path, including a crash: forget the abort handle, write the
+    // last lines and free the buffer.
+    opts.missions.delete(deploymentId)
+    opts.logs.close(deploymentId)
+  }
+}
+
+async function runDeployment(
+  deploymentId: string,
+  companion: Companion,
+  facility: Facility,
+  taskPrompt: string,
+  opts: IpcDeps,
+  extraSecrets: readonly string[]
+): Promise<void> {
+  const { state, runners } = opts
   const effectiveRuntime = companion.runtime ?? companion.family
   const runner = runners[effectiveRuntime]
   if (!runner) {
-    state.updateState((prev) => ({
-      ...prev,
-      deployments: prev.deployments.map((d) =>
-        d.id === deploymentId
-          ? {
-              ...d,
-              status: 'failed',
-              completedAt: Date.now(),
-              summary: `No runner registered for runtime: ${effectiveRuntime}`
-            }
-          : d
-      )
-    }))
+    setDeployment(state, deploymentId, {
+      status: 'failed',
+      completedAt: Date.now(),
+      summary: `No runner registered for runtime: ${effectiveRuntime}`,
+      neverLaunched: true
+    })
     return
   }
 
@@ -586,16 +801,30 @@ export async function executeDeployment(
   let secretValues = [...collectSecretValues(opts), ...extraSecrets]
   const redact = (text: string): string => redactSecrets(text, secretValues)
 
+  // The level this mission actually runs at; null when the runtime
+  // controls its own permissions and MechBay cannot limit it.
+  const level = effectiveAutonomy(effectiveRuntime, companion.autonomy ?? DEFAULT_AUTONOMY)
+
+  // A recalled mission is 'cancelled' (P0-11), and closing MechBay recalls
+  // every mission. Checked after the waits before and during launch, since
+  // a recall can land during any of them.
+  const isCancelled = (): boolean =>
+    opts.missions.closing ||
+    state.getState().deployments.find((d) => d.id === deploymentId)?.status === 'cancelled'
+  // How the mission was recalled ("by the commander", "when MechBay
+  // closed"), for the mech's memory.
+  const recalledAs = (): string =>
+    state.getState().deployments.find((d) => d.id === deploymentId)?.summary ??
+    'Recalled by the commander.'
+
   // Transition to working
-  state.updateState((prev) => ({
-    ...prev,
-    deployments: prev.deployments.map((d) =>
-      d.id === deploymentId ? { ...d, status: 'working' } : d
-    )
-  }))
+  setDeployment(state, deploymentId, { status: 'working', autonomy: level ?? 'unenforced' })
 
   let exitCode: number
+  let denials: string[] = []
   let baselineSha: string | null = null
+  // Outside the try, so a failure while reading the agent's output can stop it.
+  let result: SpawnResult | undefined
   try {
     // Wrap the task prompt in the companion's soul + memory so every
     // deploy carries personality context + past-run history. If assembly
@@ -607,22 +836,39 @@ export async function executeDeployment(
       taskPrompt
     )
     baselineSha = await captureGitBaseline(facility.path)
-    state.updateState((prev) => ({
-      ...prev,
-      deployments: prev.deployments.map((d) =>
-        d.id === deploymentId && baselineSha ? { ...d, baselineSha } : d
-      )
-    }))
+    if (baselineSha) setDeployment(state, deploymentId, { baselineSha })
 
     // One snapshot of the launch environment: the same object the child
     // gets is the one its secrets are redacted from, so a key changed in
     // Settings mid-launch can't slip past the redactor.
     const launchEnv = opts.secrets.envFor(effectiveRuntime)
     secretValues = [...secretValues, ...secretEnvValues(launchEnv)]
-    const result = await runner.spawn(facility.path, fullPrompt, {
+    // Immediately before the launch, after every wait above it: a recall
+    // that landed during any of them means the agent never starts.
+    if (isCancelled()) {
+      // Recalled while the mech was still walking out: never start the agent.
+      recordMemory(
+        companion,
+        facility,
+        taskPrompt,
+        `${recalledAs()} The agent never started.`,
+        secretValues
+      )
+      return
+    }
+    result = await runner.spawn(facility.path, fullPrompt, {
       model: companion.model,
-      env: launchEnv
+      env: launchEnv,
+      autonomy: level ?? undefined
     })
+    const started = result
+    opts.missions.set(deploymentId, { abort: () => started.abort() })
+    // Recalled while the agent was starting: stop it now that it exists.
+    if (isCancelled()) {
+      void started.abort().catch((err) => {
+        console.error(`[ipc] abort failed for recalled mission ${deploymentId}:`, err)
+      })
+    }
     const parser = new NarrationParser()
 
     const emit = (p: {
@@ -630,43 +876,59 @@ export async function executeDeployment(
       text: string
       thoughtKind?: 'intent' | 'findings'
     }): void => {
-      const logChunk: LogChunk = {
-        id: ulid(),
-        deploymentId,
-        timestamp: Date.now(),
-        stream: p.stream,
-        text: redact(p.text),
-        ...(p.thoughtKind ? { thoughtKind: p.thoughtKind } : {})
-      }
-      if (!win.isDestroyed()) {
-        win.webContents.send(IPC.LOG_STREAM, logChunk)
-      }
-      state.updateState((prev) => ({
-        ...prev,
-        logChunks: [...prev.logChunks, logChunk].slice(-5000)
-      }))
+      // Redact here, before the line reaches the log store: the store sends
+      // it to the window and writes it to disk exactly as given.
+      opts.logs.append(deploymentId, { ...p, text: redact(p.text) })
     }
+    // A CLI can take several seconds to load its own setup (plugins, tool
+    // servers, hooks) before it prints anything; say so instead of leaving
+    // the log on its idle screen.
+    emit({ stream: 'system', text: LAUNCHED_LINE })
 
     // Drain stream BEFORE awaiting exit — exit may resolve while chunks
     // are still queued. Sequential await guarantees all chunks reach renderer.
-    for await (const chunk of result.stream) {
+    // Reading stops DRAIN_AFTER_EXIT_MS after the agent exits, even if a
+    // process it left running still holds the output open.
+    const output = readUntilExitDrained(result.stream, result.exit, DRAIN_AFTER_EXIT_MS, () => {
+      // Stop collecting the leftover process's output, so it does not pile
+      // up in memory for as long as that process runs.
+      result?.detachOutput?.()
+      emit({
+        stream: 'system',
+        text: 'The agent exited, but a process it started is still holding its output open. MechBay stopped reading it.\n'
+      })
+    })
+    for await (const chunk of output) {
       for (const parsed of parser.feed(chunk)) emit(parsed)
     }
     // Flush any partial trailing line left in the parser buffers.
     for (const parsed of parser.flush()) emit(parsed)
 
     exitCode = await result.exit
+    // Denial labels carry raw command text (for example `Bash: <command>`),
+    // which can hold an API key: redact them like every log line before
+    // they are saved and sent to the window.
+    denials = (result.report?.().permissionDenials ?? []).map(redact)
   } catch (err) {
+    // The agent may still be running (its output stream failed, not the
+    // agent): stop it before the mission ends and its slot is reused.
+    await result?.abort().catch((abortErr) => {
+      console.error(`[ipc] abort failed for mission ${deploymentId}:`, abortErr)
+    })
     const message = redact(err instanceof Error ? err.message : String(err))
-    state.updateState((prev) => ({
-      ...prev,
-      deployments: prev.deployments.map((d) =>
-        d.id === deploymentId
-          ? { ...d, status: 'failed', completedAt: Date.now(), summary: message }
-          : d
-      )
-    }))
-    recordMemory(companion, facility, taskPrompt, `Failed before exit. ${message}`, secretValues)
+    // A recalled mission stays cancelled: setDeployment keeps its outcome.
+    setDeployment(state, deploymentId, {
+      status: 'failed',
+      completedAt: Date.now(),
+      summary: message
+    })
+    recordMemory(
+      companion,
+      facility,
+      taskPrompt,
+      isCancelled() ? recalledAs() : `Failed before exit. ${message}`,
+      secretValues
+    )
     return
   }
 
@@ -689,77 +951,38 @@ export async function executeDeployment(
     exitCode === 0 &&
     diff === null &&
     (baselineSha !== null || (await isGitRepository(facility.path)) !== 'none')
+  const diffNote =
+    diff === null
+      ? ''
+      : diff.filesChanged === 0
+        ? 'No file changes detected.'
+        : `${diff.filesChanged} file${diff.filesChanged === 1 ? '' : 's'} changed, +${diff.insertions} −${diff.deletions}.`
   const outcome =
     exitCode === 0
       ? diff === null
         ? gitUnreadable
           ? 'Completed. The diff is unavailable because git could not read this project.'
           : 'Completed. (No git repository, so no diff is available.)'
-        : diff.filesChanged === 0
-          ? 'Completed. No file changes detected.'
-          : `Completed. ${diff.filesChanged} file${diff.filesChanged === 1 ? '' : 's'} changed, +${diff.insertions} −${diff.deletions}.`
+        : `Completed. ${diffNote}`
       : `Failed. Exit ${exitCode}.`
-  state.updateState((prev) => ({
-    ...prev,
-    deployments: prev.deployments.map((d) =>
-      d.id === deploymentId
-        ? {
-            ...d,
-            status: finalStatus,
-            exitCode,
-            completedAt: Date.now(),
-            summary: outcome,
-            ...diffFields
-          }
-        : d
-    )
-  }))
+  // For a recalled mission this only merges the diff and denials: its
+  // status, summary and exit code became final when it was recalled.
+  setDeployment(state, deploymentId, {
+    status: finalStatus,
+    exitCode,
+    completedAt: Date.now(),
+    summary: outcome,
+    ...diffFields,
+    ...(denials.length ? { permissionDenials: denials } : {})
+  })
 
-  recordMemory(companion, facility, taskPrompt, outcome, secretValues)
-
-  // Auto-advance the next queued deployment if a slot opened.
-  // (Wave 4 Task 4.3 expands this; minimal version included here.)
-  const after = state.getState()
-  const stillActive = after.deployments.filter((d) => ACTIVE_STATUSES.includes(d.status)).length
-  if (stillActive < after.settings.concurrencyCap) {
-    const nextQueued = after.deployments.find((d) => d.status === 'queued')
-    if (nextQueued) {
-      const companion = after.companions.find((c) => c.id === nextQueued.companionId)
-      const facility = after.facilities.find((f) => f.id === nextQueued.facilityId)
-      if (companion && facility) {
-        state.updateState((prev) => ({
-          ...prev,
-          deployments: prev.deployments.map((d) =>
-            d.id === nextQueued.id ? { ...d, status: 'walking-to' } : d
-          )
-        }))
-        const queuedId = nextQueued.id
-        // After a restart the raw text is gone; the stored copy differs from
-        // it only where a key was redacted.
-        const queuedEntry = queuedRawPrompts.get(queuedId)
-        queuedRawPrompts.delete(queuedId)
-        const rawPrompt = queuedEntry?.prompt ?? nextQueued.taskPrompt
-        const queuedSecrets = queuedEntry?.secrets ?? []
-        executeDeployment(queuedId, companion, facility, rawPrompt, opts, queuedSecrets).catch(
-          (err) => {
-            const message = redactSecrets(err instanceof Error ? err.message : String(err), [
-              ...collectSecretValues(opts),
-              ...queuedSecrets
-            ])
-            console.error(`[ipc] queued executeDeployment(${queuedId}) crashed:`, message)
-            state.updateState((prev) => ({
-              ...prev,
-              deployments: prev.deployments.map((d) =>
-                d.id === queuedId
-                  ? { ...d, status: 'failed', completedAt: Date.now(), summary: message }
-                  : d
-              )
-            }))
-          }
-        )
-      }
-    }
-  }
+  recordMemory(
+    companion,
+    facility,
+    taskPrompt,
+    isCancelled() ? `${recalledAs()} ${diffNote}`.trim() : outcome,
+    secretValues
+  )
 }
 
 /**
@@ -804,7 +1027,7 @@ function secretEnvValues(env: Record<string, string | undefined>): string[] {
  * inherited environment variable whose name looks secret (an agent that
  * prints its environment would otherwise show, say, GITHUB_TOKEN).
  */
-function collectSecretValues(opts: IpcDeps): string[] {
+export function collectSecretValues(opts: Pick<IpcDeps, 'runners' | 'secrets'>): string[] {
   const families = Object.keys(opts.runners) as AgentFamily[]
   return [
     ...families.map((family) => opts.secrets.getSecret(family)),

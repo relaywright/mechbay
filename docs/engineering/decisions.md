@@ -345,9 +345,134 @@ nobody mistakes them for guarantees:
     secret-named variable that holds a file path, such as `SSH_KEY_PATH`,
     is hidden like a key. A key is recognized only exactly as stored: a
     tool that prints it base64-encoded or escaped is not caught.
+  - Log lines saved by v1.4.0, before hiding existed, are hidden when
+    v1.4.2 moves them into log files, but only against the keys MechBay
+    knows at that moment: a key removed or replaced since then stays
+    visible in those old lines. The backup made before the upgrade keeps
+    them exactly as they were.
 - _Not reachable from inside a project:_ a folder link planted in the
   projects folder or in MechBay's data folder is followed. Planting one
   needs write access outside the project.
 
 **Source:** internal Track A plan (2026-10-01, Task 5b), Codex and Claude
 security reviews (2026-10-02)
+
+## 2026-10-02 · Stopping a mission ends the agent's whole process tree
+
+**Context:** An agent CLI rarely runs alone. On Windows the process MechBay
+starts is usually `cmd.exe` running an npm shim, which starts Node, which
+starts the agent, which starts its own tools (test runners, dev servers,
+git). Killing only the first process left the rest running in the project
+after the mission had "stopped". A review also found that stopping could
+throw if the tree kill failed, and could leave a hung `taskkill` behind.
+
+**Decision:** Stopping ends the whole tree, and never fails loudly:
+
+- _Windows:_ `taskkill /PID <pid> /T /F`, run from `System32` by absolute
+  path so a stray `taskkill.exe` in the project or on PATH is never the one
+  that runs. If taskkill cannot start, or reports a failure, MechBay still
+  ends the process it holds. A taskkill still running after the wait limit
+  is ended too.
+- _macOS and Linux:_ the agent starts as the leader of its own process
+  group, so the whole group gets SIGTERM, five seconds to clean up, then
+  SIGKILL.
+- Stopping never rejects and finishes within a fixed time: 10 seconds on
+  Windows, 15 on macOS and Linux. Asking twice reuses the first attempt.
+- Tests that start real processes only ever stop processes they started,
+  by PID, never by name.
+
+**Alternatives rejected:** Windows Job objects, which would catch every
+descendant, need a native module or a helper binary; that is a bigger
+change than this release needs. Killing processes by name would hit the
+player's own copies of the same tools.
+
+**Consequence:** Four risks remain, accepted on purpose:
+
+- _A tool that leaves the tree escapes._ On Windows, a process whose parent
+  shell has already exited is no longer linked to the tree, so `taskkill /T`
+  cannot find it. On macOS and Linux, a tool that starts its own session
+  (`setsid`, some daemons) leaves the process group. Either one keeps
+  running after the mission stops. A Job object is the future fix on
+  Windows.
+- _A narrow PID-reuse race on Windows._ If the agent exits on its own in
+  the moment between MechBay deciding to stop it and taskkill starting,
+  Windows could hand the same PID to a new, unrelated process, which
+  taskkill would then end. MechBay checks the process is still running
+  just before starting taskkill, so the window is milliseconds wide.
+- _A finished agent's leftovers are not stopped on macOS and Linux._ Once
+  the agent itself has exited, recalling the mission signals nothing, even
+  if a process it started is still in the group. Signalling a group whose
+  leader is gone could, after enough time, reach an unrelated program that
+  was given the same number. Windows is not affected, because it never
+  links a process to a parent that has exited.
+- _A launcher that exits early ends the mission early._ MechBay stops
+  reading two seconds after the process it started exits, so a leftover
+  dev server cannot hold a mission open forever. A runtime command that
+  only starts the real agent and exits at once (a launcher script) would
+  have its mission end two seconds later, with the agent still working.
+  None of the built-in runtimes work this way; a custom command could.
+
+**Source:** internal Track B plan (2026-10-02, Task 7), Claude adversarial
+review (2026-10-02; cross-family = Claude + Codex, Codex review queued)
+
+## 2026-10-02 · One schema bump per release; refuse, never wipe
+
+**Context:** Up to v1.4.0, a saved bay with a schema MechBay did not know
+was replaced with a fresh one. Any release that touched the save format
+would have cost players their facilities, mission history and settings,
+and so would going back to an older version after an upgrade.
+
+**Decision:** Saves are upgraded, never reset:
+
+- _Migrations run one schema step at a time_ (`state-migrations.ts`), each
+  tested against a fixture saved by a released version. v1.4.2 makes one
+  bump (2 to 3) that carries every change in the release: removed fields,
+  logs moving out of the file, and Autonomy.
+- _A copy comes first._ Before an upgrade, the file is copied byte for byte
+  to `mechbay-state.v<old>-backup-<time>.json`. If the copy fails, nothing
+  is upgraded and the session runs without saving.
+- _Anything MechBay cannot upgrade is left alone._ A save from a newer
+  MechBay, or one whose upgrade fails, is never written over: the app
+  opens a temporary bay that is not saved, and says so.
+- _A damaged file is kept._ A save that cannot be parsed at all is copied
+  aside before a fresh bay starts, and MechBay says where the copy is. If
+  that copy fails, the file is left untouched and nothing is saved.
+
+**Alternatives rejected:** Resetting on an unknown schema (the old
+behavior) loses player data. Writing every version's format at once would
+let an older MechBay read a newer save, but every release would carry
+every old format forever.
+
+**Consequence:** Going back a version needs one manual step: rename the
+backup to `mechbay-state.json`. The release notes give the exact path for
+each platform. v1.4.1 already refuses a newer save instead of wiping it,
+so going back to it is safe.
+
+**Source:** internal Track B plan (2026-10-02, Task 1)
+
+## 2026-10-02 · Autonomy is a capability matrix, never an approximation
+
+**Context:** A mech runs a real agent in a real project, so how much it
+may do on its own has to be both clear and true. The runtimes differ: Claude Code (`--permission-mode`) and Codex (`--sandbox`) enforce
+limits themselves; Gemini runs non-interactively only with every action
+approved; Kimi and Hermes control their own permissions entirely.
+
+**Decision:** Each mech has a level (Read only, Edit files or Full),
+turned into the runtime's own flags. Where a runtime cannot enforce a
+level, the level is shown disabled with the reason, and the mission
+records what it really ran at ("unenforced" for runtimes MechBay cannot
+limit). A runtime switch that would raise what a mech may do asks first.
+Every mech starts at Edit files, including mechs from an upgraded bay.
+
+**Alternatives rejected:** Approximating a level MechBay cannot enforce
+(for example by putting "do not edit files" in Gemini's prompt) would be
+a promise the agent can ignore. A setting that looks like a guardrail but
+is not one is worse than none.
+
+**Consequence:** CLI settings on the player's computer or inside the
+project (allow rules, hooks) can permit more than the chosen level, and
+MechBay cannot remove them. The Settings panel says so under every
+control.
+
+**Source:** internal Track B plan (2026-10-02, Task 5); flags confirmed
+against the installed CLIs on clean profiles (Task 9 acceptance test)

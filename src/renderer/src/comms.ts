@@ -352,11 +352,6 @@ export function computeCommsTransitions(
   return transitions
 }
 
-function truncate(text: string, limit: number): string {
-  const singleLine = text.replace(/\s+/g, ' ').trim()
-  return singleLine.length > limit ? `${singleLine.slice(0, limit - 1)}…` : singleLine
-}
-
 /** Second line: only real numbers from the deployment, never invented telemetry. */
 export function commsDetail(event: CommsEvent, deployment: Deployment): string | undefined {
   if (event === 'completed' && deployment.diffStats) {
@@ -365,9 +360,6 @@ export function commsDetail(event: CommsEvent, deployment: Deployment): string |
   }
   if (event === 'failed' && deployment.exitCode !== undefined) {
     return `Exit code ${deployment.exitCode}`
-  }
-  if (event === 'awaiting-input' && deployment.pendingInput?.prompt) {
-    return truncate(deployment.pendingInput.prompt, 64)
   }
   return undefined
 }

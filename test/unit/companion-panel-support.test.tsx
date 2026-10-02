@@ -14,9 +14,9 @@ const atlas: Companion = {
   spriteKey: 'atlas',
   homeTile: { x: 0, y: 0 },
   cliAvailable: true,
-  recentDeploymentIds: [],
   soulPath: '/souls/atlas/soul.md',
-  memoryPath: '/souls/atlas/memory.md'
+  memoryPath: '/souls/atlas/memory.md',
+  autonomy: 'edit'
 }
 const NOTE = 'Bring your own key. Not verified by the author.'
 

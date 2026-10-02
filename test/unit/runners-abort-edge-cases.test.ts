@@ -2,7 +2,11 @@ import { describe, it, expect, vi } from 'vitest'
 import { EventEmitter } from 'events'
 import { Readable } from 'stream'
 import { ClaudeRunner } from '../../src/main/runners/claude'
+import { killProcessTree } from '../../src/main/runners/process-tree'
 
+// Abort now ends the whole process tree through CliRunnerDeps.killTree.
+// The signal sequence itself (taskkill /T /F, SIGTERM then SIGKILL) is
+// covered in process-tree.test.ts; these cases pin how the runner uses it.
 describe('ClaudeRunner — abort edge cases', () => {
   it('abort mid-stream stops yielding chunks', async () => {
     const fakeChild = new EventEmitter() as EventEmitter & {
@@ -19,18 +23,19 @@ describe('ClaudeRunner — abort edge cases', () => {
       }
     })
     fakeChild.stderr = Readable.from([])
-    fakeChild.kill = vi.fn(() => {
-      fakeChild.killed = true
-      // Emit close after kill
+    fakeChild.kill = vi.fn()
+    fakeChild.killed = false
+    fakeChild.exitCode = null
+    const killTree = vi.fn(async () => {
+      // Emit close after the tree is stopped
       setTimeout(() => fakeChild.emit('close'), 10)
       setTimeout(() => fakeChild.emit('exit', null, 'SIGTERM'), 15)
     })
-    fakeChild.killed = false
-    fakeChild.exitCode = null
 
     const runner = new ClaudeRunner({
       which: async () => '/usr/local/bin/claude',
-      spawnProcess: (() => fakeChild) as never
+      spawnProcess: (() => fakeChild) as never,
+      killTree
     })
 
     const result = await runner.spawn('/tmp', 'long running task')
@@ -42,7 +47,7 @@ describe('ClaudeRunner — abort edge cases', () => {
         collected.push(chunk.text)
         if (collected.length === 2) {
           // Abort after receiving 2 chunks
-          result.abort()
+          void result.abort()
         }
       }
     })()
@@ -64,16 +69,17 @@ describe('ClaudeRunner — abort edge cases', () => {
     expect(collected.length).toBe(2)
     expect(collected).toContain('chunk 1\n')
     expect(collected).toContain('chunk 2\n')
-    expect(fakeChild.kill).toHaveBeenCalledWith('SIGTERM')
+    expect(killTree).toHaveBeenCalledWith(fakeChild)
   })
 
-  it('abort after process already exited is a no-op', async () => {
+  it('abort after process already exited starts no taskkill', async () => {
     const fakeChild = new EventEmitter() as EventEmitter & {
       stdout: Readable
       stderr: Readable
       kill: ReturnType<typeof vi.fn>
       killed: boolean
       exitCode: number | null
+      pid: number
     }
 
     fakeChild.stdout = Readable.from(['output'])
@@ -81,10 +87,14 @@ describe('ClaudeRunner — abort edge cases', () => {
     fakeChild.kill = vi.fn()
     fakeChild.killed = false
     fakeChild.exitCode = null
+    fakeChild.pid = 4242
+    const taskkill = vi.fn()
 
     const runner = new ClaudeRunner({
       which: async () => '/usr/local/bin/claude',
-      spawnProcess: (() => fakeChild) as never
+      spawnProcess: (() => fakeChild) as never,
+      killTree: (child) =>
+        killProcessTree(child, { platform: 'win32', spawnProcess: taskkill as never })
     })
 
     const result = await runner.spawn('/tmp', 'task')
@@ -102,51 +112,49 @@ describe('ClaudeRunner — abort edge cases', () => {
     }
 
     // Now abort - should be no-op since process already exited
-    result.abort()
+    await result.abort()
 
+    expect(taskkill).not.toHaveBeenCalled()
     expect(fakeChild.kill).not.toHaveBeenCalled()
   })
 
-  it('abort when already killed is a no-op', async () => {
+  it('a second abort shares the first stop', async () => {
     const fakeChild = new EventEmitter() as EventEmitter & {
       stdout: Readable
       stderr: Readable
       kill: ReturnType<typeof vi.fn>
-      killed: boolean
-      exitCode: number | null
     }
 
     fakeChild.stdout = Readable.from([])
     fakeChild.stderr = Readable.from([])
-    fakeChild.kill = vi.fn(() => {
-      fakeChild.killed = true
-    })
-    fakeChild.killed = false
-    fakeChild.exitCode = null
+    fakeChild.kill = vi.fn()
+    const killTree = vi.fn(async () => {})
 
     const runner = new ClaudeRunner({
       which: async () => '/usr/local/bin/claude',
-      spawnProcess: (() => fakeChild) as never
+      spawnProcess: (() => fakeChild) as never,
+      killTree
     })
 
     const result = await runner.spawn('/tmp', 'task')
 
-    // First abort
-    result.abort()
-    expect(fakeChild.kill).toHaveBeenCalledTimes(1)
-
-    // Second abort should be no-op
-    result.abort()
-    expect(fakeChild.kill).toHaveBeenCalledTimes(1)
+    const first = result.abort()
+    const second = result.abort()
+    expect(second).toBe(first)
+    await first
+    await result.abort()
+    expect(killTree).toHaveBeenCalledTimes(1)
   })
 
-  it('handles kill throwing an exception', async () => {
+  it('abort resolves even when taskkill cannot start and kill throws', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const fakeChild = new EventEmitter() as EventEmitter & {
       stdout: Readable
       stderr: Readable
       kill: ReturnType<typeof vi.fn>
       killed: boolean
       exitCode: number | null
+      pid: number
     }
 
     fakeChild.stdout = Readable.from([])
@@ -156,16 +164,26 @@ describe('ClaudeRunner — abort edge cases', () => {
     })
     fakeChild.killed = false
     fakeChild.exitCode = null
+    fakeChild.pid = 4242
+    const taskkill = vi.fn(() => {
+      const killer = new EventEmitter()
+      queueMicrotask(() => killer.emit('error', new Error('spawn taskkill ENOENT')))
+      return killer
+    })
 
     const runner = new ClaudeRunner({
       which: async () => '/usr/local/bin/claude',
-      spawnProcess: (() => fakeChild) as never
+      spawnProcess: (() => fakeChild) as never,
+      killTree: (child) =>
+        killProcessTree(child, { platform: 'win32', spawnProcess: taskkill as never, waitMs: 10 })
     })
 
     const result = await runner.spawn('/tmp', 'task')
 
-    // Should not throw even if kill throws
-    expect(() => result.abort()).not.toThrow()
+    // Should not throw or reject even if kill throws
+    await expect(result.abort()).resolves.toBeUndefined()
+    expect(fakeChild.kill).toHaveBeenCalledTimes(1)
+    vi.restoreAllMocks()
   })
 })
 
@@ -330,5 +348,28 @@ describe('ClaudeRunner — stream error handling', () => {
 
     expect(stdoutChunks.join('')).toContain('stdout line')
     expect(stderrChunks.join('')).toContain('stderr warning')
+  })
+})
+
+describe('ClaudeRunner abort never rejects', () => {
+  it('resolves even when the injected killTree rejects', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const child = Object.assign(new EventEmitter(), {
+      stdout: Readable.from([]),
+      stderr: Readable.from([]),
+      kill: vi.fn(),
+      killed: false,
+      exitCode: null as number | null,
+      pid: 4321
+    })
+    const runner = new ClaudeRunner({
+      which: async () => '/usr/local/bin/claude',
+      spawnProcess: (() => child) as never,
+      killTree: async () => {
+        throw new Error('boom')
+      }
+    })
+    const result = await runner.spawn('/tmp', 'task')
+    await expect(result.abort()).resolves.toBeUndefined()
   })
 })

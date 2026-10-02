@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { copyFileSync, constants as fsConstants } from 'fs'
 import path from 'path'
 import os from 'os'
 import type {
@@ -6,15 +7,22 @@ import type {
   AppState,
   Companion,
   Deployment,
-  DeploymentStatus,
   Facility,
   FacilityType,
   MechClass,
-  StateSchemaVersion
+  StateHealth
 } from '../shared/types'
 import { ulid } from '../shared/ulid'
+import { DEFAULT_AUTONOMY } from '../shared/autonomy'
+import { isActive } from '../shared/mission-queue'
+import {
+  CURRENT_SCHEMA_VERSION,
+  isAppStateV2,
+  migrateState,
+  type LogChunkV2,
+  type MigrationTable
+} from './state-migrations'
 
-const STATE_SCHEMA_VERSION: StateSchemaVersion = 2
 const GRID_W = 16
 const GRID_H = 16
 
@@ -62,7 +70,7 @@ export function seedFacilities(): Facility[] {
 
 function defaultState(userDataDir: string): AppState {
   return {
-    version: STATE_SCHEMA_VERSION,
+    version: CURRENT_SCHEMA_VERSION,
     companions: DEFAULT_MECH_MAP.map((m) => {
       const id = ulid()
       const barracks = path.join(userDataDir, 'mechbay', 'companions', id)
@@ -74,16 +82,15 @@ function defaultState(userDataDir: string): AppState {
         spriteKey: `mech-${m.mechClass}`,
         homeTile: m.homeTile,
         cliAvailable: false,
-        recentDeploymentIds: [],
         soulPath: path.join(barracks, 'soul.md'),
-        memoryPath: path.join(barracks, 'memory.md')
+        memoryPath: path.join(barracks, 'memory.md'),
+        autonomy: DEFAULT_AUTONOMY
       }
       return companion
     }),
     // Seed facilities are unlinked until the user binds a project directory.
     facilities: seedFacilities(),
     deployments: [],
-    logChunks: [],
     settings: {
       projectsDir: path.join(os.homedir(), 'Projects'),
       concurrencyCap: 3,
@@ -95,7 +102,6 @@ function defaultState(userDataDir: string): AppState {
         '__pycache__',
         'Archived Projects DO NOT SCAN'
       ],
-      companionNameOverrides: {},
       reduceMotion: false
     }
   }
@@ -105,37 +111,30 @@ export interface StoreLike {
   get: (k: string) => unknown
   set: (k: string, v: unknown) => void
   has: (k: string) => boolean
+  /** Absolute path of the backing file. electron-store provides it; in-memory test stores omit it. */
+  readonly path?: string
 }
 
-function isValidState(obj: unknown): obj is AppState {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    'version' in obj &&
-    (obj as AppState).version === STATE_SCHEMA_VERSION &&
-    Array.isArray((obj as AppState).companions) &&
-    Array.isArray((obj as AppState).facilities) &&
-    Array.isArray((obj as AppState).deployments) &&
-    Array.isArray((obj as AppState).logChunks) &&
-    typeof (obj as AppState).settings === 'object' &&
-    (obj as AppState).settings !== null
-  )
+export interface StateManagerOptions {
+  /** Set when opening the store already had to move a damaged file aside (state-store.ts). */
+  startupNotice?: string
+  /** Test seam: replace the migration table, for example with one that throws. */
+  migrations?: MigrationTable
+  /** Test seam: replace the backup copy. Must refuse to overwrite an existing file. */
+  copyFile?: (from: string, to: string) => void
 }
 
-/**
- * The schema version of a stored bay written by a newer MechBay, or null.
- * This version can't read such a bay, but it must not overwrite it either:
- * the user may go back to the newer version.
- */
-function newerSchemaVersion(raw: unknown): number | null {
-  if (typeof raw !== 'object' || raw === null || !('version' in raw)) return null
-  const { version } = raw as { version: unknown }
-  // Schema versions are whole numbers; anything else is corruption, not a newer MechBay.
-  return typeof version === 'number' &&
-    Number.isSafeInteger(version) &&
-    version > STATE_SCHEMA_VERSION
-    ? version
-    : null
+/** `mechbay-state.json` becomes `mechbay-state.<label>-backup-<ISO time with : and . as ->.json`. */
+export function backupPathFor(statePath: string, label: string, now: Date = new Date()): string {
+  const stamp = now.toISOString().replace(/[:.]/g, '-')
+  const ext = path.extname(statePath) || '.json'
+  const base = statePath.slice(0, statePath.length - path.extname(statePath).length)
+  return `${base}.${label}-backup-${stamp}${ext}`
+}
+
+function errorText(err: unknown): string {
+  if (err instanceof Error) return (err as NodeJS.ErrnoException).code ?? err.message
+  return String(err)
 }
 
 export function repairFacilityTileCollisions(state: AppState): {
@@ -191,75 +190,180 @@ export function repairFacilityTileCollisions(state: AppState): {
  * stateManager.on('stateChanged', handleStateUpdate)
  * stateManager.on('statePersistFailed', handlePersistFailure)
  * ```
+ *
+ * Loading goes through state-migrations.ts; a save it cannot safely upgrade
+ * makes the session read-only (see getHealth).
  */
 export class StateManager extends EventEmitter {
   private store: StoreLike
   private cache: AppState
-  /** True when the stored bay came from a newer schema; nothing is ever saved. */
   private readOnly = false
+  private health: StateHealth = { ok: true }
+  private legacyLogChunks: LogChunkV2[] = []
+  private freshBay = false
 
-  constructor(store: StoreLike, userDataDir: string = os.homedir()) {
+  constructor(
+    store: StoreLike,
+    userDataDir: string = os.homedir(),
+    options: StateManagerOptions = {}
+  ) {
     super()
     this.store = store
+    this.cache = defaultState(userDataDir)
+    const copyFile =
+      options.copyFile ??
+      ((from: string, to: string) => copyFileSync(from, to, fsConstants.COPYFILE_EXCL))
+    const notices = options.startupNotice ? [options.startupNotice] : []
 
-    let existing: AppState | undefined
-    let hasExisting = false
-
+    let raw: unknown
+    let hasExisting: boolean
     try {
       hasExisting = store.has('state')
-      if (hasExisting) {
-        const raw = store.get('state')
-        const newer = newerSchemaVersion(raw)
-        if (newer !== null) {
-          this.readOnly = true
-          console.warn(
-            `[state-manager] Saved bay uses schema ${newer}, newer than this version reads (${STATE_SCHEMA_VERSION}). Leaving it untouched; this session will not be saved. Update MechBay to keep using this bay.`
-          )
-        } else if (isValidState(raw)) {
-          existing = raw
-        }
-      }
+      raw = hasExisting ? store.get('state') : undefined
     } catch (err) {
-      console.error('[state-manager] Store read failed:', err)
-      hasExisting = false
-      existing = undefined
-    }
-
-    if (this.readOnly) {
-      this.cache = defaultState(userDataDir)
+      // The file is there but could not be read (another program holds it,
+      // permissions). Writing now could destroy a good save.
+      this.refuse(
+        'read-failed',
+        `MechBay could not read your saved bay (${errorText(err)}). Nothing was changed. Anything you do in this session will not be saved. Close any program that may be using the file, then restart MechBay.`
+      )
       return
     }
 
-    // Reset an older or unreadable bay to a fresh one (a newer bay returned
-    // above, untouched). Seed data (companion home tiles, facility roster) is
-    // treated as part of the schema until players can edit it in-app.
-    if (!existing) {
-      try {
-        store.set('state', defaultState(userDataDir))
-      } catch (err) {
-        console.error('[state-manager] Store write failed:', err)
-      }
+    if (!hasExisting) {
+      this.freshBay = true
+      this.persist(this.cache)
+      this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
+      return
     }
 
-    // Try to read from store, fall back to defaults if that fails
-    try {
-      const raw = store.get('state')
-      if (isValidState(raw)) {
-        const repaired = repairFacilityTileCollisions(raw)
-        this.cache = repaired.state
-        if (repaired.changed) {
-          try {
-            store.set('state', repaired.state)
-          } catch (err) {
-            console.error('[state-manager] Store write failed during tile repair:', err)
-          }
+    const outcome = migrateState(raw, options.migrations)
+    switch (outcome.kind) {
+      case 'current': {
+        // Schema 3 saves written by Track B development builds before logs
+        // moved out still carry logChunks: hand them to the log store and
+        // drop them from saved state, as the v2 upgrade does.
+        // Back the file up first, as the v2 upgrade does: the lines leave
+        // saved state before the log store has written them. Without a
+        // backup the save is left as it is (stale lines kept, nothing lost).
+        const { logChunks, ...current } = outcome.state as AppState & { logChunks?: unknown }
+        if (Array.isArray(logChunks) && this.backup('v3-logs', copyFile).ok) {
+          this.legacyLogChunks = logChunks as LogChunkV2[]
+          this.cache = this.repairAndPersist(current, true)
+        } else {
+          this.cache = this.repairAndPersist(outcome.state, false)
         }
-      } else {
-        this.cache = defaultState(userDataDir)
+        break
       }
+      case 'migrated': {
+        const backup = this.backup(`v${outcome.from}`, copyFile)
+        if (!backup.ok) {
+          this.refuse(
+            'migration-failed',
+            `MechBay could not back up your saved bay before upgrading it (${backup.error}), so it left the file untouched. Anything you do in this session will not be saved. Check that the disk has free space and that MechBay can write to the folder of the file shown below, then restart MechBay.`
+          )
+          return
+        }
+        console.info(
+          `[state-manager] Upgraded saved bay from schema ${outcome.from} to ${CURRENT_SCHEMA_VERSION}${backup.path ? `; backup at ${backup.path}` : ''}`
+        )
+        if (isAppStateV2(raw)) this.legacyLogChunks = raw.logChunks
+        this.cache = this.repairAndPersist(outcome.state, true)
+        break
+      }
+      case 'newer':
+        this.refuse(
+          'newer-version',
+          `This saved bay was written by a newer version of MechBay (schema ${outcome.found}; this version reads up to ${CURRENT_SCHEMA_VERSION}). MechBay left the file untouched. Anything you do in this session will not be saved. Update MechBay to keep using this bay.`
+        )
+        return
+      case 'failed':
+        this.refuse(
+          'migration-failed',
+          `MechBay could not upgrade your saved bay from schema ${outcome.from} (${outcome.error}). The file is untouched. Anything you do in this session will not be saved. Please report this at github.com/samalbanese/mechbay/issues.`
+        )
+        return
+      case 'unreadable': {
+        const backup = this.backup('unreadable', copyFile)
+        if (!backup.ok) {
+          this.refuse(
+            'read-failed',
+            `Your saved bay could not be read (${outcome.reason}) and MechBay could not keep a copy of it (${backup.error}), so it left the file untouched. Anything you do in this session will not be saved.`
+          )
+          return
+        }
+        console.warn(`[state-manager] Saved bay unreadable (${outcome.reason}); starting fresh`)
+        this.freshBay = true
+        this.persist(this.cache)
+        notices.push(
+          backup.path
+            ? `Your saved bay could not be read (${outcome.reason}), so MechBay started a fresh one. The old file was kept at ${backup.path}.`
+            : `Your saved bay could not be read (${outcome.reason}), so MechBay started a fresh one.`
+        )
+        break
+      }
+    }
+    this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
+  }
+
+  /**
+   * True when this session began with a brand-new bay: there was no saved
+   * file (including one set aside as damaged) or it could not be read.
+   */
+  startedFresh(): boolean {
+    return this.freshBay
+  }
+
+  /** Schema 2 kept logs inside saved state. Returns them once for the log store to import. */
+  takeLegacyLogChunks(): LogChunkV2[] {
+    const chunks = this.legacyLogChunks
+    this.legacyLogChunks = []
+    return chunks
+  }
+
+  /** How the saved bay loaded. Not ok means this session never writes the saved file. */
+  getHealth(): StateHealth {
+    return this.health
+  }
+
+  private refuse(reason: Extract<StateHealth, { ok: false }>['reason'], message: string): void {
+    this.readOnly = true
+    this.health = {
+      ok: false,
+      reason,
+      message,
+      ...(this.store.path ? { statePath: this.store.path } : {})
+    }
+    console.error(`[state-manager] Saved bay is read-only this session: ${message}`)
+  }
+
+  private backup(
+    label: string,
+    copyFile: (from: string, to: string) => void
+  ): { ok: true; path?: string } | { ok: false; error: string } {
+    const source = this.store.path
+    if (!source) return { ok: true } // in-memory store: nothing on disk to keep
+    const target = backupPathFor(source, label)
+    try {
+      copyFile(source, target)
+      return { ok: true, path: target }
     } catch (err) {
-      console.error('[state-manager] Store read failed during init:', err)
-      this.cache = defaultState(userDataDir)
+      return { ok: false, error: errorText(err) }
+    }
+  }
+
+  private repairAndPersist(state: AppState, force: boolean): AppState {
+    const repaired = repairFacilityTileCollisions(state)
+    if (repaired.changed || force) this.persist(repaired.state)
+    return repaired.state
+  }
+
+  private persist(state: AppState): void {
+    if (this.readOnly) return
+    try {
+      this.store.set('state', state)
+    } catch (err) {
+      console.error('[state-manager] Store write failed:', err)
     }
   }
 
@@ -267,14 +371,11 @@ export class StateManager extends EventEmitter {
     return this.cache
   }
 
-  /** True when a newer MechBay's bay is on disk and this session won't save. */
-  isReadOnly(): boolean {
-    return this.readOnly
-  }
-
   updateState(updater: (s: AppState) => AppState): AppState {
     this.cache = updater(this.cache)
     this.emit('stateChanged', this.cache)
+    // Read-only: the saved file belongs to a newer MechBay or could not be
+    // upgraded or read. Never overwrite it.
     if (this.readOnly) return this.cache
     try {
       this.store.set('state', this.cache)
@@ -286,42 +387,39 @@ export class StateManager extends EventEmitter {
   }
 
   /**
-   * Find deployments stuck in an active status (walking-to, working,
-   * awaiting-input, returning) from the previous run — these are
-   * zombies from a crash or force-quit. Mark each `failed` with a
-   * clear summary and return the affected records so the renderer
-   * can surface a recovery notice.
+   * After a crash or a hard quit: missions that were running are marked
+   * failed; missions still waiting are cancelled rather than started
+   * unattended. Returns the changed missions for the recovery dialog.
    *
    * Idempotent: calling on a freshly-seeded or already-swept state
    * returns an empty array and leaves state untouched.
    */
   sweepZombieDeployments(): Deployment[] {
-    const ACTIVE: DeploymentStatus[] = ['walking-to', 'working', 'awaiting-input', 'returning']
-    const zombies = this.cache.deployments.filter((d) => ACTIVE.includes(d.status))
-    if (zombies.length === 0) return []
-
-    const zombieIds = new Set(zombies.map((z) => z.id))
     const now = Date.now()
+    const changed: Deployment[] = []
+    for (const d of this.cache.deployments) {
+      if (isActive(d.status)) {
+        changed.push({
+          ...d,
+          status: 'failed',
+          summary: 'Interrupted when MechBay closed unexpectedly.',
+          completedAt: now
+        })
+      } else if (d.status === 'queued') {
+        changed.push({
+          ...d,
+          status: 'cancelled',
+          summary: 'Cancelled: MechBay closed before it started.',
+          completedAt: now
+        })
+      }
+    }
+    if (changed.length === 0) return []
+    const byId = new Map(changed.map((d) => [d.id, d]))
     this.updateState((prev) => ({
       ...prev,
-      deployments: prev.deployments.map((d) =>
-        zombieIds.has(d.id)
-          ? {
-              ...d,
-              status: 'failed' as DeploymentStatus,
-              summary: 'Interrupted by app crash',
-              completedAt: now
-            }
-          : d
-      )
+      deployments: prev.deployments.map((d) => byId.get(d.id) ?? d)
     }))
-    // Return the MUTATED records (with status=failed) so the modal
-    // shows consistent info.
-    return zombies.map((z) => ({
-      ...z,
-      status: 'failed' as DeploymentStatus,
-      summary: 'Interrupted by app crash',
-      completedAt: now
-    }))
+    return changed
   }
 }
