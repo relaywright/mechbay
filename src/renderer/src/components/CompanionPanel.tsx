@@ -12,6 +12,7 @@ import { computeServiceRecord } from '../service-record'
 import { runtimeSupportNote } from '../../../shared/runtime-support'
 import { currentMission, missionStatusLabel } from '../operations'
 import { RecallButton } from './RecallButton'
+import { ipcErrorMessage } from '../../../shared/bridge-errors'
 
 interface CompanionPanelProps {
   companion: Companion | null
@@ -212,7 +213,7 @@ function RuntimeSection({ companion }: { companion: Companion }): React.JSX.Elem
         setError(result.error)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(ipcErrorMessage(err))
     } finally {
       setPending(false)
     }
