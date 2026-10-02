@@ -14,7 +14,9 @@ describe('boot splash lines', () => {
     expect(LINES.join('\n')).not.toContain('\u2014')
   })
 
-  it('gets the version from package.json at build time', async () => {
+  // Importing the build config loads Vite, electron-vite and the React plugin,
+  // which takes several seconds on a busy machine; 5 s was too tight.
+  it('gets the version from package.json at build time', { timeout: 30_000 }, async () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
     const config = (await import('../../electron.vite.config')).default as {
       renderer?: { define?: Record<string, string> }
