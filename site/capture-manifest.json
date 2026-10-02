@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-02T20:58:25.790Z",
+  "capturedAt": "2026-10-02T21:09:38.482Z",
   "mode": "Isolated simulation; real file edits and git-backed debrief",
   "sourceSize": "1600x1000",
   "videoDuration": "24 seconds; accelerated playback",
@@ -10,7 +10,7 @@
     "debrief"
   ],
   "videoBytes": {
-    "mp4": 589089,
-    "webm": 547930
+    "mp4": 594816,
+    "webm": 541159
   }
 }
