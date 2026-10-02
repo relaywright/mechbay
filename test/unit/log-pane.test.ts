@@ -1,5 +1,39 @@
-import { describe, it, expect } from 'vitest'
-import type { LogChunk } from '../../src/shared/types'
+// @vitest-environment happy-dom
+import { createElement } from 'react'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, it, expect } from 'vitest'
+import { LogPane } from '../../src/renderer/src/components/LogPane'
+import type { Deployment, LogChunk } from '../../src/shared/types'
+
+afterEach(cleanup)
+
+describe('LogPane recall strip', () => {
+  const working: Deployment = {
+    id: 'm1',
+    companionId: 'c1',
+    facilityId: 'f1',
+    taskPrompt: 'Fix the tests',
+    status: 'working',
+    startedAt: 1
+  }
+
+  it('shows a recall control for each open mission', () => {
+    render(
+      createElement(LogPane, {
+        logs: [],
+        openMissions: [{ deployment: working, companionName: 'Atlas' }]
+      })
+    )
+    const strip = screen.getByLabelText('Open missions')
+    expect(strip.textContent).toContain('Atlas')
+    expect(screen.getByRole('button', { name: 'Recall mech' })).toBeTruthy()
+  })
+
+  it('shows no strip when nothing is running', () => {
+    render(createElement(LogPane, { logs: [], openMissions: [] }))
+    expect(screen.queryByLabelText('Open missions')).toBeNull()
+  })
+})
 
 describe('LogPane component logic', () => {
   const createLogs = (count: number, deploymentId = 'dep-1'): LogChunk[] => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import Phaser from 'phaser'
 import type { AppState, Deployment, StateHealth } from '../../shared/types'
 import { ipcErrorMessage } from '../../shared/bridge-errors'
+import { isOpen } from '../../shared/mission-queue'
 import { BayScene } from './game/BayScene'
 import { bus } from './bus'
 import { DeployModal } from './components/DeployModal'
@@ -274,6 +275,18 @@ function App(): React.JSX.Element {
     }))
   }, [state])
 
+  // Queued and running missions, for the recall strip above the log.
+  const openMissions = useMemo(() => {
+    if (!state) return []
+    const companionMap = new Map(state.companions.map((c) => [c.id, c]))
+    return state.deployments
+      .filter((d) => isOpen(d.status))
+      .map((deployment) => ({
+        deployment,
+        companionName: companionMap.get(deployment.companionId)?.name ?? 'Unknown'
+      }))
+  }, [state])
+
   const selectCompanion = (id: string): void => {
     setSelectedCompanionId(id)
     sceneRef.current?.setSelectedCompanion(id)
@@ -518,7 +531,13 @@ function App(): React.JSX.Element {
               />
             )}
 
-            {activeTab === 'log' && <LogPane logs={missionLogs} deployments={deploymentInfo} />}
+            {activeTab === 'log' && (
+              <LogPane
+                logs={missionLogs}
+                deployments={deploymentInfo}
+                openMissions={openMissions}
+              />
+            )}
 
             {activeTab === 'files' &&
               browsingFacilityId &&

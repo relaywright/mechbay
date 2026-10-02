@@ -35,6 +35,7 @@ vi.mock('electron', () => ({
 // mocked 'electron' module even though this import comes after the mock.
 import { registerIpc } from '../../src/main/ipc'
 import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 function makeInMemoryStore(): StoreLike {
   const data: Record<string, unknown> = {}
@@ -99,6 +100,7 @@ describe('IPC.COMPANION_CONFIGURE handler', () => {
       runners,
       fsReader,
       secrets: {} as never,
+      missions: new MissionRegistry(),
       logs: makeLogSink().sink
     })
     const handler = registeredHandlers.get(IPC.COMPANION_CONFIGURE)

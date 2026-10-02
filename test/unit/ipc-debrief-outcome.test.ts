@@ -36,6 +36,7 @@ vi.mock('../../src/main/git-diff', async (importOriginal) => ({
 
 import { executeDeployment } from '../../src/main/ipc'
 import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 const execFileAsync = promisify(execFile)
 const tempDirs: string[] = []
@@ -103,6 +104,7 @@ async function runCompletedMission(
     win: { isDestroyed: () => false, webContents: { send: vi.fn() } } as unknown as BrowserWindow,
     state,
     runners: runners as Record<AgentFamily, Runner>,
+    missions: new MissionRegistry(),
     logs: makeLogSink().sink,
     fsReader: {} as never,
     secrets: { envFor: vi.fn(() => ({})), getSecret: vi.fn(() => null) } as never

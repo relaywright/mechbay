@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
-import type { LogChunk } from '../../../shared/types'
+import type { Deployment, LogChunk } from '../../../shared/types'
 import { colors, type } from '../theme'
+import { RecallButton } from './RecallButton'
 
 interface LogPaneProps {
   logs: LogChunk[]
   deployments?: { id: string; companionName: string; startedAt: number }[]
+  /** Queued and running missions, each with a recall control above the log. */
+  openMissions?: { deployment: Deployment; companionName: string }[]
 }
 
 interface LogLine {
@@ -21,7 +24,7 @@ interface LogLine {
 const MAX_VISIBLE_LOGS = 500
 const SCROLL_LOCK_THRESHOLD = 40
 
-export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Element {
+export function LogPane({ logs, deployments = [], openMissions }: LogPaneProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isAutoScrollLocked, setIsAutoScrollLocked] = useState(false)
   const [userHasScrolled, setUserHasScrolled] = useState(false)
@@ -141,9 +144,21 @@ export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Ele
     setIsAutoScrollLocked(false)
   }, [])
 
-  // Empty state
+  const recallStrip =
+    openMissions && openMissions.length > 0 ? (
+      <div className="log-recall-strip" aria-label="Open missions">
+        {openMissions.map(({ deployment, companionName }) => (
+          <div key={deployment.id} className="log-recall-item">
+            <span>{companionName}</span>
+            <RecallButton deployment={deployment} />
+          </div>
+        ))}
+      </div>
+    ) : null
+
+  // Empty state. A mission that has not logged a line yet can still be recalled.
   if (logs.length === 0) {
-    return (
+    const empty = (
       <div style={emptyStateStyle}>
         <div style={emptyStateTextStyle}>
           <div className="eyebrow">MISSION CHANNEL / STANDING BY</div>
@@ -157,10 +172,19 @@ export function LogPane({ logs, deployments = [] }: LogPaneProps): React.JSX.Ele
         </div>
       </div>
     )
+    return recallStrip ? (
+      <div style={containerStyle}>
+        {recallStrip}
+        {empty}
+      </div>
+    ) : (
+      empty
+    )
   }
 
   return (
     <div style={containerStyle}>
+      {recallStrip}
       <div
         ref={containerRef}
         onScroll={handleScroll}

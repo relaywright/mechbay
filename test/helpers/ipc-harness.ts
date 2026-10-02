@@ -38,8 +38,14 @@ export interface ControlledRun {
   aborted: boolean
 }
 
-/** A runner whose missions run until the test finishes them. */
-export function controllableRunner(options: { failSpawn?: (prompt: string) => boolean } = {}): {
+/**
+ * A runner whose missions run until the test finishes them. With
+ * `ignoreAbort`, abort only records the call and the "process" keeps running
+ * until the test finishes it, to model an agent that exits late.
+ */
+export function controllableRunner(
+  options: { failSpawn?: (prompt: string) => boolean; ignoreAbort?: boolean } = {}
+): {
   runner: Runner
   runs: ControlledRun[]
 } {
@@ -62,7 +68,7 @@ export function controllableRunner(options: { failSpawn?: (prompt: string) => bo
         exit,
         abort: async () => {
           run.aborted = true
-          finish(-1)
+          if (!options.ignoreAbort) finish(-1)
         }
       }
     }

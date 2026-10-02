@@ -9,6 +9,7 @@ import type { Runner, RunnerChunk, SpawnResult } from '../../src/main/runners/ty
 import type { AgentFamily, Companion, Deployment, Facility, LogChunk } from '../../src/shared/types'
 import { LogStore } from '../../src/main/log-store'
 import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 /**
  * An agent that echoes its environment (or an error that quotes a key)
@@ -161,6 +162,7 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
       logs,
       fsReader: {} as never,
       secrets: secretsStub()
@@ -186,6 +188,7 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
       logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
@@ -218,6 +221,7 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
       logs: sink,
       fsReader: {} as never,
       secrets: {
@@ -251,6 +255,7 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
       logs: sink,
       fsReader: {} as never,
       secrets: secretsStub()
@@ -285,6 +290,7 @@ describe('deployment logs never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners,
+      missions: new MissionRegistry(),
       logs,
       fsReader: {} as never,
       secrets: secretsStub()
@@ -308,6 +314,7 @@ describe('task text is redacted where it is stored, never where it runs', () => 
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners: runnerWith(async () => streamOf([])),
+      missions: new MissionRegistry(),
       logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
@@ -341,6 +348,7 @@ describe('task text is redacted where it is stored, never where it runs', () => 
         if (spawnedPrompts.length > 1) return streamOf([])
         return { ...streamOf([]), exit: new Promise<number>((resolve) => (finishFirst = resolve)) }
       }),
+      missions: new MissionRegistry(),
       logs: sink,
       fsReader: {} as never,
       secrets: secretsStub()
@@ -417,6 +425,7 @@ describe('task text is redacted where it is stored, never where it runs', () => 
         exit.catch(() => undefined) // executeDeployment awaits it after the stream drains
         return { ...streamOf([{ stream: 'stdout', text: prompt }]), exit }
       }),
+      missions: new MissionRegistry(),
       logs: sink,
       fsReader: {} as never,
       secrets: {
@@ -504,6 +513,7 @@ describe('crash summaries never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners: runnersCrashingOn(seeded.runtime ?? seeded.family),
+      missions: new MissionRegistry(),
       logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
@@ -545,6 +555,7 @@ describe('crash summaries never contain API keys', () => {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners: runnersCrashingOn(queuedCompanion.runtime ?? queuedCompanion.family),
+      missions: new MissionRegistry(),
       logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
