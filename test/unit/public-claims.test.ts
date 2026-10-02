@@ -13,9 +13,16 @@ describe('public claims (S3: zero claim drift)', () => {
     )
   })
 
-  // Track B P0-10 fixes queue order; that task updates this test.
+  // Public copy describes the queue in plain words, never as "FIFO".
   it.each(PUBLIC_COPY)('%s makes no FIFO claim', (file) => {
     expect(read(file)).not.toMatch(/\bFIFO\b/)
+  })
+
+  it('backs the queue-order claim with the FIFO regression test', () => {
+    for (const file of ['README.md', 'site/index.html']) {
+      expect(read(file)).toContain('start in the order you sent them')
+    }
+    expect(read('test/unit/ipc-queue.test.ts')).toContain('starts queued missions oldest first')
   })
 
   it.each(PUBLIC_COPY)('%s has no stale "verified as of" claim', (file) => {

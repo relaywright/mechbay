@@ -104,6 +104,14 @@ describe('computeDeploymentActions', () => {
     ])
   })
 
+  it('a mission cancelled while queued sends no walk-home', () => {
+    expect(computeDeploymentActions([deployment('queued')], [deployment('cancelled')])).toEqual([])
+  })
+
+  it('a queued mission that fails to start does not knock the mech down in the field', () => {
+    expect(computeDeploymentActions([deployment('queued')], [deployment('failed')])).toEqual([])
+  })
+
   it('does not re-walk when walking-to advances to working (walk already fired)', () => {
     expect(computeDeploymentActions([deployment('walking-to')], [deployment('working')])).toEqual([
       { kind: 'start-working', companionId: 'companion-1', facilityId: 'facility-1' }

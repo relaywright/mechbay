@@ -232,7 +232,7 @@ describe('StateManager — zombie sweep edge cases', () => {
     expect(sm.sweepZombieDeployments()).toEqual([])
   })
 
-  it('sweepZombieDeployments preserves non-active statuses', () => {
+  it('sweepZombieDeployments preserves ended missions and cancels queued ones', () => {
     const store = makeInMemoryStore()
     const sm = new StateManager(store, '/tmp/zombie-test')
 
@@ -278,16 +278,19 @@ describe('StateManager — zombie sweep edge cases', () => {
       ]
     }))
 
+    // A queued mission is cancelled rather than started unattended.
     const zombies = sm.sweepZombieDeployments()
-    expect(zombies).toEqual([])
+    expect(zombies.map((z) => [z.id, z.status])).toEqual([['d4', 'cancelled']])
 
-    // All non-active statuses should be unchanged
+    // Ended missions are unchanged.
     const state = sm.getState()
-    expect(
-      state.deployments.every((d) =>
-        ['completed', 'failed', 'cancelled', 'queued'].includes(d.status)
-      )
-    ).toBe(true)
+    expect(state.deployments.map((d) => d.status)).toEqual([
+      'completed',
+      'failed',
+      'cancelled',
+      'cancelled'
+    ])
+    expect(state.deployments.find((d) => d.id === 'd3')?.completedAt).toBe(6)
   })
 
   it('sweepZombieDeployments marks all active statuses as failed', () => {
@@ -335,6 +338,8 @@ describe('StateManager — zombie sweep edge cases', () => {
     const zombies = sm.sweepZombieDeployments()
     expect(zombies).toHaveLength(4)
     expect(zombies.every((z) => z.status === 'failed')).toBe(true)
-    expect(zombies.every((z) => z.summary === 'Interrupted by app crash')).toBe(true)
+    expect(
+      zombies.every((z) => z.summary === 'Interrupted when MechBay closed unexpectedly.')
+    ).toBe(true)
   })
 })

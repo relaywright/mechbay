@@ -596,6 +596,15 @@ input {
   font: 11px/1.6 var(--body);
   color: #9da991;
 }
+.mission-row-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid #333e2b;
+}
+.mission-row-wrap:last-child {
+  border-bottom: 0;
+}
 .mission-row {
   display: block;
   width: 100%;
@@ -604,11 +613,40 @@ input {
   color: #d6dfcb;
   background: none;
   border: 0;
-  border-bottom: 1px solid #333e2b;
 }
-.mission-row:last-child {
-  border-bottom: 0;
+.mission-row-wrap:last-child .mission-row:last-child {
   padding-bottom: 0;
+}
+.recall-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 0 0 10px;
+}
+.recall-start,
+.recall-confirm {
+  background: transparent;
+  border: 1px solid #ff6b6b;
+  color: #ff6b6b;
+  font: 11px var(--body);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.recall-confirm {
+  background: #ff6b6b;
+  color: #111;
+  font-weight: 700;
+}
+.recall-control .text-action {
+  width: auto;
+  padding: 0;
+}
+.recall-error {
+  margin: 0;
+  color: #ff6b6b;
+  font: 11px/1.5 var(--body);
+  flex-basis: 100%;
 }
 .mission-row:hover strong {
   color: var(--amber);

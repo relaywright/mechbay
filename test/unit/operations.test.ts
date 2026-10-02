@@ -5,6 +5,7 @@ import {
   fleetTelemetry,
   isActiveMission,
   missionDuration,
+  missionStatusLabel,
   noun
 } from '../../src/renderer/src/operations'
 import type { AppState, Companion, Deployment, DeploymentStatus } from '../../src/shared/types'
@@ -65,6 +66,15 @@ describe('fleet operations', () => {
     expect(missionDuration(mission('working'), 66000)).toBe('01:05')
     expect(missionDuration(mission('completed', { completedAt: 3000 }), 1000000)).toBe('00:02')
     expect(missionDuration(mission('working'), 0)).toBe('00:00')
+  })
+  it('shows a queued mission its place in line, oldest first', () => {
+    const later = mission('queued', { id: 'later', startedAt: 3000 })
+    const sooner = mission('queued', { id: 'sooner', startedAt: 2000 })
+    const all = [later, sooner, mission('working')]
+    expect(missionStatusLabel(sooner, all)).toBe('Queued · #1 in line')
+    expect(missionStatusLabel(later, all)).toBe('Queued · #2 in line')
+    expect(missionStatusLabel(mission('working'), all)).toBe('Working')
+    expect(missionStatusLabel(mission('cancelled'), all)).toBe('Cancelled')
   })
 })
 

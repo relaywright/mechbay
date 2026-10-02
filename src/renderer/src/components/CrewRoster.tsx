@@ -1,6 +1,6 @@
 import type { AppState } from '../../../shared/types'
 import { CREW, RUNTIME_NAMES } from '../crew'
-import { currentMission, STATUS_LABELS } from '../operations'
+import { currentMission, missionStatusLabel } from '../operations'
 import { computeServiceRecord } from '../service-record'
 import { runtimeSupportNote } from '../../../shared/runtime-support'
 
@@ -75,7 +75,7 @@ export function CrewRoster({
               >
                 <i />
                 {mission
-                  ? STATUS_LABELS[mission.status]
+                  ? missionStatusLabel(mission, state.deployments)
                   : companion.cliAvailable
                     ? 'Ready'
                     : 'Setup needed'}

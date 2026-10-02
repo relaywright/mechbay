@@ -152,12 +152,51 @@ describe('StateManager', () => {
     const zombies = sm.sweepZombieDeployments()
     expect(zombies).toHaveLength(2)
     expect(zombies.every((z) => z.status === 'failed')).toBe(true)
-    expect(zombies.every((z) => z.summary === 'Interrupted by app crash')).toBe(true)
+    expect(
+      zombies.every((z) => z.summary === 'Interrupted when MechBay closed unexpectedly.')
+    ).toBe(true)
 
     const stored = sm.getState().deployments
     expect(stored.find((d) => d.id === 'z1')!.status).toBe('failed')
     expect(stored.find((d) => d.id === 'z2')!.status).toBe('failed')
     expect(stored.find((d) => d.id === 'done1')!.status).toBe('completed')
+  })
+
+  it('cancels missions that were still queued', () => {
+    const sm = new StateManager(makeInMemoryStore(), '/tmp/zombie-queued-test')
+    sm.updateState((s) => ({
+      ...s,
+      deployments: [
+        {
+          id: 'q1',
+          companionId: 'c1',
+          facilityId: 'f1',
+          taskPrompt: 'still waiting',
+          status: 'queued',
+          startedAt: 1
+        },
+        {
+          id: 'w1',
+          companionId: 'c2',
+          facilityId: 'f2',
+          taskPrompt: 'was running',
+          status: 'working',
+          startedAt: 2
+        }
+      ]
+    }))
+
+    const changed = sm.sweepZombieDeployments()
+    expect(changed.map((d) => [d.id, d.status])).toEqual([
+      ['q1', 'cancelled'],
+      ['w1', 'failed']
+    ])
+    const queued = sm.getState().deployments.find((d) => d.id === 'q1')!
+    expect(queued.status).toBe('cancelled')
+    expect(queued.summary).toBe('Cancelled: MechBay closed before it started.')
+    expect(queued.completedAt).toEqual(expect.any(Number))
+    // Idempotent: a second sweep finds nothing left open.
+    expect(sm.sweepZombieDeployments()).toEqual([])
   })
 
   it('sweepZombieDeployments is a no-op when no active deployments exist', () => {

@@ -328,6 +328,8 @@ function getStatusConfig(status: DeploymentStatus): { color: string; pulse?: boo
       return { color: colors.statusCompleted }
     case 'failed':
       return { color: colors.statusFailed }
+    case 'cancelled':
+      return { color: colors.textMuted }
     default:
       return { color: colors.textMuted }
   }
