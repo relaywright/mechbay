@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sfx } from '../audio/sfx'
 import type { Companion, Facility } from '../../../shared/types'
 import { filterPromptsFor, type QuickPrompt } from '../quickPrompts'
-import { colors, type } from '../theme'
+import { colors, type, fontSize } from '../theme'
 
 /**
  * Modal overlay that collects a task prompt before firing a deploy.
@@ -371,7 +371,7 @@ const headerStyle: React.CSSProperties = {
 }
 
 const subheaderStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: fontSize.small,
   color: colors.textSecondary,
   letterSpacing: '0.1em'
 }
@@ -381,7 +381,7 @@ const resetButtonStyle: React.CSSProperties = {
   border: `1px solid ${colors.textDim}`,
   color: colors.textDim,
   padding: '4px 10px',
-  fontSize: 10,
+  fontSize: fontSize.small,
   letterSpacing: '0.1em',
   cursor: 'pointer',
   fontFamily: 'inherit',
@@ -393,7 +393,7 @@ const bannerStyle: React.CSSProperties = {
   border: `1px solid ${colors.statusFailedDark}`,
   color: colors.statusFailedLight,
   padding: '10px 14px',
-  fontSize: 11,
+  fontSize: fontSize.small,
   letterSpacing: '0.08em',
   marginBottom: 16,
   display: 'flex',
@@ -412,7 +412,7 @@ const chipsSectionStyle: React.CSSProperties = {
 
 const chipLabelStyle: React.CSSProperties = {
   color: colors.amber,
-  fontSize: 10,
+  fontSize: fontSize.small,
   letterSpacing: '0.18em',
   marginBottom: 8,
   fontWeight: 'bold'
@@ -426,7 +426,7 @@ const chipRowStyle: React.CSSProperties = {
 
 const chipIconStyle: React.CSSProperties = {
   marginRight: 4,
-  fontSize: 12
+  fontSize: fontSize.body
 }
 
 function getChipStyle(isActive: boolean, isHovered: boolean): React.CSSProperties {
@@ -435,7 +435,7 @@ function getChipStyle(isActive: boolean, isHovered: boolean): React.CSSPropertie
     color: isActive ? '#000' : colors.amber,
     border: `1px solid ${colors.amber}`,
     padding: '7px 14px',
-    fontSize: 11,
+    fontSize: fontSize.small,
     letterSpacing: '0.06em',
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -495,7 +495,7 @@ const cancelButtonStyle: React.CSSProperties = {
   color: colors.textSecondary,
   border: `1px solid ${colors.textDim}`,
   padding: '10px 24px',
-  fontSize: 12,
+  fontSize: fontSize.body,
   letterSpacing: '0.12em',
   cursor: 'pointer',
   fontFamily: 'inherit',
@@ -514,7 +514,7 @@ const cancelButtonDisabledStyle: React.CSSProperties = {
 
 const deployButtonBaseStyle: React.CSSProperties = {
   padding: '10px 28px',
-  fontSize: 12,
+  fontSize: fontSize.body,
   fontWeight: 'bold',
   letterSpacing: '0.12em',
   cursor: 'pointer',
@@ -541,7 +541,7 @@ const deployButtonHoverStyle: React.CSSProperties = {
 const deployButtonDisabledStyle: React.CSSProperties = {
   ...deployButtonBaseStyle,
   background: '#3a2a1a',
-  color: '#555',
+  color: '#8b8270',
   cursor: 'not-allowed'
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import type { Deployment, LogChunk } from '../../../shared/types'
-import { colors, type } from '../theme'
+import { colors, type, fontSize } from '../theme'
 import { RecallButton } from './RecallButton'
 
 interface LogPaneProps {
@@ -278,7 +278,7 @@ const scrollAreaStyle: React.CSSProperties = {
   flex: 1,
   overflow: 'auto',
   fontFamily: type.mono,
-  fontSize: 11,
+  fontSize: fontSize.body,
   lineHeight: 1.5
 }
 
@@ -290,7 +290,7 @@ const emptyStateStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   fontFamily: type.mono,
-  fontSize: 11
+  fontSize: fontSize.body
 }
 
 const emptyStateTextStyle: React.CSSProperties = {
@@ -309,7 +309,7 @@ const lineStyle: React.CSSProperties = {
 }
 
 const streamBadgeStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: fontSize.small,
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
   flexShrink: 0,
@@ -329,7 +329,7 @@ const separatorStyle: React.CSSProperties = {
   padding: '8px 0',
   margin: '4px 0',
   color: colors.amber,
-  fontSize: 10,
+  fontSize: fontSize.small,
   letterSpacing: '0.1em'
 }
 
@@ -360,7 +360,7 @@ const jumpButtonStyle: React.CSSProperties = {
   border: `1px solid ${colors.amber}`,
   color: colors.amber,
   padding: '6px 12px',
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: '0.1em',
   cursor: 'pointer',
@@ -384,7 +384,7 @@ const findingsCardStyle: React.CSSProperties = {
 }
 
 const thoughtTagStyle: React.CSSProperties = {
-  fontSize: 10,
+  fontSize: fontSize.small,
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
   fontWeight: 'bold',
@@ -393,7 +393,7 @@ const thoughtTagStyle: React.CSSProperties = {
 
 const thoughtBodyStyle: React.CSSProperties = {
   color: colors.textPrimary,
-  fontSize: 12,
+  fontSize: fontSize.body,
   lineHeight: 1.5,
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word'

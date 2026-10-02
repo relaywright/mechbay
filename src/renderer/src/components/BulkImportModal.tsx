@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { DiscoveredProject } from '../../../shared/types'
+import { colors, fontSize } from '../theme'
 
 interface BulkImportModalProps {
   onClose: () => void
@@ -211,7 +212,7 @@ const closeButtonStyle: React.CSSProperties = {
 
 const loadingStyle: React.CSSProperties = {
   color: '#888',
-  fontSize: 12,
+  fontSize: fontSize.body,
   padding: 20,
   textAlign: 'center'
 }
@@ -221,7 +222,7 @@ const errorStyle: React.CSSProperties = {
   border: '1px solid #c44',
   color: '#ff6b6b',
   padding: '10px 12px',
-  fontSize: 11,
+  fontSize: fontSize.small,
   marginBottom: 12
 }
 
@@ -230,13 +231,13 @@ const successStyle: React.CSSProperties = {
   border: '1px solid #4c4',
   color: '#4c4',
   padding: '10px 12px',
-  fontSize: 11,
+  fontSize: fontSize.small,
   marginBottom: 12
 }
 
 const emptyStyle: React.CSSProperties = {
-  color: '#666',
-  fontSize: 12,
+  color: colors.textMuted,
+  fontSize: fontSize.body,
   padding: 20,
   textAlign: 'center',
   fontStyle: 'italic'
@@ -254,7 +255,7 @@ const smallButtonStyle: React.CSSProperties = {
   color: '#ffcc33',
   border: '1px solid #ffcc33',
   padding: '4px 10px',
-  fontSize: 10,
+  fontSize: fontSize.small,
   letterSpacing: '0.05em',
   cursor: 'pointer',
   fontFamily: 'inherit'
@@ -262,7 +263,7 @@ const smallButtonStyle: React.CSSProperties = {
 
 const countStyle: React.CSSProperties = {
   marginLeft: 'auto',
-  fontSize: 11,
+  fontSize: fontSize.small,
   color: '#888'
 }
 
@@ -282,7 +283,7 @@ const itemStyle: React.CSSProperties = {
   padding: '8px 12px',
   borderBottom: '1px solid #1a1510',
   cursor: 'pointer',
-  fontSize: 12
+  fontSize: fontSize.body
 }
 
 const checkboxStyle: React.CSSProperties = {
@@ -295,8 +296,8 @@ const itemNameStyle: React.CSSProperties = {
 }
 
 const itemMarkersStyle: React.CSSProperties = {
-  color: '#666',
-  fontSize: 10
+  color: colors.textMuted,
+  fontSize: fontSize.small
 }
 
 const footerStyle: React.CSSProperties = {
@@ -312,7 +313,7 @@ const cancelButtonStyle: React.CSSProperties = {
   color: '#aaa',
   border: '1px solid #555',
   padding: '8px 20px',
-  fontSize: 12,
+  fontSize: fontSize.body,
   letterSpacing: '0.1em',
   cursor: 'pointer',
   fontFamily: 'inherit'
@@ -323,7 +324,7 @@ const importButtonStyle: React.CSSProperties = {
   color: '#000',
   border: 0,
   padding: '8px 20px',
-  fontSize: 12,
+  fontSize: fontSize.body,
   fontWeight: 'bold',
   letterSpacing: '0.1em',
   cursor: 'pointer',
@@ -332,6 +333,6 @@ const importButtonStyle: React.CSSProperties = {
 
 const importButtonDisabledStyle: React.CSSProperties = {
   background: '#3a2a1a',
-  color: '#666',
+  color: '#8b8270',
   cursor: 'not-allowed'
 }

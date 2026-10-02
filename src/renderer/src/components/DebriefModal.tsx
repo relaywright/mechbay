@@ -3,7 +3,7 @@ import type { Companion, Deployment, Facility } from '../../../shared/types'
 import { AUTONOMY_LABELS } from '../../../shared/autonomy'
 import { sfx } from '../audio/sfx'
 import { useCountUp } from '../motion'
-import { colors, type } from '../theme'
+import { colors, type, fontSize } from '../theme'
 import { DiffViewer } from './DiffViewer'
 
 const TASK_LIMIT = 200
@@ -303,7 +303,7 @@ const titleStyle: React.CSSProperties = {
 
 const subtitleStyle: React.CSSProperties = {
   color: colors.cyan,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: type.hudTracking,
   marginTop: 6,
@@ -325,7 +325,7 @@ const detailRowStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = {
   color: colors.amber,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: type.hudTracking
 }
@@ -333,7 +333,7 @@ const labelStyle: React.CSSProperties = {
 const valueStyle: React.CSSProperties = {
   margin: 0,
   color: colors.textPrimary,
-  fontSize: 12
+  fontSize: fontSize.body
 }
 
 const taskValueStyle: React.CSSProperties = {
@@ -354,14 +354,14 @@ const unavailableStyle: React.CSSProperties = {
   background: colors.bgPanelDark,
   border: `1px solid ${colors.borderHud}`,
   color: colors.textSecondary,
-  fontSize: 11
+  fontSize: fontSize.small
 }
 
 const tableLabelStyle: React.CSSProperties = {
   marginTop: 16,
   marginBottom: 6,
   color: colors.amber,
-  fontSize: 10,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: type.hudTracking
 }
@@ -376,14 +376,14 @@ const tableWrapStyle: React.CSSProperties = {
 const tableStyle: React.CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
-  fontSize: 11
+  fontSize: fontSize.small
 }
 
 const pathHeaderStyle: React.CSSProperties = {
   padding: '7px 10px',
   borderBottom: `1px solid ${colors.borderHud}`,
   color: colors.textSecondary,
-  fontSize: 10,
+  fontSize: fontSize.small,
   letterSpacing: type.hudTracking,
   textAlign: 'left'
 }
@@ -400,7 +400,7 @@ const fileRowStyle: React.CSSProperties = {
   width: '100%',
   padding: '6px 10px',
   borderBottom: `1px dotted ${colors.borderHud}`,
-  fontSize: 11,
+  fontSize: fontSize.small,
   fontFamily: 'inherit'
 }
 
@@ -428,13 +428,13 @@ const emptyFilesStyle: React.CSSProperties = {
   background: colors.bgPanelDark,
   border: `1px solid ${colors.borderHud}`,
   color: colors.textSecondary,
-  fontSize: 11
+  fontSize: fontSize.small
 }
 
 const moreFilesStyle: React.CSSProperties = {
   marginTop: 6,
   color: colors.textSecondary,
-  fontSize: 11
+  fontSize: fontSize.small
 }
 
 const actionRowStyle: React.CSSProperties = {
@@ -449,7 +449,7 @@ const dismissButtonStyle: React.CSSProperties = {
   border: 0,
   padding: '8px 20px',
   fontFamily: 'inherit',
-  fontSize: 12,
+  fontSize: fontSize.body,
   fontWeight: 'bold',
   letterSpacing: type.hudTracking,
   cursor: 'pointer'

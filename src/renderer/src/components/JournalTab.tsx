@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { SOUL_NOT_FOUND } from '../../../shared/defaults'
+import { colors, fontSize } from '../theme'
 
 type JournalSubTab = 'soul' | 'memory'
 
@@ -197,8 +198,8 @@ const subTabRowStyle: React.CSSProperties = {
 const subTabStyle: React.CSSProperties = {
   background: 'transparent',
   border: 0,
-  color: '#666',
-  fontSize: 11,
+  color: colors.textMuted,
+  fontSize: fontSize.small,
   letterSpacing: '0.15em',
   padding: '4px 12px',
   cursor: 'pointer',
@@ -229,7 +230,7 @@ const textareaStyle: React.CSSProperties = {
   borderLeft: '2px solid #e85f00',
   padding: 10,
   fontFamily: 'inherit',
-  fontSize: 12,
+  fontSize: fontSize.body,
   resize: 'none',
   boxSizing: 'border-box'
 }
@@ -247,7 +248,7 @@ const memoryScrollAreaStyle: React.CSSProperties = {
 const memoryPreStyle: React.CSSProperties = {
   margin: 0,
   fontFamily: 'inherit',
-  fontSize: 11,
+  fontSize: fontSize.small,
   color: '#ccc',
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word'
@@ -265,7 +266,7 @@ const saveButtonStyle: React.CSSProperties = {
   color: '#000',
   border: 0,
   padding: '6px 16px',
-  fontSize: 11,
+  fontSize: fontSize.small,
   fontWeight: 'bold',
   letterSpacing: '0.1em',
   cursor: 'pointer',
@@ -277,7 +278,7 @@ const refreshButtonStyle: React.CSSProperties = {
   color: '#ffcc33',
   border: '1px solid #ffcc33',
   padding: '6px 16px',
-  fontSize: 11,
+  fontSize: fontSize.small,
   letterSpacing: '0.1em',
   cursor: 'pointer',
   fontFamily: 'inherit'
@@ -285,19 +286,19 @@ const refreshButtonStyle: React.CSSProperties = {
 
 const toastStyle: React.CSSProperties = {
   color: '#0f0',
-  fontSize: 11,
+  fontSize: fontSize.small,
   letterSpacing: '0.1em'
 }
 
 const loadingStyle: React.CSSProperties = {
   color: '#888',
-  fontSize: 11,
+  fontSize: fontSize.small,
   marginBottom: 8
 }
 
 const errorStyle: React.CSSProperties = {
   color: '#ff6b6b',
-  fontSize: 11,
+  fontSize: fontSize.small,
   marginBottom: 8,
   padding: '6px 8px',
   background: '#2a1510',
@@ -305,8 +306,8 @@ const errorStyle: React.CSSProperties = {
 }
 
 const emptyStateStyle: React.CSSProperties = {
-  color: '#666',
-  fontSize: 12,
+  color: colors.textMuted,
+  fontSize: fontSize.body,
   textAlign: 'center',
   padding: 40,
   fontStyle: 'italic'
