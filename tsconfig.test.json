@@ -1,5 +1,8 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+  // index.d.ts declares window.mechbay. Next to index.ts, the include glob
+  // treats it as that file's output and skips it, so list it explicitly.
+  "files": ["src/preload/index.d.ts"],
   "include": [
     "test/**/*",
     "src/main/**/*",
