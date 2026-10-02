@@ -2196,11 +2196,13 @@ input {
   }
 }
 /* Narrow cards: the portrait covers the header row, so drop the tag and
-   let the top strip and status line carry the deployed state. */
+   let the top strip and status line carry the deployed state. The tag ends
+   about 148px into the card and the portrait starts about 70px left of the
+   content's right edge, so they meet below a 218px content width. */
 .crew-card {
   container-type: inline-size;
 }
-@container (max-width: 150px) {
+@container (max-width: 224px) {
   .crew-deployed-tag {
     display: none;
   }
