@@ -9,6 +9,11 @@
   --body: 'Barlow', sans-serif;
   --display: 'Barlow Condensed', sans-serif;
   --green: #b2ce8c;
+  /* MechWarrior-style cockpit instruments: reserved for the compass,
+     computer callouts, heat gauge and wireframes, never for chrome. */
+  --phosphor: #7dff9a;
+  --phosphor-dim: #7dff9a59;
+  --phosphor-glow: #7dff9a40;
 }
 body {
   color: var(--ink);
@@ -194,19 +199,20 @@ input {
   gap: 24px;
   padding: 3px 8px 0 0;
 }
-.telemetry-strip div {
+.telemetry-stat {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
 .telemetry-strip strong {
+  display: block;
   font: 500 32px/0.95 var(--display);
   color: #d8dfd0;
 }
 .telemetry-strip .amber-value {
   color: var(--amber);
 }
-.telemetry-strip span {
+.telemetry-label {
   font: 8px var(--mono);
   letter-spacing: 0.07em;
   color: var(--dim);
@@ -364,9 +370,8 @@ input {
   background: #293322;
 }
 .crew-card.is-selected {
-  border-color: #d7b064;
+  border-color: #7d6d43;
   background: linear-gradient(120deg, #393725, #20271b);
-  box-shadow: inset 0 2px #efc36d;
 }
 .crew-number {
   display: block;
@@ -463,6 +468,7 @@ input {
   flex-direction: column;
 }
 .command-tabs {
+  position: relative;
   display: flex;
   gap: 14px;
   align-items: center;
@@ -479,8 +485,8 @@ input {
   padding: 0 0 13px;
   white-space: nowrap;
 }
+/* The amber underline itself is .tab-ink, which slides between tabs. */
 .command-tabs button.active {
-  border-color: var(--amber);
   color: var(--amber);
 }
 .command-tabs button:hover {
@@ -817,9 +823,6 @@ input {
   color: var(--ink);
   margin: 11px 0 24px;
 }
-.deploy-dialog {
-  animation: panel-reveal 0.25s ease-out;
-}
 .deploy-error {
   padding: 12px;
   border: 1px solid #985d46;
@@ -925,7 +928,8 @@ input {
   .crew-card {
     height: 158px;
   }
-  .crew-portrait {
+  .crew-portrait,
+  .crew-schematic {
     width: 105px;
     height: 105px;
     right: -6px;
@@ -963,7 +967,8 @@ input {
   .command-state {
     display: none;
   }
-  .crew-portrait {
+  .crew-portrait,
+  .crew-schematic {
     width: 70px;
     height: 70px;
     right: -15px;
@@ -1001,7 +1006,8 @@ input {
   .crew-name {
     margin-top: 18px;
   }
-  .crew-portrait {
+  .crew-portrait,
+  .crew-schematic {
     width: 78px;
     height: 78px;
     top: 6px;
@@ -1112,7 +1118,7 @@ input {
   .telemetry-strip strong {
     font-size: 27px;
   }
-  .telemetry-strip span {
+  .telemetry-label {
     font-size: 6px;
   }
   .eyebrow {
@@ -1171,7 +1177,8 @@ input {
     height: 136px;
     scroll-snap-align: start;
   }
-  .crew-portrait {
+  .crew-portrait,
+  .crew-schematic {
     width: 90px;
     height: 90px;
     right: -10px;
@@ -1388,4 +1395,1010 @@ input {
   margin: 8px 0 0;
   font-size: 11px;
   color: #a9b49f;
+}
+
+/* ── HUD motion pass ─────────────────────────────────────────────────
+   Everything below animates transform/opacity only. The global rules
+   above already strip animations/transitions under the in-app Reduce
+   motion setting and prefers-reduced-motion; rules here only add the
+   extra "hide the in-between state" tweaks those switches need. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Staggered first-load reveal: hidden under the boot splash, then each
+   block rises in as the splash fades. Only stable containers take part,
+   so nothing replays when tabs or missions re-render. */
+.command-shell[data-boot='pending']
+  :is(
+    .command-header,
+    .bay-title-row,
+    .bay-viewport,
+    .crew-roster .section-caption,
+    .crew-card,
+    .sidebar-heading,
+    .sidebar-content,
+    .command-footer
+  ) {
+  opacity: 0;
+}
+.command-shell[data-boot='revealed']
+  :is(
+    .command-header,
+    .bay-title-row,
+    .bay-viewport,
+    .crew-roster .section-caption,
+    .crew-card,
+    .sidebar-heading,
+    .sidebar-content,
+    .command-footer
+  ) {
+  animation: panel-reveal 360ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: var(--boot-delay, 0ms);
+}
+.command-header {
+  --boot-delay: 0ms;
+}
+.bay-title-row {
+  --boot-delay: 60ms;
+}
+.sidebar-heading {
+  --boot-delay: 90ms;
+}
+.bay-viewport {
+  --boot-delay: 110ms;
+}
+.sidebar-content {
+  --boot-delay: 150ms;
+}
+.crew-roster .section-caption {
+  --boot-delay: 160ms;
+}
+.crew-card:nth-child(1) {
+  --boot-delay: 190ms;
+}
+.crew-card:nth-child(2) {
+  --boot-delay: 220ms;
+}
+.crew-card:nth-child(3) {
+  --boot-delay: 250ms;
+}
+.crew-card:nth-child(4) {
+  --boot-delay: 280ms;
+}
+.crew-card:nth-child(5) {
+  --boot-delay: 310ms;
+}
+.command-footer {
+  --boot-delay: 320ms;
+}
+
+/* Sidebar views ease in from the right when a tab mounts them. */
+.sidebar-content > :not(.command-tabs) {
+  animation: tab-enter 220ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+.tab-ink {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 2px;
+  background: var(--amber);
+  transform-origin: 0 0;
+  pointer-events: none;
+  transition:
+    transform 260ms cubic-bezier(0.3, 0.8, 0.2, 1),
+    opacity 150ms;
+}
+
+/* Telemetry odometer: the old reading rolls out as the new one rolls in. */
+.odometer {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  padding: 3px 0;
+  margin: -3px 0;
+  vertical-align: top;
+}
+.odometer > span {
+  display: block;
+}
+.odometer > .odometer-out {
+  position: absolute;
+  top: 3px;
+  left: 0;
+}
+.roll-up .odometer-in {
+  animation: odo-in-up 340ms cubic-bezier(0.3, 1.35, 0.5, 1) backwards;
+}
+.roll-up .odometer-out {
+  animation: odo-out-up 340ms cubic-bezier(0.3, 1.35, 0.5, 1) forwards;
+}
+.roll-down .odometer-in {
+  animation: odo-in-down 340ms cubic-bezier(0.3, 1.35, 0.5, 1) backwards;
+}
+.roll-down .odometer-out {
+  animation: odo-out-down 340ms cubic-bezier(0.3, 1.35, 0.5, 1) forwards;
+}
+.telemetry-label.flash {
+  animation: stat-flash 900ms ease-out;
+}
+[data-reduce-motion='true'] .odometer-out {
+  display: none;
+}
+
+/* Comms feed: radio transmissions stacked above the field readout. */
+.comms-feed {
+  position: absolute;
+  z-index: 2;
+  right: 20px;
+  bottom: 84px;
+  width: min(300px, calc(100% - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.comms-msg {
+  --tone: var(--amber);
+  position: relative;
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px 6px 6px;
+  overflow: hidden;
+  background: linear-gradient(90deg, #1b2218f5, #141a12eb);
+  border: 1px solid #3a4431;
+  border-left: 2px solid var(--tone);
+  box-shadow: 0 6px 18px #0007;
+  animation: comms-tune 260ms linear backwards;
+}
+.comms-msg.tone-success {
+  --tone: var(--green);
+}
+.comms-msg.tone-failure {
+  --tone: #ee9c83;
+}
+.comms-msg.tone-alert {
+  --tone: #f3b35f;
+}
+.comms-msg.tone-muted {
+  --tone: #8f9a82;
+}
+/* Static burst while the channel tunes in. */
+.comms-msg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    repeating-linear-gradient(0deg, #dfe8cf1c 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, transparent, #efc36d24, transparent);
+  animation: comms-static 340ms steps(5) backwards;
+}
+.comms-msg.is-leaving {
+  animation: comms-out 280ms ease-in forwards;
+}
+.comms-portrait {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 38%, #2c3624, #10150e 75%);
+  border: 1px solid #4a553d;
+}
+.comms-portrait img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: auto;
+  max-width: none;
+  height: calc(var(--crop-zoom) * 100%);
+  transform: translate(calc(-1 * var(--crop-x)), calc(-1 * var(--crop-y)));
+  filter: saturate(0.8) contrast(1.05);
+  animation: portrait-signal 420ms steps(3) backwards;
+}
+/* Radio-screen treatment: scanlines plus a faint amber/green tint. */
+.comms-portrait::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 2px, #0000003d 2px 3px),
+    linear-gradient(180deg, #efc36d14, transparent 45%, #0f140e8c);
+}
+.comms-body {
+  min-width: 0;
+}
+.comms-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.comms-callsign {
+  font: 600 13px/1 var(--display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.comms-channel {
+  font: 8px/1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--tone);
+  white-space: nowrap;
+}
+.comms-bark {
+  position: relative;
+  display: block;
+  margin-top: 5px;
+  font: 500 12px/1.3 var(--body);
+  color: #dfe5d4;
+}
+.comms-bark-ghost,
+.comms-bark-typed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.comms-bark-ghost {
+  visibility: hidden;
+}
+.comms-bark-typed {
+  position: absolute;
+  inset: 0;
+}
+.comms-caret {
+  display: inline-block;
+  width: 5px;
+  height: 10px;
+  margin-left: 2px;
+  vertical-align: -1px;
+  background: var(--tone);
+}
+.comms-detail {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  font: 9px/1.3 var(--mono);
+  letter-spacing: 0.04em;
+  color: #aab59f;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  animation: fade-in 260ms ease-out 420ms backwards;
+}
+/* Superseded transmissions shrink to a single log line. */
+.comms-msg.is-compact {
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  padding: 3px 10px 3px 3px;
+  background: #151b13e0;
+  box-shadow: none;
+}
+.is-compact .comms-portrait {
+  width: 24px;
+  height: 24px;
+}
+.is-compact .comms-body {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.is-compact .comms-callsign {
+  font-size: 11px;
+  color: #c9d0bf;
+}
+.is-compact .comms-channel,
+.is-compact .comms-detail,
+.is-compact .comms-caret {
+  display: none;
+}
+.is-compact .comms-bark {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  font-size: 11px;
+  color: #b9c2ae;
+}
+.is-compact .comms-bark-ghost,
+.is-compact .comms-bark-typed {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Crew cards: hover scan sweep, RTS selection brackets, deployed strip. */
+.crew-card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 40px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(180deg, transparent, #efc36d0d 70%, #efc36d38 97%, transparent);
+  transform: translateY(-40px);
+}
+.crew-card:hover::after {
+  animation: card-scan 640ms cubic-bezier(0.4, 0, 0.3, 1);
+}
+.crew-card:hover .crew-portrait {
+  transform: translateY(-5px) scale(1.03);
+}
+.crew-brackets {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  animation: bracket-lock 300ms cubic-bezier(0.2, 0.9, 0.3, 1.15) backwards;
+}
+.crew-brackets i {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border: 0 solid var(--amber);
+  animation: bracket-breathe 2.6s ease-in-out 300ms infinite;
+}
+.crew-brackets i:nth-child(1) {
+  top: 0;
+  left: 0;
+  border-width: 2px 0 0 2px;
+}
+.crew-brackets i:nth-child(2) {
+  top: 0;
+  right: 0;
+  border-width: 2px 2px 0 0;
+}
+.crew-brackets i:nth-child(3) {
+  bottom: 0;
+  right: 0;
+  border-width: 0 2px 2px 0;
+}
+.crew-brackets i:nth-child(4) {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 2px 2px;
+}
+.crew-card.is-deployed:not(.is-selected) {
+  border-color: #5b5537;
+}
+.crew-deploy-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  background: #8a7442;
+}
+.crew-deploy-strip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #ffe2a4, transparent);
+  animation: strip-sweep 1.9s linear infinite;
+}
+.mission-queued .crew-deploy-strip {
+  background: #4a4631;
+}
+.mission-queued .crew-deploy-strip::after {
+  display: none;
+}
+.mission-awaiting-input .crew-deploy-strip {
+  background: #8a5f2c;
+}
+.mission-awaiting-input .crew-deploy-strip::after {
+  animation-duration: 0.9s;
+}
+.crew-deployed-tag {
+  margin-left: 8px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--amber);
+  animation: tag-pulse 1.8s ease-in-out infinite;
+}
+.mission-queued .crew-deployed-tag {
+  color: #b3a57b;
+  animation: none;
+}
+.crew-status.engaged i {
+  position: relative;
+}
+.crew-status.engaged i::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0;
+  animation: status-ping 1.6s ease-out infinite;
+}
+.mission-awaiting-input .crew-status {
+  color: #f3b35f;
+}
+
+/* Modals project in like a hologram: a bright line that opens to full height. */
+.holo-backdrop {
+  animation: fade-in 200ms ease-out backwards;
+}
+.holo-panel {
+  position: relative;
+  animation: holo-project 240ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.holo-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    linear-gradient(180deg, transparent 48%, #efc36d66 50%, transparent 52%),
+    repeating-linear-gradient(0deg, #efc36d14 0 1px, transparent 1px 3px);
+  animation: holo-scan 420ms ease-out backwards;
+}
+.debrief-banner-marks {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.debrief-stamp {
+  position: relative;
+  padding: 8px 12px 7px;
+  font: 700 20px/1 var(--display);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  color: var(--green);
+  border: 2px solid currentColor;
+  outline: 1px solid currentColor;
+  outline-offset: 3px;
+  transform: rotate(-4deg);
+  animation: stamp-slam 360ms cubic-bezier(0.2, 0.9, 0.25, 1.2) 260ms backwards;
+}
+.debrief-stamp::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border: 1px solid currentColor;
+  opacity: 0;
+  animation: stamp-ring 520ms ease-out 470ms backwards;
+}
+.debrief-stamp.stamp-failed {
+  color: #ee9c83;
+}
+.debrief-stamp.stamp-cancelled {
+  color: #a5ad9e;
+}
+
+/* Primary actions: sheen on hover, a 1px tactile depress when pressed. */
+.primary-action,
+.cta-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.primary-action::after,
+.cta-sheen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(100deg, transparent, #ffffff59 50%, transparent);
+  transform: translateX(-120%) skewX(-18deg);
+}
+.primary-action:hover:not(:disabled)::after,
+.cta-sheen:hover:not(:disabled)::after {
+  animation: sheen 650ms ease-out;
+}
+.primary-action,
+.secondary-action {
+  transition:
+    background 0.18s,
+    border-color 0.18s,
+    box-shadow 0.18s,
+    transform 60ms;
+}
+.primary-action:active:not(:disabled),
+.secondary-action:active:not(:disabled),
+.cta-sheen:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Header: LINK lamp blinks on each real state broadcast; ticker rolls. */
+.link-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.link-lamp {
+  position: relative;
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #56694a;
+}
+.link-lamp::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #d9f0b8;
+  box-shadow: 0 0 6px #b2ce8c99;
+  opacity: 0;
+  animation: link-rx 520ms ease-out;
+}
+.header-ticker {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #d7c592;
+}
+.header-ticker-item {
+  display: inline-block;
+  animation: ticker-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+@keyframes tab-enter {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes odo-in-up {
+  from {
+    transform: translateY(120%);
+  }
+}
+@keyframes odo-out-up {
+  to {
+    transform: translateY(-120%);
+  }
+}
+@keyframes odo-in-down {
+  from {
+    transform: translateY(-120%);
+  }
+}
+@keyframes odo-out-down {
+  to {
+    transform: translateY(120%);
+  }
+}
+@keyframes stat-flash {
+  0%,
+  35% {
+    color: var(--amber);
+  }
+}
+@keyframes comms-tune {
+  0% {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  40% {
+    opacity: 0.2;
+    transform: none;
+  }
+  60% {
+    opacity: 0.95;
+  }
+  75% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes comms-static {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(1px);
+  }
+}
+@keyframes comms-out {
+  to {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+@keyframes portrait-signal {
+  0% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  75% {
+    opacity: 0.5;
+  }
+}
+@keyframes card-scan {
+  0% {
+    opacity: 1;
+    transform: translateY(-40px);
+  }
+  100% {
+    opacity: 0.3;
+    transform: translateY(170px);
+  }
+}
+@keyframes bracket-lock {
+  from {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+  60% {
+    opacity: 1;
+  }
+}
+@keyframes bracket-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes strip-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@keyframes tag-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes status-ping {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+@keyframes holo-project {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.5, 0.006);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1, 0.006);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes holo-scan {
+  0%,
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes stamp-slam {
+  0% {
+    opacity: 0;
+    transform: rotate(-10deg) scale(2.4);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(-4deg) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-4deg) scale(1);
+  }
+}
+@keyframes stamp-ring {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+@keyframes sheen {
+  from {
+    opacity: 1;
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(300%) skewX(-18deg);
+  }
+}
+@keyframes link-rx {
+  0%,
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes ticker-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+/* Smaller fields: narrower feed, and only the newest two calls stay up. */
+@media (max-width: 1200px), (max-height: 820px) {
+  .comms-feed {
+    width: min(250px, calc(100% - 40px));
+  }
+  .comms-msg:not(:nth-last-child(-n + 2)) {
+    display: none;
+  }
+}
+@media (max-height: 820px) and (min-width: 901px) {
+  .comms-feed {
+    bottom: 76px;
+  }
+}
+/* Narrow cards: the portrait covers the header row, so drop the tag and
+   let the top strip and status line carry the deployed state. */
+.crew-card {
+  container-type: inline-size;
+}
+@container (max-width: 150px) {
+  .crew-deployed-tag {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .comms-feed {
+    right: 12px;
+    bottom: 104px;
+    width: calc(100% - 24px);
+  }
+  .debrief-stamp {
+    font-size: 13px;
+    padding: 6px 8px 5px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .odometer-out {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------------
+   MechWarrior 2 cockpit layer: phosphor instruments over the command deck.
+   ------------------------------------------------------------------------ */
+
+.cockpit-hud {
+  position: absolute;
+  z-index: 3;
+  top: 12px;
+  left: 50%;
+  width: min(340px, 40%);
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  pointer-events: none;
+  font-family: var(--mono);
+  color: var(--phosphor);
+  text-shadow: 0 0 6px var(--phosphor-glow);
+}
+.compass-tape {
+  position: relative;
+  width: 100%;
+  height: 26px;
+  border-bottom: 1px solid var(--phosphor-dim);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+.compass-track {
+  position: absolute;
+  inset: 0;
+}
+.compass-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 5px;
+  background: var(--phosphor-dim);
+  transition: left 120ms linear;
+}
+.compass-tick.is-cardinal {
+  height: 9px;
+  background: var(--phosphor);
+}
+.compass-tick b {
+  position: absolute;
+  bottom: 11px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 500 9px var(--mono);
+  letter-spacing: 0.08em;
+}
+.compass-caret {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: var(--phosphor);
+}
+.compass-readout {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 5px;
+  font: 500 9px var(--mono);
+  background: #0b0f0a;
+  border: 1px solid var(--phosphor-dim);
+}
+.cockpit-callout-slot {
+  min-height: 18px;
+}
+.cockpit-callout {
+  padding: 2px 10px;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  background: #070a06d9;
+  border: 1px solid var(--phosphor-dim);
+  animation: callout-in 180ms steps(3) backwards;
+}
+.cockpit-callout.tone-warning {
+  color: var(--amber);
+  border-color: #efc36d73;
+  text-shadow: 0 0 6px #efc36d55;
+}
+.cockpit-callout.tone-critical {
+  color: #ff6b5a;
+  border-color: #ff6b5a80;
+  text-shadow: 0 0 7px #ff5a4a66;
+  animation:
+    callout-in 180ms steps(3) backwards,
+    callout-blink 520ms steps(2) 180ms 3;
+}
+.cockpit-callout-mark {
+  margin-right: 7px;
+  font-style: normal;
+  animation: callout-blink 900ms steps(2) infinite;
+}
+@keyframes callout-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+}
+@keyframes callout-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Lance heat gauge in the header. */
+.lance-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.lance-gauge-label {
+  color: var(--phosphor);
+  text-shadow: 0 0 5px var(--phosphor-glow);
+}
+.lance-gauge-cells {
+  display: inline-flex;
+  gap: 2px;
+}
+.lance-gauge-cells i {
+  width: 9px;
+  height: 7px;
+  border: 1px solid var(--phosphor-dim);
+  transition:
+    background 200ms,
+    box-shadow 200ms;
+}
+.lance-gauge-cells i.is-lit {
+  background: var(--phosphor);
+  box-shadow: 0 0 6px var(--phosphor-glow);
+}
+.lance-gauge.band-warm .lance-gauge-cells i.is-lit {
+  background: var(--amber);
+  box-shadow: 0 0 6px #efc36d66;
+}
+.lance-gauge.band-hot .lance-gauge-label,
+.lance-gauge.band-hot .lance-gauge-cells i.is-lit {
+  color: #ff6b5a;
+  background: #ff6b5a;
+  box-shadow: 0 0 7px #ff5a4a88;
+}
+.lance-gauge.band-hot .lance-gauge-label {
+  background: none;
+  animation: callout-blink 900ms steps(2) infinite;
+}
+
+/* Mech Lab wireframe on crew cards: hover or keyboard focus swaps the
+   painted portrait for its phosphor schematic. */
+.crew-schematic {
+  position: absolute;
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  right: -10px;
+  top: 13px;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px var(--phosphor-glow));
+  transition: opacity 180ms;
+}
+.crew-card:hover .crew-schematic,
+.crew-card:focus-visible .crew-schematic {
+  opacity: 1;
+  transform: translateY(-5px) scale(1.03);
+  animation: schematic-flicker 260ms steps(4);
+}
+.crew-card:hover .crew-portrait,
+.crew-card:focus-visible .crew-portrait {
+  opacity: 0.12;
+}
+@keyframes schematic-flicker {
+  0% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 0.8;
+  }
+  60% {
+    opacity: 0.3;
+  }
 }

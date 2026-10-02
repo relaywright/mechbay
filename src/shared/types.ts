@@ -269,5 +269,15 @@ export interface AppState {
      * persisted state stays valid without a schema bump.
      */
     missionAlerts?: boolean
+    /**
+     * Synthesized interface, radio, and mech sound effects plus the hangar
+     * room tone. Defaults ON when unset, like `missionAlerts`.
+     */
+    sound?: boolean
+    /**
+     * Master sound volume, 0..1. Defaults to 0.6 when unset (see
+     * `DEFAULT_SOUND_VOLUME`); main clamps anything out of range on write.
+     */
+    soundVolume?: number
   }
 }

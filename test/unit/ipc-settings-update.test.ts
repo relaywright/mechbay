@@ -27,6 +27,8 @@ function setup(): {
     reduceMotion?: boolean
     crtOverlay?: boolean
     missionAlerts?: boolean
+    sound?: boolean
+    soundVolume?: number
   }) => Promise<unknown>
 } {
   const data: Record<string, unknown> = {}
@@ -100,5 +102,41 @@ describe('IPC.SETTINGS_UPDATE', () => {
 
     await update({ missionAlerts: 'yes' } as never)
     expect(state.getState().settings.missionAlerts).toBeUndefined()
+  })
+
+  it('persists sound on/off and volume while preserving other settings', async () => {
+    const { state, update } = setup()
+    const projectsDir = state.getState().settings.projectsDir
+
+    expect(await update({ sound: false, soundVolume: 0.25 })).toEqual({ ok: true })
+    expect(state.getState().settings).toMatchObject({
+      projectsDir,
+      sound: false,
+      soundVolume: 0.25
+    })
+
+    // Updating one sound field leaves the other alone.
+    expect(await update({ sound: true })).toEqual({ ok: true })
+    expect(state.getState().settings).toMatchObject({ sound: true, soundVolume: 0.25 })
+  })
+
+  it('clamps an out-of-range soundVolume to 0..1', async () => {
+    const { state, update } = setup()
+
+    await update({ soundVolume: 3 })
+    expect(state.getState().settings.soundVolume).toBe(1)
+    await update({ soundVolume: -0.5 })
+    expect(state.getState().settings.soundVolume).toBe(0)
+  })
+
+  it('ignores non-numeric, NaN, and infinite soundVolume values and non-boolean sound', async () => {
+    const { state, update } = setup()
+    await update({ soundVolume: 0.4 })
+
+    await update({ soundVolume: Number.NaN })
+    await update({ soundVolume: Number.POSITIVE_INFINITY })
+    await update({ soundVolume: '0.9', sound: 'off' } as never)
+    expect(state.getState().settings.soundVolume).toBe(0.4)
+    expect(state.getState().settings.sound).toBeUndefined()
   })
 })

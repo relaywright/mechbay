@@ -1,16 +1,19 @@
 /**
- * Lines typed by the boot splash. The version comes from package.json at
- * build time (__APP_VERSION__, see electron.vite.config.ts), never by hand.
+ * Cockpit start-up checklist, MechWarrior style. Each subsystem is a real
+ * part of the app coming up (reactor = the runner boundary that powers the
+ * mechs, sensors = the bay projector, comms = the HUD). The version comes
+ * from package.json at build time (__APP_VERSION__, see
+ * electron.vite.config.ts), never by hand.
  */
 export function bootLines(version: string): readonly string[] {
   return [
     `MECHBAY OS v${version} · COMBINE STANDARD BOOT`,
-    '▸ HUD SUBSYSTEMS ................ OK',
-    '▸ ISO GRID PROJECTOR ............ OK',
-    '▸ RUNNER BOUNDARY ............... OK',
-    '▸ SOUL/MEMORY ARCHIVE ........... OK',
-    '▸ COMPANION ROSTER .............. 5 MECHS',
-    '◈ COMMAND AUTHORITY CONFIRMED · CMDR ON DECK'
+    '▸ REACTOR · RUNNER BOUNDARY ..... ONLINE',
+    '▸ SENSORS · ISO GRID PROJECTOR .. ONLINE',
+    '▸ COMMS · HUD SUBSYSTEMS ........ ONLINE',
+    '▸ MEMORY · SOUL ARCHIVE ......... ONLINE',
+    '▸ LANCE ROSTER .................. 5 MECHS',
+    '◈ ALL SYSTEMS NOMINAL · CMDR ON DECK'
   ]
 }
 

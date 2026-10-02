@@ -23,11 +23,12 @@ export function CrashRecoveryModal(props: {
   return (
     <div
       style={backdropStyle}
+      className="holo-backdrop"
       onClick={(e) => {
         if (e.target === e.currentTarget) props.onDismiss()
       }}
     >
-      <div style={panelStyle}>
+      <div style={panelStyle} className="holo-panel">
         <div style={headerStyle}>⚠ CRASH RECOVERY</div>
         <div style={subheaderStyle}>
           {props.zombies.length === 1 ? '1 mission' : `${props.zombies.length} missions`} did not

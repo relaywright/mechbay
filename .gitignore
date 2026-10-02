@@ -33,5 +33,6 @@ docs/*
 !docs/social-preview.png
 !docs/design-system.md
 !docs/portfolio-refresh.md
+!docs/art-brief.md
 !docs/release-checklist.md
 !docs/engineering/

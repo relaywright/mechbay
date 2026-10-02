@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { sfx } from '../audio/sfx'
 import type { Companion, Facility } from '../../../shared/types'
 import { filterPromptsFor, type QuickPrompt } from '../quickPrompts'
 import { colors, type } from '../theme'
@@ -50,6 +51,26 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
   const cliAvailable = companion.cliAvailable
   const canDeploy = cliAvailable && hasText && !isLoading
 
+  // Deferred so StrictMode's double mount only plays the projector sound once.
+  useEffect(() => {
+    const timer = setTimeout(() => sfx.play('ui-open'), 0)
+    return () => clearTimeout(timer)
+  }, [])
+
+  const handleCancel = useCallback(() => {
+    // The parent ignores cancels while a deploy is in flight; stay quiet then too.
+    if (!isLoading) sfx.play('ui-close')
+    onCancel()
+  }, [onCancel, isLoading])
+
+  const handleDeploy = useCallback(() => {
+    if (!canDeploy) return
+    const quickPromptLabel = activePromptId
+      ? availablePrompts.find((p) => p.id === activePromptId)?.label
+      : undefined
+    onDeploy(text.trim(), quickPromptLabel)
+  }, [canDeploy, text, activePromptId, availablePrompts, onDeploy])
+
   // Save focus on mount, restore on unmount
   useEffect(() => {
     lastFocusedRef.current = document.activeElement as HTMLElement
@@ -61,14 +82,6 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
     }
   }, [])
 
-  const handleDeploy = useCallback(() => {
-    if (!canDeploy) return
-    const quickPromptLabel = activePromptId
-      ? availablePrompts.find((p) => p.id === activePromptId)?.label
-      : undefined
-    onDeploy(text.trim(), quickPromptLabel)
-  }, [canDeploy, text, activePromptId, availablePrompts, onDeploy])
-
   // Keyboard handlers: ESC to cancel, Ctrl/Cmd+Enter to submit. Depends on
   // handleDeploy, so a re-render with a new onDeploy is never shadowed by a
   // stale closure. handleDeploy itself ignores the key while !canDeploy.
@@ -76,7 +89,7 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        onCancel()
+        handleCancel()
         return
       }
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -87,7 +100,7 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, handleDeploy])
+  }, [handleCancel, handleDeploy])
 
   // Focus trap: keep tab cycling within modal
   // Recomputes focusable elements on each Tab/Shift-Tab to handle dynamic content
@@ -189,15 +202,16 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
   return (
     <div
       style={backdropStyle}
+      className="holo-backdrop"
       onClick={(e) => {
         if (isLoading) return
-        if (e.target === e.currentTarget) onCancel()
+        if (e.target === e.currentTarget) handleCancel()
       }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="deploy-modal-title"
     >
-      <div ref={modalRef} style={panelStyle} className="deploy-dialog">
+      <div ref={modalRef} style={panelStyle} className="deploy-dialog holo-panel">
         <div className="eyebrow">DEPLOYMENT AUTHORIZATION / BAY 01</div>
         <h2 className="dialog-heading">Give your mech a mission.</h2>
         {props.error && (
@@ -288,7 +302,7 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
           <button
             ref={cancelButtonRef}
             type="button"
-            onClick={onCancel}
+            onClick={handleCancel}
             disabled={isLoading}
             style={isLoading ? cancelButtonDisabledStyle : cancelButtonStyle}
             aria-label="Cancel deployment"
@@ -303,6 +317,7 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
             onMouseEnter={() => setIsHoveredDeploy(true)}
             onMouseLeave={() => setIsHoveredDeploy(false)}
             style={deployState.style}
+            className="cta-sheen"
             title={deployState.title}
             aria-label="Deploy mission"
           >

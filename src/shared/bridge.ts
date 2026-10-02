@@ -63,6 +63,9 @@ export interface SettingsPatch {
   reduceMotion?: boolean
   crtOverlay?: boolean
   missionAlerts?: boolean
+  sound?: boolean
+  /** 0..1; the main process clamps it. */
+  soundVolume?: number
 }
 
 export interface LogsBridge {

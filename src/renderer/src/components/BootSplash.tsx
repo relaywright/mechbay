@@ -8,10 +8,16 @@ const FADE_DURATION_MS = 400
 
 interface BootSplashProps {
   reduceMotion: boolean
+  /** Fires as the splash starts fading, so the HUD can begin revealing beneath it. */
+  onReveal?: () => void
   onComplete: () => void
 }
 
-export function BootSplash({ reduceMotion, onComplete }: BootSplashProps): React.JSX.Element {
+export function BootSplash({
+  reduceMotion,
+  onReveal,
+  onComplete
+}: BootSplashProps): React.JSX.Element {
   const [visibleCharacters, setVisibleCharacters] = useState(reduceMotion ? Infinity : 0)
   const [fading, setFading] = useState(false)
 
@@ -37,6 +43,7 @@ export function BootSplash({ reduceMotion, onComplete }: BootSplashProps): React
           if (intervalId) clearInterval(intervalId)
           setVisibleCharacters(totalCharacters)
           setFading(true)
+          onReveal?.()
           completionId = setTimeout(onComplete, timings.fadeDuration)
         }
       }, 16)
@@ -54,7 +61,7 @@ export function BootSplash({ reduceMotion, onComplete }: BootSplashProps): React
       clearTimeout(completionId)
       window.removeEventListener('keydown', skip, true)
     }
-  }, [onComplete, reduceMotion])
+  }, [onComplete, onReveal, reduceMotion])
 
   return (
     <div
@@ -100,7 +107,7 @@ function renderLine(visibleText: string, fullText: string, index: number): React
     return <span style={{ color: colors.amber }}>{visibleText}</span>
   }
 
-  const status = fullText.endsWith('OK') ? 'OK' : '5 MECHS'
+  const status = fullText.endsWith('ONLINE') ? 'ONLINE' : '5 MECHS'
   const detailLength = fullText.length - status.length
   const detail = visibleText.slice(0, detailLength)
   const visibleStatus = visibleText.slice(detailLength)
@@ -108,7 +115,7 @@ function renderLine(visibleText: string, fullText: string, index: number): React
   return (
     <>
       <span style={{ color: colors.textDim }}>{detail}</span>
-      <span style={{ color: status === 'OK' ? colors.streamStdout : colors.amber }}>
+      <span style={{ color: status === 'ONLINE' ? colors.phosphor : colors.amber }}>
         {visibleStatus}
       </span>
     </>

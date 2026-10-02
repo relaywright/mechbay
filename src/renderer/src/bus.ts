@@ -19,6 +19,8 @@ export type BusEvents = {
   emptyTileClicked: { tile: { x: number; y: number } }
   /** RECENTER control — animate the bay camera back to its default zoom/pan. */
   bayResetView: void
+  /** Heading of the selected mech (degrees from up-screen north) — drives the compass tape. */
+  mechHeading: { companionId: string; heading: number }
 }
 
 export const bus = mitt<BusEvents>()

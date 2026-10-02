@@ -84,11 +84,12 @@ export function BulkImportModal({ onClose }: BulkImportModalProps): React.JSX.El
   return (
     <div
       style={backdropStyle}
+      className="holo-backdrop"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div style={panelStyle}>
+      <div style={panelStyle} className="holo-panel">
         <div style={headerStyle}>
           <span>BULK IMPORT</span>
           <button type="button" onClick={onClose} style={closeButtonStyle}>

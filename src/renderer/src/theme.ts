@@ -33,6 +33,8 @@ export const colors = {
   cyan: '#91c7bc',
   cyanGlow: 'rgba(0, 240, 255, 0.4)',
   cyanTint: 'rgba(0, 240, 255, 0.08)',
+  // Cockpit instruments (MechWarrior HUD green) — matches --phosphor in command.css.
+  phosphor: '#7dff9a',
 
   // Stream colors
   streamStdout: '#9dd98a',

@@ -40,7 +40,7 @@ export function queuePosition(deployments: Deployment[], id: string): number | n
   return index === -1 ? null : index + 1
 }
 
-const DEFAULT_CONCURRENCY_CAP = 3
+export const DEFAULT_CONCURRENCY_CAP = 3
 
 /**
  * The saved limit comes from a file on disk that may be hand-edited or

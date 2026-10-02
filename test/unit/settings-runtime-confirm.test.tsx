@@ -42,6 +42,8 @@ function renderSettings(): void {
       reduceMotion={false}
       crtOverlay={false}
       missionAlerts={false}
+      sound={false}
+      soundVolume={0.6}
       onClose={() => {}}
     />
   )
