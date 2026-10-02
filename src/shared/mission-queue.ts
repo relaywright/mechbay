@@ -29,9 +29,22 @@ export function queuePosition(deployments: Deployment[], id: string): number | n
   return index === -1 ? null : index + 1
 }
 
+const DEFAULT_CONCURRENCY_CAP = 3
+
+/**
+ * The saved limit comes from a file on disk that may be hand-edited or
+ * damaged: 0 would stall the queue forever and NaN would start every mission
+ * at once. Anything that is not a positive, finite number falls back to the
+ * default.
+ */
+export function concurrencyCap(raw: unknown): number {
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return DEFAULT_CONCURRENCY_CAP
+  return Math.max(1, Math.floor(raw))
+}
+
 export function freeSlots(state: Pick<AppState, 'deployments' | 'settings'>): number {
   const running = state.deployments.filter((d) => isActive(d.status)).length
-  return Math.max(0, state.settings.concurrencyCap - running)
+  return Math.max(0, concurrencyCap(state.settings.concurrencyCap) - running)
 }
 
 /** Which queued missions should start now: oldest first, one per mech, up to the free slots. */

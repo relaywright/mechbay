@@ -56,6 +56,27 @@ describe('mission queue rules', () => {
     expect(missionsToStart(state(list)).map((x) => x.id)).toEqual(['q2', 'q3'])
   })
 
+  it('falls back to 3 at once when the saved limit is damaged, so the queue never stalls or floods', () => {
+    const queued = ['m1', 'm2', 'm3', 'm4', 'm5'].map((m, i) => d(`q-${m}`, m, 'queued', i))
+    for (const damaged of [
+      0,
+      -2,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      '4' as never,
+      null as never
+    ]) {
+      expect(freeSlots(state(queued, damaged))).toBe(3)
+      expect(missionsToStart(state(queued, damaged))).toHaveLength(3)
+    }
+  })
+
+  it('rounds a fractional saved limit down, never below one', () => {
+    const queued = ['m1', 'm2', 'm3'].map((m, i) => d(`q-${m}`, m, 'queued', i))
+    expect(freeSlots(state(queued, 2.7))).toBe(2)
+    expect(freeSlots(state(queued, 0.5))).toBe(1)
+  })
+
   it('knows when a mech already has an open mission', () => {
     expect(hasOpenMission([d('a', 'm1', 'queued', 1)], 'm1')).toBe(true)
     expect(hasOpenMission([d('a', 'm1', 'completed', 1)], 'm1')).toBe(false)

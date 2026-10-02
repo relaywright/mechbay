@@ -1,5 +1,6 @@
 import type { AppState } from '../../../shared/types'
 import { fleetTelemetry } from '../operations'
+import { concurrencyCap } from '../../../shared/mission-queue'
 
 export function HudHeader({
   state,
@@ -48,7 +49,7 @@ export function HudHeader({
         )}
         <span className="header-separator">/</span>
         <span>
-          {telemetry?.active ?? 0} OF {state?.settings.concurrencyCap ?? 3} ACTIVE
+          {telemetry?.active ?? 0} OF {concurrencyCap(state?.settings.concurrencyCap)} ACTIVE
         </span>
       </div>
       <nav aria-label="Bay configuration">
