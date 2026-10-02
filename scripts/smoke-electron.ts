@@ -49,6 +49,24 @@ try {
   )
   assert.deepEqual(crewOverlaps, [], 'crew card status runs into its stat line')
 
+  // A deployed mech's card adds a DEPLOYED tag to its header row; where the
+  // portrait would cover it, the tag must be hidden. Add one to every card
+  // to check, then take it away again.
+  const tagsUnderPortrait = await page.evaluate(() =>
+    [...document.querySelectorAll('.crew-card')].flatMap((card) => {
+      const tag = document.createElement('b')
+      tag.className = 'crew-deployed-tag'
+      tag.textContent = 'DEPLOYED'
+      card.querySelector('.crew-number')?.appendChild(tag)
+      const box = tag.getBoundingClientRect()
+      const portrait = card.querySelector('.crew-portrait')?.getBoundingClientRect()
+      tag.remove()
+      if (!portrait || box.width === 0 || box.right <= portrait.left) return []
+      return [card.querySelector('.crew-name')?.textContent ?? '?']
+    })
+  )
+  assert.deepEqual(tagsUnderPortrait, [], 'a crew card DEPLOYED tag runs under the portrait')
+
   const sceneExposed = await page.evaluate(() => '__mechbayScene' in window)
   assert.equal(sceneExposed, demo, 'the scene hook must exist only in demo mode')
   assert.equal(
