@@ -334,6 +334,44 @@ describe('LogStore', () => {
     expect((await store.history(ID)).map((e) => e.text)).toEqual(['x'])
   })
 
+  it('removes a half-written log when the rename is refused and the direct write runs out of space', () => {
+    const fs = {
+      ...realFs,
+      renameSync: vi.fn(() => {
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      }),
+      writeFileSync: vi.fn(
+        (file: realFs.PathOrFileDescriptor, data: string, options?: realFs.WriteFileOptions) => {
+          if (String(file).endsWith('.jsonl')) {
+            // The disk fills partway through: a prefix lands, then the write throws.
+            realFs.writeFileSync(file, data.slice(0, 20), options)
+            throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+          }
+          realFs.writeFileSync(file, data, options)
+        }
+      )
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    expect(store.importLegacy([chunk])).toEqual({ lines: 0, failed: 1 })
+    // No partial log a later import would skip as finished, and no stray temporary copy.
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('never removes a log that appeared while the rename was refused', () => {
+    const fs = {
+      ...realFs,
+      renameSync: vi.fn((_tmp: string, file: string) => {
+        realFs.writeFileSync(file, '{"seq":1}\n') // another writer got there first
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      })
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    expect(store.importLegacy([chunk]).failed).toBe(1)
+    expect(realFs.readFileSync(path.join(dir, `${ID}.jsonl`), 'utf8')).toBe('{"seq":1}\n')
+  })
+
   it('counts a mission whose old log could not be written, and keeps importing the rest', () => {
     const OTHER = '01HV0000000000000000000002'
     const fs = {

@@ -43,11 +43,13 @@ export function gameSizeFor(
   // Before layout the parent can report 0; fall back to the base aspect.
   const w = cssW > 0 ? cssW : BASE_VIEW_W
   const h = cssH > 0 ? cssH : (w * BASE_VIEW_H) / BASE_VIEW_W
+  // A zoomed-out page reports a ratio below 1; only a missing or broken one falls back.
+  const devicePx = Number.isFinite(dpr) && dpr > 0 ? dpr : 1
   const cssScale = renderScaleFor(w, h)
-  const renderScale = Math.min(Math.max(cssScale * (dpr || 1), 1), MAX_RENDER_SCALE)
+  const renderScale = Math.min(Math.max(cssScale * devicePx, 1), MAX_RENDER_SCALE)
   const pxPerCss = Math.min(
     renderScale / cssScale,
-    MAX_OVERSAMPLE * Math.max(dpr || 1, 1),
+    MAX_OVERSAMPLE * devicePx,
     MAX_RENDER_SIDE / Math.max(w, h)
   )
   return { width: Math.round(w * pxPerCss), height: Math.round(h * pxPerCss) }

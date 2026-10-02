@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { AppState } from '../../../shared/types'
 import { sfx } from '../audio/sfx'
 import { bus } from '../bus'
-import { compassPoint, computeCallouts, type Callout } from '../cockpit'
+import { compassPoint, computeCallouts, dropStaleHolding, type Callout } from '../cockpit'
 import { useTypewriter } from '../motion'
 
 /** How long each computer callout holds the line before the next one. */
@@ -40,7 +40,10 @@ export function CockpitHud(): React.JSX.Element {
     const off = window.mechbay.onStateChange((next) => {
       const callouts = computeCallouts(previousRef.current, next)
       previousRef.current = next
-      if (callouts.length > 0) setQueue((current) => [...current, ...callouts])
+      setQueue((current) => {
+        const pruned = dropStaleHolding(current, next)
+        return callouts.length > 0 ? [...pruned, ...callouts] : pruned
+      })
     })
     return () => {
       disposed = true

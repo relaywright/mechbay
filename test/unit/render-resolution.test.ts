@@ -40,6 +40,19 @@ describe('gameSizeFor', () => {
     expect(size.width / size.height).toBeCloseTo(2000 / 121, 1)
   })
 
+  it('holds the 3x oversampling cap per device pixel when the page is zoomed out below 1x', () => {
+    // Zoomed out to 50%: 2000x121 CSS px are 1000x60.5 device px.
+    const size = gameSizeFor(2000, 121, 0.5)
+    expect(size.width).toBeLessThanOrEqual(1000 * 3)
+  })
+
+  it('treats a missing or broken devicePixelRatio as 1', () => {
+    const expected = gameSizeFor(1600, 900, 1)
+    for (const dpr of [0, -2, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(gameSizeFor(1600, 900, dpr)).toEqual(expected)
+    }
+  })
+
   it('falls back to the base aspect before the parent has been laid out', () => {
     expect(gameSizeFor(0, 0, 1)).toEqual({ width: BASE_VIEW_W, height: BASE_VIEW_H })
   })

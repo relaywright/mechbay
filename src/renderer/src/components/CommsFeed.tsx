@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Deployment, MechClass } from '../../../shared/types'
 import { sfx } from '../audio/sfx'
-import { computeCommsMessages, type CommsMessage } from '../comms'
+import { computeCommsMessages, dropStaleHolding, type CommsMessage } from '../comms'
 import { CREW } from '../crew'
 import { useTypewriter } from '../motion'
 
@@ -72,8 +72,14 @@ export function CommsFeed(): React.JSX.Element {
       previousRef.current = next.deployments
       if (!previous) return
       const messages = computeCommsMessages(previous, next)
-      if (messages.length === 0) return
       const now = Date.now()
+      if (messages.length === 0) {
+        setFeed((current) => {
+          const items = dropStaleHolding(current.items, next, now)
+          return items === current.items ? current : { items, clock: now }
+        })
+        return
+      }
       const scheduled = messages.map((message) => {
         const revealAt = Math.max(now, lastRevealRef.current + REVEAL_GAP_MS)
         lastRevealRef.current = revealAt
@@ -85,7 +91,10 @@ export function CommsFeed(): React.JSX.Element {
         }
       })
       setFeed((current) => ({
-        items: [...current.items.filter((item) => item.expireAt > now), ...scheduled],
+        items: [
+          ...dropStaleHolding(current.items, next, now).filter((item) => item.expireAt > now),
+          ...scheduled
+        ],
         clock: now
       }))
     })

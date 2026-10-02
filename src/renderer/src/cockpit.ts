@@ -16,6 +16,8 @@ export interface Callout {
   id: string
   text: string
   tone: CalloutTone
+  /** For a LANCE AT CAPACITY line: the mission it says is holding. */
+  holding?: string
 }
 
 const ACTIVE: ReadonlySet<Deployment['status']> = new Set([
@@ -58,7 +60,8 @@ export function computeCallouts(prev: AppState | null, next: AppState): Callout[
       callouts.push({
         id: `${d.id}:queued`,
         text: `LANCE AT CAPACITY · ${mech(d.companionId)} HOLDING`,
-        tone: 'warning'
+        tone: 'warning',
+        holding: d.id
       })
     } else if (d.status === 'awaiting-input') {
       callouts.push({
@@ -106,6 +109,20 @@ export function computeCallouts(prev: AppState | null, next: AppState): Callout[
     })
   }
   return callouts
+}
+
+/**
+ * Callouts wait their turn on screen, so a HOLDING line can come up after
+ * its mission already launched. Drops every waiting HOLDING line whose
+ * mission is no longer in line; the callout on screen (the first) plays out.
+ */
+export function dropStaleHolding(
+  queue: Callout[],
+  next: Pick<AppState, 'deployments' | 'settings'>
+): Callout[] {
+  if (!queue.slice(1).some((c) => c.holding)) return queue
+  const waiting = waitingInLine(next)
+  return queue.filter((c, i) => i === 0 || !c.holding || waiting.has(c.holding))
 }
 
 export interface LanceHeat {

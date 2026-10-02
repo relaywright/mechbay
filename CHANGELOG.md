@@ -28,15 +28,18 @@ and error messages read like sentences.
 - **No false "lance at capacity" warning.** Deploying with a free slot
   briefly showed LANCE AT CAPACITY and a "holding position" radio line
   before the mech set off. Both now appear only when the mission really
-  waits. Atlas's working line, which also sounded like a queue warning,
-  now says "Digging in at ...".
+  waits, and a holding line still waiting its turn on screen is dropped if
+  the mission sets off first. Atlas's working line, which also sounded
+  like a queue warning, now says "Digging in at ...".
 - **Plain error messages.** A failed action showed Electron's wrapper text
   ("Error invoking remote method ...") in front of the real reason. Every
-  panel now shows only the reason.
+  panel now shows only the reason, in full, even when it names a folder
+  with brackets in its name.
 - **Old logs that fail to move are no longer silent.** When upgrading a
   v1.4.0 bay, if a mission's log could not be written to its new file (a
   full disk, a locked folder), MechBay now says so at startup and names the
-  backup that still holds every line.
+  backup that still holds every line. A log cut short by a full disk is
+  removed, so it is never mistaken for a complete one.
 - The Read only hint now says exactly what it promises: the agent can look
   through the project, and the CLI blocks any change to project files.
 

@@ -30,6 +30,17 @@ describe('bridge errors', () => {
     expect(parseBridgeError(new Error('disk full'))).toBeNull()
   })
 
+  it('reads a code only at the start of the message, never inside a folder name', () => {
+    const message = 'Access denied: C:\\Projects\\[desktop-only] Reports'
+    expect(parseBridgeError(new Error(message))).toBeNull()
+    expect(
+      ipcErrorMessage(new Error(`Error invoking remote method 'fs:read-dir': Error: ${message}`))
+    ).toBe(message)
+    expect(ipcErrorMessage(new DesktopOnlyError('Open the desktop app.'))).toBe(
+      'Open the desktop app.'
+    )
+  })
+
   it('strips the Electron prefix for display', () => {
     expect(
       ipcErrorMessage(

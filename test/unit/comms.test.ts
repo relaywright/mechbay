@@ -13,6 +13,7 @@ import {
   commsDetail,
   computeCommsMessages,
   computeCommsTransitions,
+  dropStaleHolding,
   pickBark,
   RADIO_RATE,
   type CommsEvent
@@ -131,6 +132,42 @@ describe('buildCommsMessage', () => {
       }).map((m) => m.event)
     expect(radio(3)).toEqual([])
     expect(radio(1)).toEqual(['queued'])
+  })
+})
+
+describe('dropStaleHolding', () => {
+  const settings = { concurrencyCap: 1 } as AppState['settings']
+  const out = deployment('working', { id: 'deployment-0' })
+  const held = deployment('queued', { companionId: 'raven-1' })
+  const [holding] = computeCommsMessages([out], {
+    deployments: [out, held],
+    companions,
+    facilities,
+    settings
+  })
+  const NOW = 10_000
+  const pending = { ...holding, revealAt: NOW + 900 }
+  const shown = { ...holding, revealAt: NOW - 100 }
+  const launched = {
+    deployments: [
+      deployment('completed', { id: 'deployment-0' }),
+      deployment('walking-to', { companionId: 'raven-1' })
+    ],
+    settings
+  }
+
+  it('keeps a holding line that has not shown yet while its mission still waits', () => {
+    expect(dropStaleHolding([pending], { deployments: [out, held], settings }, NOW)).toEqual([
+      pending
+    ])
+  })
+
+  it('drops a holding line that has not shown yet once its mission launched', () => {
+    expect(dropStaleHolding([pending], launched, NOW)).toEqual([])
+  })
+
+  it('leaves a holding line already on screen alone', () => {
+    expect(dropStaleHolding([shown], launched, NOW)).toEqual([shown])
   })
 })
 

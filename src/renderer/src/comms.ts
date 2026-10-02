@@ -402,3 +402,20 @@ export function computeCommsMessages(
     .map((transition) => buildCommsMessage(transition, nextState.companions, nextState.facilities))
     .filter((message): message is CommsMessage => message !== null)
 }
+
+/**
+ * Radio lines reveal one after another, so a holding line can be scheduled
+ * to show after its mission already launched. Drops every holding line not
+ * yet revealed whose mission is no longer in line; shown lines stay.
+ */
+export function dropStaleHolding<T extends Pick<CommsMessage, 'event' | 'deploymentId'>>(
+  items: Array<T & { revealAt: number }>,
+  nextState: Pick<AppState, 'deployments' | 'settings'>,
+  now: number
+): Array<T & { revealAt: number }> {
+  const pending = (item: T & { revealAt: number }): boolean =>
+    item.event === 'queued' && item.revealAt > now
+  if (!items.some(pending)) return items
+  const waiting = waitingInLine(nextState)
+  return items.filter((item) => !pending(item) || waiting.has(item.deploymentId))
+}

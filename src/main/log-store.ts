@@ -257,11 +257,16 @@ export class LogStore implements MissionLogSink {
           // Windows. Write the log directly instead ('wx': never over a log
           // that appeared meanwhile) and drop the temporary copy.
           console.warn(`[log-store] rename refused for ${missionId}; writing directly:`, err)
-          this.fs.writeFileSync(file, data, { flag: 'wx' })
           try {
-            this.fs.unlinkSync(tmp)
-          } catch (unlinkErr) {
-            console.warn(`[log-store] could not remove ${path.basename(tmp)}:`, unlinkErr)
+            this.fs.writeFileSync(file, data, { flag: 'wx' })
+          } catch (writeErr) {
+            // A write cut short (disk full) leaves a prefix that the existence
+            // check above would later skip as a finished import. Remove it,
+            // unless the file is not ours: EEXIST means another writer made it.
+            if ((writeErr as NodeJS.ErrnoException).code !== 'EEXIST') this.removeQuietly(file)
+            throw writeErr
+          } finally {
+            this.removeQuietly(tmp)
           }
         }
         imported += lines.length
@@ -412,6 +417,15 @@ export class LogStore implements MissionLogSink {
 
   private ensureDir(): void {
     this.fs.mkdirSync(this.dir, { recursive: true })
+  }
+
+  /** Deletes a file this store wrote, if it is there. A failure only warns. */
+  private removeQuietly(file: string): void {
+    try {
+      if (this.fs.existsSync(file)) this.fs.unlinkSync(file)
+    } catch (err) {
+      console.warn(`[log-store] could not remove ${path.basename(file)}:`, err)
+    }
   }
 }
 
