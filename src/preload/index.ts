@@ -17,12 +17,14 @@ import type {
   CompanionConfigureResult,
   AgentFamily,
   SimpleActionResult,
-  DiffFileGetResult
+  DiffFileGetResult,
+  StateHealth
 } from '../shared/types'
 
 const mechbayApi = {
   getAppMode: (): Promise<AppMode> => ipcRenderer.invoke(IPC.APP_MODE_GET),
   getState: (): Promise<AppState> => ipcRenderer.invoke(IPC.STATE_GET),
+  getStateHealth: (): Promise<StateHealth> => ipcRenderer.invoke(IPC.STATE_HEALTH_GET),
   onStateChange: (cb: (s: AppState) => void): (() => void) => {
     const handler = (_e: Electron.IpcRendererEvent, s: AppState): void => cb(s)
     ipcRenderer.on(IPC.STATE_SUBSCRIBE, handler)

@@ -14,7 +14,6 @@ const companion: Companion = {
   spriteKey: 'atlas',
   homeTile: { x: 0, y: 0 },
   cliAvailable: true,
-  recentDeploymentIds: [],
   soulPath: '/souls/atlas/soul.md',
   memoryPath: '/souls/atlas/memory.md'
 }

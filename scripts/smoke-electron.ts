@@ -3,15 +3,16 @@
  * check that it boots cleanly: no renderer errors, the preload bridge works
  * under the sandbox, and the scene hook is exposed only in demo mode.
  *
- *   node --experimental-strip-types scripts/smoke-electron.ts [--demo] [--scale=2] [--size=1920x1080] [--shot=out.png]
+ *   node --experimental-strip-types scripts/smoke-electron.ts [--demo] [--scale=2] [--size=1920x1080] [--shot=out.png] [--profile=<dir>]
  *
  * --scale=2 with --size=1920x1080 reproduces a maximized 4K window.
+ * [--profile=<dir>]  use and keep an existing profile folder (default: a throwaway one)
  */
 import { _electron, type ElectronApplication } from 'playwright-core'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import assert from 'node:assert/strict'
 import type { MechBayApi } from '../src/preload/index'
 
@@ -32,19 +33,58 @@ const demo = args.includes('--demo')
 const scale = Number(option('scale') ?? '1')
 const [width, height] = (option('size') ?? '1600x1000').split('x').map(Number)
 const shot = option('shot')
+const keepProfile = option('profile')
 
-/** True when `path` is `dir` or inside it. Windows paths compare case-insensitively. */
+/** True when `path` is `dir` or inside it. Windows and macOS paths compare case-insensitively. */
 function isInside(path: string, dir: string): boolean {
-  const normalize = (p: string): string =>
-    process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p)
+  const caseless = process.platform === 'win32' || process.platform === 'darwin'
+  const normalize = (p: string): string => (caseless ? resolve(p).toLowerCase() : resolve(p))
   const target = normalize(path)
   const base = normalize(dir)
   return target === base || target.startsWith(base + sep)
 }
 
+/** Where the installed MechBay keeps its saved bay. The smoke run must never use it. */
+function realProfileDir(): string {
+  if (process.platform === 'win32') {
+    return join(process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming'), 'mechbay')
+  }
+  if (process.platform === 'darwin')
+    return join(homedir(), 'Library', 'Application Support', 'mechbay')
+  return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'mechbay')
+}
+
+/** The path with links and 8.3 short names resolved, or as given if it doesn't exist yet. */
+function canonical(path: string): string {
+  try {
+    return realpathSync.native(resolve(path))
+  } catch {
+    return resolve(path)
+  }
+}
+
+function assertNotRealProfile(dir: string): void {
+  const real = canonical(realProfileDir())
+  const target = canonical(dir)
+  assert.ok(
+    !isInside(target, real) && !isInside(real, target),
+    `--profile must not be the installed app's profile (${realProfileDir()})`
+  )
+}
+
+// Checked before creating the folder, and again once links are resolved: a
+// junction or symlink could otherwise point a harmless-looking path at the
+// real profile.
+if (keepProfile) {
+  assertNotRealProfile(keepProfile)
+  mkdirSync(resolve(keepProfile), { recursive: true })
+}
 // Canonical path (no 8.3 short names or symlinks), so the main process can
 // compare it exactly against app.getPath('userData').
-const profile = realpathSync.native(mkdtempSync(join(tmpdir(), 'mechbay-smoke-')))
+const profile = realpathSync.native(
+  keepProfile ? resolve(keepProfile) : mkdtempSync(join(tmpdir(), 'mechbay-smoke-'))
+)
+if (keepProfile) assertNotRealProfile(profile)
 const env: Record<string, string> = {}
 for (const [key, value] of Object.entries(process.env)) {
   if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE' && key !== 'MECHBAY_DEMO') {
@@ -88,6 +128,7 @@ try {
   await page.waitForFunction(() => typeof window.mechbay?.getAppMode === 'function')
   const mode = await page.evaluate(() => window.mechbay.getAppMode())
   assert.equal(mode.demo, demo, 'app mode must match the launch flag')
+  const health = await page.evaluate(() => window.mechbay.getStateHealth())
 
   await page.locator('.command-header').waitFor()
   await page.waitForTimeout(3500)
@@ -109,7 +150,16 @@ try {
     return app.getAppMetrics().find((metric) => metric.pid === pid)?.sandboxed ?? null
   })
   if (shot) await page.screenshot({ path: resolve(shot) })
-  console.log(JSON.stringify({ demo, scale, size: [width, height], sandboxed, userData }))
+  console.log(
+    JSON.stringify({
+      demo,
+      scale,
+      size: [width, height],
+      sandboxed,
+      userData,
+      health: health.ok ? 'ok' : health.reason
+    })
+  )
   // Linux does not report `sandboxed`, so null there means unknown, not off.
   assert.equal(sandboxed, process.platform === 'linux' ? null : true, 'renderer sandbox')
   assert.deepEqual(errors, [], 'renderer errors')
@@ -139,6 +189,7 @@ try {
       }
     }
   } finally {
-    rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+    if (!keepProfile)
+      rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 }

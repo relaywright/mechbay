@@ -20,7 +20,8 @@ import type {
   BulkImportRunResult,
   CompanionConfigurePayload,
   CompanionConfigureResult,
-  DiffFileGetResult
+  DiffFileGetResult,
+  StateHealth
 } from '../shared/types'
 import { seedFacilities, type StateManager } from './state-manager'
 import type { SecretsManager } from './secrets'
@@ -278,6 +279,7 @@ export function registerIpc(opts: IpcDeps): void {
   })
 
   ipcMain.handle(IPC.STATE_GET, () => state.getState())
+  ipcMain.handle(IPC.STATE_HEALTH_GET, (): StateHealth => state.getHealth())
 
   // Canonical paths of the projects the most recent scan returned. Bulk
   // import only accepts these: an imported folder joins the File Browser
@@ -301,7 +303,6 @@ export function registerIpc(opts: IpcDeps): void {
         .map((project) => canonicalPath(project.path))
         .filter((canonical): canonical is string => canonical !== null)
     )
-    state.updateState((prev) => ({ ...prev, lastScanAt: Date.now() }))
     return results
   })
 

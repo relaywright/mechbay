@@ -112,6 +112,11 @@ input {
   color: #5f6857;
   padding: 0 12px;
 }
+.not-saving {
+  color: #ff6b6b;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
 .status-dot {
   display: inline-block;
   height: 5px;

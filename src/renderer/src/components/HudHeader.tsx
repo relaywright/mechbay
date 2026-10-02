@@ -4,11 +4,14 @@ import { fleetTelemetry } from '../operations'
 export function HudHeader({
   state,
   demo,
+  notSaving,
   onBulkImportClick,
   onSettingsClick
 }: {
   state: AppState | null
   demo: boolean
+  /** The saved bay is read-only this session (StateHealth not ok). */
+  notSaving?: boolean
   onBulkImportClick: () => void
   onSettingsClick: () => void
 }): React.JSX.Element {
@@ -32,6 +35,17 @@ export function HudHeader({
       <div className="command-state">
         <span className="status-dot" />
         <span>{demo ? 'SIMULATION ONLINE' : 'LOCAL COMMAND ONLINE'}</span>
+        {notSaving && (
+          <>
+            <span className="header-separator">/</span>
+            <span
+              className="not-saving"
+              title="The saved bay is read-only this session. Changes are not saved."
+            >
+              NOT SAVING
+            </span>
+          </>
+        )}
         <span className="header-separator">/</span>
         <span>
           {telemetry?.active ?? 0} OF {state?.settings.concurrencyCap ?? 3} ACTIVE

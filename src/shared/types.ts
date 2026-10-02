@@ -43,7 +43,6 @@ export interface Companion {
   spriteKey: string
   homeTile: { x: number; y: number }
   cliAvailable: boolean
-  recentDeploymentIds: string[]
   soulPath: string
   memoryPath: string
   lastMemoryUpdateAt?: number
@@ -66,7 +65,6 @@ export interface Facility {
   tile: { x: number; y: number }
   source: 'auto-scan' | 'manual'
   discoveredAt: number
-  decommissioned?: boolean
 }
 
 export interface DiffFileStat {
@@ -119,7 +117,6 @@ export interface Deployment {
   diffStats?: { filesChanged: number; insertions: number; deletions: number }
   diffFiles?: DiffFileStat[]
   baselineSha?: string
-  pendingInput?: { prompt: string; detectedAt: number }
 }
 
 export interface LogChunk {
@@ -139,12 +136,23 @@ export interface LogChunk {
 }
 
 /**
- * Bump this literal when the seed shape changes incompatibly. The
- * StateManager migration wipes any cached state whose version doesn't
- * match (TODO(Wave 5): preserve user-facing settings + deployments
- * history across bumps once those become editable / valuable).
+ * Saved-state schema. Bump only together with a new entry in
+ * src/main/state-migrations.ts; the saved bay is migrated, never wiped.
  */
-export type StateSchemaVersion = 2
+export type StateSchemaVersion = 3
+
+/**
+ * How the saved bay loaded (P0-14). When `ok` is false the session is
+ * read-only: nothing is written over the saved file.
+ */
+export type StateHealth =
+  | { ok: true; notice?: string }
+  | {
+      ok: false
+      reason: 'newer-version' | 'migration-failed' | 'read-failed'
+      message: string
+      statePath?: string
+    }
 
 /** Payload for SOUL_READ IPC call. */
 export interface SoulReadPayload {
@@ -214,7 +222,6 @@ export interface AppState {
     projectsDir: string
     concurrencyCap: number
     ignoredMarkers: string[]
-    companionNameOverrides: Record<string, string>
     /**
      * When true, the bay suppresses decorative motion (idle breathing,
      * beacon blinks, walk bob, dust) — the accessibility escape hatch.
@@ -236,5 +243,4 @@ export interface AppState {
      */
     missionAlerts?: boolean
   }
-  lastScanAt?: number
 }
