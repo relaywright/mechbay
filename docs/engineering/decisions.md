@@ -273,3 +273,81 @@ findings, and all 18 were folded into the plan.
 
 **Source:** internal decision log (2026-10-01), internal roadmap spec
 (2026-10-01)
+
+---
+
+## 2026-10-02 · A mission's project is untrusted input, and the window is untrusted too
+
+**Context:** MechBay launches AI agents into real project folders, then
+reads those folders back to build the Mission Debrief. An agent that has
+been misled (by a poisoned README, a malicious dependency or a hostile
+issue) can write anything inside its project, including the project's own
+`.git/config`. A security review found that four bridges between the bay
+window and the main process trusted more than they should. Codex reviewed
+the first three rounds of fixes; Claude reviewed the last two after Codex
+hit its usage limit.
+
+**Decision:** Two threats are in scope: a compromised bay window, and a
+misled agent that can write anywhere inside its project but nowhere else.
+Against them, each covered by tests:
+
+- _The window cannot name places on disk._ The project scan always uses
+  the folder from Settings. Bulk import accepts only folders that scan
+  returned, compared by their real on-disk path. Journal reads and writes
+  accept only the ID of a mech that exists, and the ID can never be a path.
+- _Reading a project's git history does not run programs the project
+  defines._ Every git call switches off fsmonitor, hooks, external diff and
+  textconv helpers, and optional index writes. It runs with a clean git
+  environment and a `GIT_ALLOW_PROTOCOL` list whose only entry, `0`, can
+  never name a transport or remote helper, so git can start no network
+  transport or helper program, and project config cannot widen the list.
+  (An empty list is not enough: git reads `::x` as a helper with an empty
+  name.) Submodules show only their commit pointer. Filter drivers that the
+  project's own config defines are switched off, and so is Git LFS when the
+  project's own config defines LFS extension commands. Before reading any file contents, MechBay
+  checks the project's git settings; if they point git at a different
+  working folder, or cannot be read safely, the debrief says the diff is
+  unavailable and no file contents are read. The debrief says "No git
+  repository" only when no `.git` exists in the project or any folder
+  above it.
+- _Known keys are hidden in what MechBay shows and saves._ Stored API keys,
+  the runtime key variables, and any environment variable whose name says
+  KEY, TOKEN, SECRET or PASSWORD are replaced with `[redacted]` in the live
+  log, saved logs, failure and crash summaries, the mech's memory file and
+  the saved task text. A key that spans several lines is hidden line by
+  line. The Kimi wrapper's shell commands run without any runtime's API
+  key.
+
+**Alternatives rejected:** Switching off every filter driver, including the
+player's own. Git LFS files would then show up as raw pointer files, which
+makes their diffs misleading. Copying the repository to a sandbox before
+diffing: too slow for large projects.
+
+**Consequence:** Five risks remain, accepted on purpose and listed here so
+nobody mistakes them for guarantees:
+
+- _Reachable from inside a project, accepted:_
+  - Filters in the player's own global or system git config still run,
+    including Git LFS extension commands defined there. If such a filter
+    executes something from the project folder, a misled agent can use it.
+    That setup is the player's choice; MechBay trusts it.
+  - A process the agent leaves running after the mission ends could change
+    `.git/config` between the moment MechBay lists filters and the moment
+    git runs. It needs a process left running in the project and a won
+    race, which a process rewriting the file in a loop can eventually win.
+  - Secrets that live in project files reach the agent's AI model and can
+    appear in file names or diffs, as with every coding agent. MechBay only
+    hides keys it knows.
+  - Values shorter than 8 characters are never hidden, even under a
+    secret-looking name, and neither are short lines of a multi-line key
+    (such as a PEM's last line). Variables like `KEYBOARD_DELAY=1` would
+    otherwise blank every "1" in the log. The reverse also happens: a
+    secret-named variable that holds a file path, such as `SSH_KEY_PATH`,
+    is hidden like a key. A key is recognized only exactly as stored: a
+    tool that prints it base64-encoded or escaped is not caught.
+- _Not reachable from inside a project:_ a folder link planted in the
+  projects folder or in MechBay's data folder is followed. Planting one
+  needs write access outside the project.
+
+**Source:** internal Track A plan (2026-10-01, Task 5b), Codex and Claude
+security reviews (2026-10-02)

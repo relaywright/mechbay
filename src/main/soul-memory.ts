@@ -73,13 +73,24 @@ export type ReadResult = { ok: true; content: string } | { ok: false; error: str
 
 export type WriteResult = { ok: true } | { ok: false; error: string }
 
+/** Companion IDs are ULIDs today; this allows any plain ID but never a path. */
+const COMPANION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
+
+const UNKNOWN_MECH = 'Unknown mech.'
+
 /**
  * Resolve the barracks directory for a companion.
  * Uses userDataDir from state-manager pattern (default: homedir).
+ * Returns null for an ID that is not a plain ID or that would resolve
+ * outside <base>/mechbay/companions, so a renderer-supplied ID can never
+ * point a journal read or write somewhere else on disk.
  */
-function resolveCompanionDir(companionId: string, userDataDir?: string): string {
-  const base = userDataDir ?? os.homedir()
-  return path.join(base, 'mechbay', 'companions', companionId)
+function resolveCompanionDir(companionId: string, userDataDir?: string): string | null {
+  if (typeof companionId !== 'string' || !COMPANION_ID_PATTERN.test(companionId)) return null
+  const companionsRoot = path.resolve(userDataDir ?? os.homedir(), 'mechbay', 'companions')
+  const companionDir = path.resolve(companionsRoot, companionId)
+  if (path.dirname(companionDir) !== companionsRoot) return null
+  return companionDir
 }
 
 /**
@@ -89,6 +100,7 @@ function resolveCompanionDir(companionId: string, userDataDir?: string): string 
 export function readSoul(companionId: string, userDataDir?: string): ReadResult {
   try {
     const companionDir = resolveCompanionDir(companionId, userDataDir)
+    if (!companionDir) return { ok: false, error: UNKNOWN_MECH }
     const soulPath = path.join(companionDir, 'soul.md')
 
     if (!fs.existsSync(soulPath)) {
@@ -111,6 +123,7 @@ export function readSoul(companionId: string, userDataDir?: string): ReadResult 
 export function writeSoul(companionId: string, content: string, userDataDir?: string): WriteResult {
   try {
     const companionDir = resolveCompanionDir(companionId, userDataDir)
+    if (!companionDir) return { ok: false, error: UNKNOWN_MECH }
     const soulPath = path.join(companionDir, 'soul.md')
 
     fs.mkdirSync(companionDir, { recursive: true })
@@ -130,6 +143,7 @@ export function writeSoul(companionId: string, content: string, userDataDir?: st
 export function readMemory(companionId: string, userDataDir?: string): ReadResult {
   try {
     const companionDir = resolveCompanionDir(companionId, userDataDir)
+    if (!companionDir) return { ok: false, error: UNKNOWN_MECH }
     const memoryPath = path.join(companionDir, 'memory.md')
 
     if (!fs.existsSync(memoryPath)) {

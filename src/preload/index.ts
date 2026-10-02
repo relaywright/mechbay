@@ -62,8 +62,8 @@ const mechbayApi = {
   memoryRead: (companionId: string): Promise<MemoryReadResult> =>
     ipcRenderer.invoke(IPC.MEMORY_READ, { companionId }),
   // Bulk Import IPC
-  scanProjects: (rootDir?: string): Promise<DiscoveredProject[]> =>
-    ipcRenderer.invoke(IPC.SCAN_PROJECTS, rootDir),
+  // Always scans the projects folder from Settings; the renderer can't pick the root.
+  scanProjects: (): Promise<DiscoveredProject[]> => ipcRenderer.invoke(IPC.SCAN_PROJECTS),
   bulkImportRun: (selectedPaths: string[]): Promise<BulkImportRunResult> =>
     ipcRenderer.invoke(IPC.BULK_IMPORT_RUN, { selectedPaths }),
   // Runtime reassignment IPC

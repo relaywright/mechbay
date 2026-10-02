@@ -45,6 +45,15 @@ from pathlib import Path
 API_BASE = "https://api.fireworks.ai/inference/v1"
 DEFAULT_MODEL = "accounts/fireworks/routers/kimi-k2p5-turbo"
 API_KEY_ENV = "FIREWORKS_API_KEY"
+# Runtime API keys the agent's shell commands never get (MechBay's runners
+# read these; none of them is needed to run a project's own commands).
+TOOL_ENV_DROPPED_KEYS = (
+    "FIREWORKS_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "MECHBAY_HERMES_API_KEY",
+)
 
 NARRATION_DIRECTIVE = (
     "You are being watched by an operator through a live log. "
@@ -257,6 +266,14 @@ def get_api_key():
     return os.environ.get(API_KEY_ENV) or None
 
 
+def redact_api_key(text):
+    """Replace the Fireworks key (8+ characters) in text with [redacted]."""
+    key = get_api_key()
+    if not key or len(key) < 8:
+        return text
+    return text.replace(key, "[redacted]")
+
+
 # --- Tool Implementations ---
 
 
@@ -325,6 +342,9 @@ def tool_list_directory(args, workdir):
 def tool_run_command(args, workdir):
     command = args["command"]
     timeout = args.get("timeout", 120)
+    # The agent's shell commands never need an API key, and a stray `env`
+    # would otherwise print one into the live log.
+    env = {k: v for k, v in os.environ.items() if k not in TOOL_ENV_DROPPED_KEYS}
     try:
         result = subprocess.run(
             command,
@@ -333,6 +353,7 @@ def tool_run_command(args, workdir):
             text=True,
             timeout=timeout,
             cwd=workdir,
+            env=env,
             encoding="utf-8",
             errors="replace",
         )
@@ -689,7 +710,9 @@ def agent_loop(
                     args_preview = args_preview[:300] + "..."
                 print(f"  -> {name}({args_preview})", file=sys.stderr)
 
-            result = execute_tool(name, args, workdir)
+            # Redact before the verbose preview (the live log) and before the
+            # result goes back to the model.
+            result = redact_api_key(execute_tool(name, args, workdir))
 
             if verbose:
                 preview = result[:300] + "..." if len(result) > 300 else result

@@ -1,7 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 import type { BrowserWindow } from 'electron'
 import { IPC } from '../../src/shared/ipc-channels'
 import { StateManager, type StoreLike } from '../../src/main/state-manager'
+import type { DiscoveredProject } from '../../src/shared/types'
 
 const registeredHandlers = new Map<string, (event: unknown, payload: unknown) => unknown>()
 
@@ -37,10 +41,24 @@ function makeFakeWin(): BrowserWindow {
 }
 
 describe('IPC.BULK_IMPORT_RUN facility placement', () => {
-  beforeEach(() => registeredHandlers.clear())
+  let projectsDir: string
+
+  beforeEach(() => {
+    registeredHandlers.clear()
+    projectsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mechbay-bulk-import-'))
+    for (const name of ['alpha', 'bravo', 'charlie']) {
+      fs.mkdirSync(path.join(projectsDir, name))
+      fs.writeFileSync(path.join(projectsDir, name, 'package.json'), '{}')
+    }
+  })
+
+  afterEach(() => {
+    fs.rmSync(projectsDir, { recursive: true, force: true })
+  })
 
   it('places every imported project on a distinct unoccupied tile', async () => {
     const state = new StateManager(makeInMemoryStore(), '/tmp/ipc-bulk-import-test')
+    state.updateState((prev) => ({ ...prev, settings: { ...prev.settings, projectsDir } }))
     const preExistingTiles = new Set(
       state.getState().facilities.map((facility) => `${facility.tile.x},${facility.tile.y}`)
     )
@@ -51,15 +69,13 @@ describe('IPC.BULK_IMPORT_RUN facility placement', () => {
       fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
       secrets: {} as never
     })
+    const scan = registeredHandlers.get(IPC.SCAN_PROJECTS)
     const handler = registeredHandlers.get(IPC.BULK_IMPORT_RUN)
-    if (!handler) throw new Error('BULK_IMPORT_RUN handler was not registered')
+    if (!scan || !handler) throw new Error('Bulk import handlers were not registered')
 
-    const result = await handler(
-      {},
-      {
-        selectedPaths: ['C:/fake/alpha', 'C:/fake/bravo', 'C:/fake/charlie']
-      }
-    )
+    // Bulk import only accepts projects the latest scan returned.
+    const scanned = (await scan({}, undefined)) as DiscoveredProject[]
+    const result = await handler({}, { selectedPaths: scanned.map((project) => project.path) })
 
     expect(result).toMatchObject({ ok: true, imported: 3 })
     const imported = state.getState().facilities.slice(-3)
