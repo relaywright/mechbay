@@ -113,16 +113,20 @@ export function computeCallouts(prev: AppState | null, next: AppState): Callout[
 
 /**
  * Callouts wait their turn on screen, so a HOLDING line can come up after
- * its mission already launched. Drops every waiting HOLDING line whose
- * mission is no longer in line; the callout on screen (the first) plays out.
+ * its mission already launched. Drops every HOLDING line not yet drawn whose
+ * mission is no longer in line; the callout on screen (`shownId`) plays out.
+ * The first in line is not always on screen: it may have arrived in the same
+ * render as the launch.
  */
 export function dropStaleHolding(
   queue: Callout[],
-  next: Pick<AppState, 'deployments' | 'settings'>
+  next: Pick<AppState, 'deployments' | 'settings'>,
+  shownId: string | null
 ): Callout[] {
-  if (!queue.slice(1).some((c) => c.holding)) return queue
+  const pending = (c: Callout): boolean => Boolean(c.holding) && c.id !== shownId
+  if (!queue.some(pending)) return queue
   const waiting = waitingInLine(next)
-  return queue.filter((c, i) => i === 0 || !c.holding || waiting.has(c.holding))
+  return queue.filter((c) => c.id === shownId || !c.holding || waiting.has(c.holding))
 }
 
 export interface LanceHeat {

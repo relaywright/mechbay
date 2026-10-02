@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { AppState } from '../../../shared/types'
 import { sfx } from '../audio/sfx'
 import { bus } from '../bus'
@@ -21,6 +21,8 @@ export function CockpitHud(): React.JSX.Element {
   const [heading, setHeading] = useState<number | null>(null)
   const [queue, setQueue] = useState<Callout[]>([])
   const previousRef = useRef<AppState | null>(null)
+  // The callout in the last render React committed, if any.
+  const shownIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     const onHeading = ({ heading: next }: { companionId: string; heading: number }): void =>
@@ -41,7 +43,7 @@ export function CockpitHud(): React.JSX.Element {
       const callouts = computeCallouts(previousRef.current, next)
       previousRef.current = next
       setQueue((current) => {
-        const pruned = dropStaleHolding(current, next)
+        const pruned = dropStaleHolding(current, next, shownIdRef.current)
         return callouts.length > 0 ? [...pruned, ...callouts] : pruned
       })
     })
@@ -52,6 +54,9 @@ export function CockpitHud(): React.JSX.Element {
   }, [])
 
   const current = queue[0] ?? null
+  useLayoutEffect(() => {
+    shownIdRef.current = current?.id ?? null
+  }, [current])
   useEffect(() => {
     if (!current) return
     // Deferred so StrictMode's mount/unmount/mount only chirps once.

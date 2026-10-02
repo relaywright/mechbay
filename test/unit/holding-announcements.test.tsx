@@ -98,6 +98,21 @@ describe('HUD callouts', () => {
       expect(holding(hud)).toBe(false)
     }
   })
+
+  it('drops a HOLDING line first in line but not yet drawn when the launch lands in the same render', async () => {
+    const hud = await mount(<CockpitHud />)
+    step(AT_START)
+    // Nothing else is on screen, so HOLDING heads the line; the launch arrives
+    // before React draws it.
+    act(() => {
+      emit(bay([deployment('d1', 'atlas-1', 'working'), deployment('d2', 'raven-1', 'queued')]))
+      emit(RAVEN_LAUNCHED)
+    })
+    for (let t = 0; t < 12; t++) {
+      expect(holding(hud)).toBe(false)
+      act(() => vi.advanceTimersByTime(1_000))
+    }
+  })
 })
 
 describe('radio feed', () => {
@@ -134,6 +149,26 @@ describe('radio feed', () => {
     // both updates are batched, so the holding call was never on screen.
     act(() => {
       vi.advanceTimersByTime(950)
+      emit(RAVEN_LAUNCHED)
+    })
+    expect(holding(feed)).toBe(false)
+    for (let t = 0; t < 8; t++) {
+      act(() => vi.advanceTimersByTime(1_000))
+      expect(holding(feed)).toBe(false)
+    }
+  })
+
+  it('drops a holding call created and overtaken in the same millisecond as the last render', async () => {
+    const feed = await mount(<CommsFeed />)
+    step(AT_START)
+    step(bay([deployment('d1', 'atlas-1', 'awaiting-input')]))
+    // The input call starts fading 5720 ms in; that render commits at exactly
+    // this millisecond, long after the radio went quiet.
+    act(() => vi.advanceTimersByTime(5_720))
+    // Raven joins the line and sets off before the next render, with no time
+    // passing: its holding call is due "now", which equals the last render.
+    act(() => {
+      emit(RAVEN_WAITS)
       emit(RAVEN_LAUNCHED)
     })
     expect(holding(feed)).toBe(false)

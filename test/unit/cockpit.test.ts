@@ -126,7 +126,7 @@ describe('dropStaleHolding', () => {
 
   it('keeps a waiting HOLDING line while the mission is still in line', () => {
     const queue = [onScreen, ...holding]
-    expect(dropStaleHolding(queue, waitingState)).toEqual(queue)
+    expect(dropStaleHolding(queue, waitingState, onScreen.id)).toEqual(queue)
   })
 
   it('drops a waiting HOLDING line once its mission has launched', () => {
@@ -135,7 +135,7 @@ describe('dropStaleHolding', () => {
       true,
       1
     )
-    expect(dropStaleHolding([onScreen, ...holding], launched)).toEqual([onScreen])
+    expect(dropStaleHolding([onScreen, ...holding], launched, onScreen.id)).toEqual([onScreen])
   })
 
   it('lets a HOLDING line already on screen play out', () => {
@@ -144,7 +144,16 @@ describe('dropStaleHolding', () => {
       true,
       1
     )
-    expect(dropStaleHolding(holding, launched)).toEqual(holding)
+    expect(dropStaleHolding(holding, launched, holding[0].id)).toEqual(holding)
+  })
+
+  it('drops a HOLDING line first in line that was never drawn', () => {
+    const launched = state(
+      [deployment('d1', 'completed'), deployment('d2', 'walking-to', 'c2')],
+      true,
+      1
+    )
+    expect(dropStaleHolding(holding, launched, null)).toEqual([])
   })
 })
 

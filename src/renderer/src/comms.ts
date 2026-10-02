@@ -406,17 +406,18 @@ export function computeCommsMessages(
 /**
  * Radio lines reveal one after another, so a holding line can be scheduled
  * to show after its mission already launched. Drops every holding line not
- * yet on screen whose mission is no longer in line. `shownAt` is the feed's
- * last render clock: a line is on screen once revealAt <= shownAt, not merely
- * once its reveal time has passed (the feed's timer can run late).
+ * yet on screen whose mission is no longer in line. `shown` holds the keys of
+ * the lines the feed has actually drawn: a reveal time that has passed is not
+ * enough (the feed's timer can run late, or the reveal and the launch can
+ * land in the same render).
  */
 export function dropStaleHolding<T extends Pick<CommsMessage, 'event' | 'deploymentId'>>(
-  items: Array<T & { revealAt: number }>,
+  items: Array<T & { key: string }>,
   nextState: Pick<AppState, 'deployments' | 'settings'>,
-  shownAt: number
-): Array<T & { revealAt: number }> {
-  const pending = (item: T & { revealAt: number }): boolean =>
-    item.event === 'queued' && item.revealAt > shownAt
+  shown: ReadonlySet<string>
+): Array<T & { key: string }> {
+  const pending = (item: T & { key: string }): boolean =>
+    item.event === 'queued' && !shown.has(item.key)
   if (!items.some(pending)) return items
   const waiting = waitingInLine(nextState)
   return items.filter((item) => !pending(item) || waiting.has(item.deploymentId))
