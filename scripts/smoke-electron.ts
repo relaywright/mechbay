@@ -38,6 +38,17 @@ try {
   await page.waitForTimeout(3500)
   await page.evaluate(() => document.fonts.ready)
 
+  // Each crew card's status and stat line share one row; they must never touch.
+  const crewOverlaps = await page.evaluate(() =>
+    [...document.querySelectorAll('.crew-card')].flatMap((card) => {
+      const status = card.querySelector('.crew-status')?.getBoundingClientRect()
+      const stat = card.querySelector('.crew-stat-line')?.getBoundingClientRect()
+      if (!status || !stat || stat.width === 0 || status.right <= stat.left) return []
+      return [card.querySelector('.crew-name')?.textContent ?? '?']
+    })
+  )
+  assert.deepEqual(crewOverlaps, [], 'crew card status runs into its stat line')
+
   const sceneExposed = await page.evaluate(() => '__mechbayScene' in window)
   assert.equal(sceneExposed, demo, 'the scene hook must exist only in demo mode')
   assert.equal(

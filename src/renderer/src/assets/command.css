@@ -410,10 +410,20 @@ input {
   font: var(--fs-small)/1.15 var(--body);
   color: #b6bfab;
 }
-.crew-status {
+/* The card's bottom row: status on the left, always whole; the stat line
+   takes what is left and ends in an ellipsis rather than run into it. */
+.crew-foot {
   position: absolute;
   bottom: 11px;
   left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.crew-status {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -943,7 +953,7 @@ input {
     margin-top: 26px;
     font-size: 26px;
   }
-  .crew-status {
+  .crew-foot {
     bottom: 14px;
   }
   .telemetry-strip {
@@ -985,8 +995,9 @@ input {
   .crew-card {
     padding: 11px;
   }
-  .crew-status {
+  .crew-foot {
     left: 11px;
+    right: 11px;
   }
   .map-readout p {
     max-width: 390px;
@@ -1233,7 +1244,7 @@ input {
 
 /* ── Pilot service record: rank line + XP bar on .crew-card ──────────
    Sits below .crew-runtime in normal flow, above the absolutely
-   positioned .crew-status (bottom: 11px) and the XP track (bottom: 0).
+   positioned .crew-foot (bottom: 11px) and the XP track (bottom: 0).
    Kept compact by design — .crew-card already clips overflow, so these
    rows must never rely on more vertical room than the smallest
    breakpoint (130px, the max-height:820px block) leaves free. */
@@ -1271,17 +1282,10 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Shares the bottom row with .crew-status (right-aligned) instead of
-   flowing under the rank line: the status badge is absolutely pinned to
-   the card's bottom edge, so a flowing stat line collides with it on
-   shorter cards. */
+/* Right side of .crew-foot: shrinks to an ellipsis, never into the status. */
 .crew-stat-line {
-  position: absolute;
-  right: 14px;
-  bottom: 11px;
   display: block;
-  /* Shares the bottom row with .crew-status: never run into it. */
-  max-width: 46%;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1313,17 +1317,9 @@ input {
     font-size: var(--fs-label);
   }
 }
-@media (min-width: 1550px) {
-  .crew-stat-line {
-    bottom: 14px;
-  }
-}
 @media (max-width: 1200px) {
   .crew-rank-line {
     margin-top: 2px;
-  }
-  .crew-stat-line {
-    right: 11px;
   }
 }
 @media (max-height: 820px) and (min-width: 901px) {
