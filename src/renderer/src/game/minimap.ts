@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { renderScaleFor } from './render-resolution'
 
 /**
  * RTS minimap styled as a MechWarrior cockpit radar: a second camera in a corner of the canvas looking at a
@@ -62,7 +63,7 @@ export class Minimap {
   /** Re-place and re-zoom the camera for the current game size (call on resize). */
   layout(): void {
     const gameW = this.scene.scale.gameSize.width
-    const renderScale = gameW / 1100
+    const renderScale = renderScaleFor(gameW, this.scene.scale.gameSize.height)
     const w = Math.round(LOGICAL_W * renderScale)
     const h = Math.round(LOGICAL_H * renderScale)
     const margin = Math.round(LOGICAL_MARGIN * renderScale)
