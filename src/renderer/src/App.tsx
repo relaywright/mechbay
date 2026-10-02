@@ -402,7 +402,7 @@ function App(): React.JSX.Element {
                 style={{
                   pointerEvents: 'auto',
                   marginLeft: 12,
-                  background: 'transparent',
+                  background: '#10150dcc',
                   color: '#9ea991',
                   border: '1px solid #404b36',
                   padding: '2px 7px',
