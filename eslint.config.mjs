@@ -35,5 +35,11 @@ export default defineConfig(
       ]
     }
   },
+  {
+    // The landing page's scripts are plain JS served as-is: JSDoc carries
+    // their types, so a TypeScript return-type annotation is impossible.
+    files: ['site/**/*.js'],
+    rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
+  },
   eslintConfigPrettier
 )
