@@ -56,7 +56,16 @@ describe('ClaudeRunner model pass-through', () => {
     expect(spawnCalls).toEqual([
       [
         'claude',
-        ['-p', '--output-format', 'stream-json', '--verbose', '--model', 'claude-opus-4-8']
+        [
+          '-p',
+          '--output-format',
+          'stream-json',
+          '--verbose',
+          '--permission-mode',
+          'acceptEdits',
+          '--model',
+          'claude-opus-4-8'
+        ]
       ]
     ])
     expect(child.stdin.write).toHaveBeenCalledWith('say hi')
@@ -75,7 +84,12 @@ describe('ClaudeRunner model pass-through', () => {
     })
 
     await runner.spawn('/tmp', 'say hi')
-    expect(spawnCalls).toEqual([['claude', ['-p', '--output-format', 'stream-json', '--verbose']]])
+    expect(spawnCalls).toEqual([
+      [
+        'claude',
+        ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits']
+      ]
+    ])
     expect(child.stdin.write).toHaveBeenCalledWith('say hi')
     expect(child.stdin.end).toHaveBeenCalled()
   })
@@ -87,6 +101,7 @@ describe('CodexRunner model pass-through', () => {
     const child = makeFakeChild()
     const runner = new CodexRunner({
       which: async () => '/fake/codex',
+      platform: 'linux',
       spawnProcess: ((cmd: string, args: string[]) => {
         spawnCalls.push([cmd, args])
         return child
@@ -94,7 +109,20 @@ describe('CodexRunner model pass-through', () => {
     })
 
     await runner.spawn('/tmp', 'refactor this', { model: 'gpt-5.6-terra' })
-    expect(spawnCalls).toEqual([['codex', ['exec', '-m', 'gpt-5.6-terra', '-']]])
+    expect(spawnCalls).toEqual([
+      [
+        'codex',
+        [
+          'exec',
+          '--sandbox',
+          'workspace-write',
+          '--skip-git-repo-check',
+          '-m',
+          'gpt-5.6-terra',
+          '-'
+        ]
+      ]
+    ])
     expect(child.stdin.write).toHaveBeenCalledWith('refactor this')
     expect(child.stdin.end).toHaveBeenCalled()
   })
@@ -104,6 +132,7 @@ describe('CodexRunner model pass-through', () => {
     const child = makeFakeChild()
     const runner = new CodexRunner({
       which: async () => '/fake/codex',
+      platform: 'linux',
       spawnProcess: ((cmd: string, args: string[]) => {
         spawnCalls.push([cmd, args])
         return child
@@ -111,7 +140,9 @@ describe('CodexRunner model pass-through', () => {
     })
 
     await runner.spawn('/tmp', 'refactor this')
-    expect(spawnCalls).toEqual([['codex', ['exec', '-']]])
+    expect(spawnCalls).toEqual([
+      ['codex', ['exec', '--sandbox', 'workspace-write', '--skip-git-repo-check', '-']]
+    ])
     expect(child.stdin.write).toHaveBeenCalledWith('refactor this')
     expect(child.stdin.end).toHaveBeenCalled()
   })

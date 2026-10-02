@@ -201,6 +201,72 @@ describe('IPC.COMPANION_CONFIGURE handler', () => {
     expect(updated.runtime).toBeUndefined()
   })
 
+  it('saves an Autonomy level', async () => {
+    const { state, handler } = setup()
+    const companion = state.getState().companions.find((c) => c.family === 'claude')!
+    expect(companion.autonomy).toBe('edit')
+
+    const result = await invokeConfigure(handler, { companionId: companion.id, autonomy: 'read' })
+
+    expect(result).toEqual({ ok: true, cliAvailable: companion.cliAvailable })
+    const updated = state.getState().companions.find((c) => c.id === companion.id)!
+    expect(updated.autonomy).toBe('read')
+    // A level-only change leaves the runtime and model alone.
+    expect(updated.runtime).toBe(companion.runtime)
+    expect(updated.model).toBe(companion.model)
+  })
+
+  it('rejects an unknown level', async () => {
+    const { state, handler } = setup()
+    const companion = state.getState().companions[0]
+
+    const result = await invokeConfigure(handler, {
+      companionId: companion.id,
+      autonomy: 'root' as never
+    })
+
+    expect(result).toEqual({ ok: false, error: 'Unknown Autonomy level: root' })
+    expect(state.getState().companions[0].autonomy).toBe('edit')
+  })
+
+  it('rejects Read only for a Gemini mech with the reason', async () => {
+    const { state, handler } = setup({ gemini: true })
+    const companion = state.getState().companions.find((c) => c.family === 'claude')!
+    await invokeConfigure(handler, { companionId: companion.id, runtime: 'gemini' })
+
+    const result = await invokeConfigure(handler, { companionId: companion.id, autonomy: 'read' })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/^Read only is not available for this runtime\. /)
+    expect(result.error).toMatch(/every action approved/)
+    expect(state.getState().companions.find((c) => c.id === companion.id)!.autonomy).toBe('edit')
+  })
+
+  it('checks the level against the runtime it is switching to', async () => {
+    const { state, handler } = setup({ gemini: true })
+    const companion = state.getState().companions.find((c) => c.family === 'claude')!
+
+    const rejected = await invokeConfigure(handler, {
+      companionId: companion.id,
+      runtime: 'gemini',
+      autonomy: 'edit'
+    })
+    expect(rejected.ok).toBe(false)
+    // Nothing is half-applied: the runtime did not change either.
+    expect(state.getState().companions.find((c) => c.id === companion.id)!.runtime).toBeUndefined()
+
+    const accepted = await invokeConfigure(handler, {
+      companionId: companion.id,
+      runtime: 'gemini',
+      autonomy: 'full'
+    })
+    expect(accepted).toEqual({ ok: true, cliAvailable: true })
+    const updated = state.getState().companions.find((c) => c.id === companion.id)!
+    expect(updated.runtime).toBe('gemini')
+    expect(updated.autonomy).toBe('full')
+  })
+
   it.each(['', 'x'.repeat(25)])('rejects invalid name %j', async (name) => {
     const { state, handler } = setup()
     const companion = state.getState().companions[0]

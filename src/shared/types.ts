@@ -6,6 +6,8 @@
  * cross IPC boundaries cleanly.
  */
 
+import type { AutonomyLevel } from './autonomy'
+
 export type AgentFamily = 'claude' | 'codex' | 'kimi' | 'gemini' | 'hermes'
 
 export interface AppMode {
@@ -55,6 +57,8 @@ export interface Companion {
   runtime?: AgentFamily
   /** Optional model override passed through to the runtime CLI. */
   model?: string
+  /** How much this mech may do without asking (P0-12). Saves from v1.4.0 get DEFAULT_AUTONOMY. */
+  autonomy: AutonomyLevel
 }
 
 export interface Facility {
@@ -117,6 +121,14 @@ export interface Deployment {
   diffStats?: { filesChanged: number; insertions: number; deletions: number }
   diffFiles?: DiffFileStat[]
   baselineSha?: string
+  /**
+   * The Autonomy level the mission actually ran at, or 'unenforced' when
+   * the runtime controls its own permissions. Absent on missions from
+   * before v1.4.2.
+   */
+  autonomy?: AutonomyLevel | 'unenforced'
+  /** Actions the CLI refused because they needed permission (redacted). */
+  permissionDenials?: string[]
 }
 
 export interface LogChunk {
@@ -207,6 +219,7 @@ export interface CompanionConfigurePayload {
   runtime?: AgentFamily
   model?: string
   name?: string
+  autonomy?: AutonomyLevel
 }
 
 /** Result for COMPANION_CONFIGURE IPC call. */

@@ -5,7 +5,7 @@ import path from 'node:path'
 import type { BrowserWindow } from 'electron'
 import { StateManager, type StoreLike } from '../../src/main/state-manager'
 import type { Runner, RunnerSpawnOptions, SpawnResult } from '../../src/main/runners/types'
-import type { AgentFamily, Companion } from '../../src/shared/types'
+import type { AgentFamily, Companion, Deployment } from '../../src/shared/types'
 
 /**
  * executeDeployment must pick the companion's runtime override over its
@@ -115,7 +115,8 @@ describe('executeDeployment runtime selection', () => {
       homeTile: { x: 4, y: 10 },
       cliAvailable: true,
       soulPath,
-      memoryPath
+      memoryPath,
+      autonomy: 'edit'
     }
     const facility = {
       id: 'facility-test',
@@ -144,7 +145,158 @@ describe('executeDeployment runtime selection', () => {
     expect(codexCalls[0].cwd).toBe(facilityDir)
     expect(codexCalls[0].options).toEqual({
       model: 'gpt-5.6-terra',
-      env: { OPENAI_API_KEY: 'stored-key' }
+      env: { OPENAI_API_KEY: 'stored-key' },
+      autonomy: 'edit'
     })
+  })
+})
+
+describe('executeDeployment Autonomy (P0-12)', () => {
+  const STORED_KEY = 'sk-ant-stored-key-0123456789'
+
+  async function run(
+    companionPatch: Partial<Companion>,
+    result: Partial<SpawnResult> = {}
+  ): Promise<{
+    calls: SpawnCall[]
+    deployment: Deployment
+    logLines: string[]
+  }> {
+    const facilityDir = await mkdtemp(path.join(tmpdir(), 'mechbay-execute-deployment-facility-'))
+    tempDirs.push(facilityDir)
+    const { soulPath, memoryPath } = await makeBarracks()
+    const calls: SpawnCall[] = []
+    const runner: Runner = {
+      isAvailable: async () => true,
+      spawn: async (cwd, prompt, options) => {
+        calls.push({ cwd, prompt, options })
+        return {
+          stream: (async function* () {
+            yield* []
+          })(),
+          abort: () => {},
+          exit: Promise.resolve(0),
+          ...result
+        }
+      }
+    }
+    const runners: Record<AgentFamily, Runner> = {
+      claude: runner,
+      codex: runner,
+      kimi: runner,
+      gemini: runner,
+      hermes: runner
+    }
+    const state = new StateManager(makeInMemoryStore(), '/tmp/execute-deployment-autonomy-test')
+    const companion: Companion = {
+      id: 'companion-autonomy-test',
+      family: 'claude',
+      mechClass: 'atlas',
+      name: 'Atlas-Prime',
+      spriteKey: 'mech-atlas',
+      homeTile: { x: 4, y: 10 },
+      cliAvailable: true,
+      soulPath,
+      memoryPath,
+      autonomy: 'edit',
+      ...companionPatch
+    }
+    const facility = {
+      id: 'facility-test',
+      name: 'test-facility',
+      path: facilityDir,
+      facilityType: 'research-lab' as const,
+      tile: { x: 8, y: 3 },
+      source: 'manual' as const,
+      discoveredAt: Date.now()
+    }
+    state.updateState((prev) => ({
+      ...prev,
+      deployments: [
+        {
+          id: 'deployment-autonomy',
+          companionId: companion.id,
+          facilityId: facility.id,
+          taskPrompt: 'Run the tests',
+          status: 'walking-to',
+          startedAt: Date.now()
+        },
+        ...prev.deployments
+      ]
+    }))
+    const logs = makeLogSink()
+
+    await executeDeployment('deployment-autonomy', companion, facility, 'Run the tests', {
+      win: makeFakeWin(),
+      state,
+      runners,
+      logs: logs.sink,
+      fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
+      secrets: {
+        envFor: vi.fn(() => ({ ANTHROPIC_API_KEY: STORED_KEY })),
+        getSecret: vi.fn((runtime: AgentFamily) => (runtime === 'claude' ? STORED_KEY : null))
+      } as never
+    })
+
+    const deployment = state.getState().deployments.find((d) => d.id === 'deployment-autonomy')!
+    return { calls, deployment, logLines: logs.entries.map((e) => e.text) }
+  }
+
+  it("passes the mech's Autonomy level to the runner and records it", async () => {
+    const { calls, deployment } = await run({ autonomy: 'read' })
+    expect(calls[0].options?.autonomy).toBe('read')
+    expect(deployment.autonomy).toBe('read')
+    expect(deployment.status).toBe('completed')
+  })
+
+  it('records the level Gemini actually runs at, not the stored one', async () => {
+    const { calls, deployment } = await run({ runtime: 'gemini', autonomy: 'edit' })
+    expect(calls[0].options?.autonomy).toBe('full')
+    expect(deployment.autonomy).toBe('full')
+  })
+
+  it('records unenforced for Hermes', async () => {
+    const { calls, deployment } = await run({ runtime: 'hermes', autonomy: 'read' })
+    expect(calls[0].options?.autonomy).toBeUndefined()
+    expect(deployment.autonomy).toBe('unenforced')
+  })
+
+  it('falls back to Edit files for a mech saved without a level', async () => {
+    const { calls, deployment } = await run({ autonomy: undefined as never })
+    expect(calls[0].options?.autonomy).toBe('edit')
+    expect(deployment.autonomy).toBe('edit')
+  })
+
+  it('records denials from the runner report', async () => {
+    const { deployment } = await run(
+      {},
+      { report: () => ({ permissionDenials: ['PowerShell: npm test'] }) }
+    )
+    expect(deployment.permissionDenials).toEqual(['PowerShell: npm test'])
+  })
+
+  it('leaves permissionDenials off when nothing was blocked', async () => {
+    const { deployment } = await run({}, { report: () => ({ permissionDenials: [] }) })
+    expect(deployment).not.toHaveProperty('permissionDenials')
+  })
+
+  it('redacts a configured API key inside a denial label before saving or logging it', async () => {
+    const label = `Bash: curl -H "x-api-key: ${STORED_KEY}" https://api.example.com`
+    const { deployment, logLines } = await run(
+      {},
+      {
+        // The real Claude formatter prints each denial as a log line too.
+        stream: (async function* () {
+          yield { stream: 'stdout' as const, text: `DENIED · ${label}\n` }
+        })(),
+        report: () => ({ permissionDenials: [label] })
+      }
+    )
+    expect(deployment.permissionDenials).toEqual([
+      'Bash: curl -H "x-api-key: [redacted]" https://api.example.com'
+    ])
+    expect(JSON.stringify(deployment)).not.toContain(STORED_KEY)
+    expect(logLines.join('\n')).toContain('DENIED · Bash: curl -H "x-api-key: [redacted]"')
+    expect(logLines.join('\n')).not.toContain(STORED_KEY)
   })
 })

@@ -44,6 +44,7 @@ describe('migration guard (Phase 0 Track B done criterion, S7)', () => {
         computeServiceRecord(companion.id, before.deployments as unknown as Deployment[])
       )
     }
+    expect(after.companions.every((c) => c.autonomy === 'edit')).toBe(true)
     expect(manager.getHealth()).toEqual({ ok: true })
     expect(manager.startedFresh()).toBe(false)
     expect(manager.takeLegacyLogChunks()).toHaveLength(before.logChunks.length)

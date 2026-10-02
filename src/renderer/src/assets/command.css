@@ -1264,3 +1264,68 @@ input {
     margin-top: 2px;
   }
 }
+
+/* Autonomy (P0-12): Settings control and the debrief's blocked actions. */
+.autonomy-segments {
+  display: inline-flex;
+  border: 1px solid rgba(255, 140, 26, 0.5);
+}
+.autonomy-segment {
+  background: transparent;
+  color: #efc36d;
+  border: 0;
+  padding: 6px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.autonomy-segment + .autonomy-segment {
+  border-left: 1px solid rgba(255, 140, 26, 0.3);
+}
+.autonomy-segment:not(:disabled):not(.is-selected):hover {
+  background: rgba(255, 140, 26, 0.12);
+}
+.autonomy-segment.is-selected {
+  background: #ff8c1a;
+  color: #111;
+}
+.autonomy-segment:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.autonomy-note {
+  margin: 6px 0 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: #abb0a3;
+}
+.debrief-blocked {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid #ff5252;
+  background: rgba(255, 82, 82, 0.08);
+}
+.debrief-blocked h3 {
+  margin: 0 0 6px;
+  color: #ff6b6b;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.debrief-blocked ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.debrief-blocked code {
+  overflow-wrap: anywhere;
+}
+.debrief-blocked p {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #a9b49f;
+}

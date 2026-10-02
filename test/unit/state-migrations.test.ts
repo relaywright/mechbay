@@ -114,6 +114,15 @@ describe('migrateState', () => {
       expect('recentDeploymentIds' in companion).toBe(false)
   })
 
+  it('gives every mech the default Autonomy level', () => {
+    const before = loadV2()
+    const outcome = migrateState(before)
+    if (outcome.kind !== 'migrated') throw new Error(outcome.kind)
+    expect(outcome.state.companions).toHaveLength(before.companions.length)
+    expect(outcome.state.companions.length).toBeGreaterThan(0)
+    for (const companion of outcome.state.companions) expect(companion.autonomy).toBe('edit')
+  })
+
   it('never mutates its input', () => {
     const input = loadV2()
     const copy = structuredClone(input)
