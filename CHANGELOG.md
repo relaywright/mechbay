@@ -1,5 +1,81 @@
 # Changelog
 
+## v1.4.1 - 2026-10-02
+
+A trust release: the app, the README and the landing page now say only what
+is true, the window that draws the bay can reach only MechBay's own bridge,
+and reading a mission's project no longer runs that project's programs.
+
+### Fixed
+
+- **Journal save race.** A slow soul read for one mech could land in another
+  mech's Journal and be saved into its `soul.md`. Late responses are now
+  dropped, and the Journal and Files panels reset when the selection
+  changes. If a soul can't be read, the Journal can't save over it.
+- **Stale files.** Switching facilities or files quickly no longer shows the
+  previous facility's files or the previous file's contents.
+- **Ctrl+Enter deploy** always uses the current mission settings.
+- **Blurry facility labels on 4K screens.** Labels now render at the
+  camera's zoom, so they stay sharp at every window size and zoom level.
+- **The simulated log quoted the mech's soul.** `TASK //` now shows only the
+  task you typed.
+- **A newer saved bay is never wiped.** If a later MechBay has saved your
+  bay, this version leaves that file untouched and starts a temporary bay
+  that is not saved, so going back from a later version to this one never
+  costs you your bay.
+- **The demo works when your git signs commits.** If your global git
+  settings sign commits or run hooks, the demo still saves its starting
+  point, so its first debrief shows only what the mech changed.
+- **One line per mission in memory.** A task typed over several lines no
+  longer breaks the mech's `memory.md` or the next mission's prompt.
+- Boot splash version, plurals ("1 PROJECT CONNECTED"), and every em dash in app text.
+
+### Security
+
+- **Sandboxed renderer.** The window that draws the bay runs in Chromium's
+  sandbox and can reach only the MechBay bridge (`window.mechbay`). It
+  cannot navigate away from the bay, and links it opens go to your browser
+  only as https.
+- **The window cannot name places on disk.** Project scans always use the
+  folder from Settings, bulk import accepts only folders that scan found,
+  and the Journal accepts only the ID of a mech that exists.
+- **Reading a project's git history no longer runs the project's
+  programs.** Every git call behind the Mission Debrief switches off hooks,
+  fsmonitor, external diff and textconv helpers, network transports and the
+  filter drivers the project's own config defines, shows submodules as a
+  commit pointer only, and runs with a clean git environment. If a
+  project's git settings can't be read safely, the debrief says the diff is
+  unavailable. The remaining accepted risks are listed in
+  `docs/engineering/decisions.md`.
+- **Known keys are hidden.** Stored API keys and secret-looking environment
+  variables (8 characters or longer, multi-line keys line by line) are
+  replaced with `[redacted]` in the live log, saved logs,
+  failure summaries, the mech's memory file and saved task text. The Kimi
+  wrapper's shell commands run without any runtime's API key, and Kimi keys
+  come only from the environment or Settings (no key file).
+- Electron 39.8.10 and Vitest 4.1.11 close 8 published advisories.
+
+### Changed
+
+- **Landing page** written for people who don't write code: what MechBay
+  does in one sentence, a Download button for your system, what the project
+  demonstrates, and link previews for LinkedIn and Slack. New address:
+  `mechbay.samalbanese.com`.
+- **Honest runtime labels.** Kimi, Gemini and bring-your-own-agent mechs say
+  "not verified by the author" in the app, the README and the landing page.
+
+### Engineering
+
+- One verify workflow (type check of app and tests, lint, tests, build) runs
+  on Windows and Linux for every pull request and gates every release.
+- A public-claims test keeps the README and landing page from drifting away
+  from the code.
+- `scripts/smoke-electron.ts` boots the built app in a throwaway profile and
+  checks the sandbox; the app refuses to start in any other profile when the
+  smoke test asks it to.
+- A curated engineering log: decisions and post-mortems in
+  `docs/engineering/`.
+
 ## v1.4.0 - 2026-09-29
 
 First public release with downloadable installers.
