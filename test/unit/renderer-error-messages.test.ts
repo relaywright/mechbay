@@ -21,9 +21,7 @@ describe('renderer error messages', () => {
     const offenders = components(RENDERER).flatMap((file) =>
       readFileSync(file, 'utf8')
         .split('\n')
-        .flatMap((line, i) =>
-          RAW.test(line) ? [`${path.relative(RENDERER, file)}:${i + 1}`] : []
-        )
+        .flatMap((line, i) => (RAW.test(line) ? [`${path.relative(RENDERER, file)}:${i + 1}`] : []))
     )
     expect(offenders).toEqual([])
   })
