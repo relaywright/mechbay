@@ -117,9 +117,11 @@ app.whenReady().then(() => {
   // ─── MechBay subsystems ───────────────────────────────────────
   const demoMode = isDemoMode()
   const userData = app.getPath('userData')
-  // Before StateManager: a damaged secrets file throws here, and once an old
-  // save is upgraded its logs leave the saved file until prepareLogStore
-  // imports them below. Failing first keeps the save untouched.
+  // Upgrading an old save moves its logs out of the saved file; they are
+  // safe again only once prepareLogStore imports them. So: open the secrets
+  // file first (it throws when damaged, and the save is then untouched),
+  // and import right after the upgrade, before demo seeding, scaffolding or
+  // anything else that touches the disk (boot-order.test.ts guards this).
   const secrets = new SecretsManager(new Store({ name: 'mechbay-secrets' }))
   const opened = openStateStore({
     dir: userData,
@@ -127,27 +129,6 @@ app.whenReady().then(() => {
     createStore: (name) => new Store({ name })
   })
   const state = new StateManager(opened.store, userData, { startupNotice: opened.notice })
-
-  if (demoMode) {
-    const demoDir = join(app.getPath('userData'), 'demo-facility')
-    seedDemoWorkspace(demoDir)
-    linkDemoFacility(state, demoDir)
-  }
-
-  // Scaffold soul.md + memory.md for every companion on boot. Idempotent:
-  // only writes templates if the files don't exist. A companion's
-  // personality is persistent from this point on — edits to soul.md carry
-  // forward, and memory.md accretes on every deploy.
-  for (const companion of state.getState().companions) {
-    try {
-      scaffoldSoulAndMemory(companion.mechClass, companion.name, {
-        soulPath: companion.soulPath,
-        memoryPath: companion.memoryPath
-      })
-    } catch (err) {
-      console.error(`[boot] scaffoldSoulAndMemory(${companion.name}) failed:`, err)
-    }
-  }
 
   // The Kimi runner shells out to our bundled Fireworks wrapper
   // (scripts/kimi_fireworks.py). app.getAppPath() resolves to the repo
@@ -175,21 +156,6 @@ app.whenReady().then(() => {
         hermes: new HermesRunner()
       }
 
-  // Filesystem reader is whitelisted to (a) every facility's project path
-  // and (b) each companion's barracks dir (so the File Browser can view
-  // soul.md / memory.md). Whitelist is rebuilt on every state change so
-  // adding/removing a facility or swapping a facility's path takes effect
-  // immediately.
-  const buildFsWhitelist = (): string[] => {
-    const s = state.getState()
-    return [
-      ...s.facilities.map((f) => f.path).filter((p) => p && p.length > 0),
-      ...s.companions.map((c) => dirname(c.soulPath))
-    ]
-  }
-  const fsReader = new FsReader(buildFsWhitelist())
-  state.on('stateChanged', () => fsReader.updateWhitelist(buildFsWhitelist()))
-
   // Mission logs live in per-mission files next to the saved bay, in a
   // separate folder for demo mode. Each flushed batch goes to the window.
   const logs = new LogStore({
@@ -208,6 +174,42 @@ app.whenReady().then(() => {
     // Old lines the import never reached left the saved file already.
     if (state.takeLegacyLogChunks().length) state.noteLegacyLogsNotMoved()
   }
+
+  if (demoMode) {
+    const demoDir = join(app.getPath('userData'), 'demo-facility')
+    seedDemoWorkspace(demoDir)
+    linkDemoFacility(state, demoDir)
+  }
+
+  // Scaffold soul.md + memory.md for every companion on boot. Idempotent:
+  // only writes templates if the files don't exist. A companion's
+  // personality is persistent from this point on — edits to soul.md carry
+  // forward, and memory.md accretes on every deploy.
+  for (const companion of state.getState().companions) {
+    try {
+      scaffoldSoulAndMemory(companion.mechClass, companion.name, {
+        soulPath: companion.soulPath,
+        memoryPath: companion.memoryPath
+      })
+    } catch (err) {
+      console.error(`[boot] scaffoldSoulAndMemory(${companion.name}) failed:`, err)
+    }
+  }
+
+  // Filesystem reader is whitelisted to (a) every facility's project path
+  // and (b) each companion's barracks dir (so the File Browser can view
+  // soul.md / memory.md). Whitelist is rebuilt on every state change so
+  // adding/removing a facility or swapping a facility's path takes effect
+  // immediately.
+  const buildFsWhitelist = (): string[] => {
+    const s = state.getState()
+    return [
+      ...s.facilities.map((f) => f.path).filter((p) => p && p.length > 0),
+      ...s.companions.map((c) => dirname(c.soulPath))
+    ]
+  }
+  const fsReader = new FsReader(buildFsWhitelist())
+  state.on('stateChanged', () => fsReader.updateWhitelist(buildFsWhitelist()))
   // Closing MechBay refuses new missions, recalls every running one and
   // cancels every queued one, waits for each to save its outcome, then
   // writes the last log lines (shutdownMissions does the flush), bounded at

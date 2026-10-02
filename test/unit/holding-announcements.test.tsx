@@ -125,4 +125,21 @@ describe('radio feed', () => {
       expect(holding(feed)).toBe(false)
     }
   })
+
+  it('drops a holding call whose reveal and the launch land in the same render', async () => {
+    const feed = await mount(<CommsFeed />)
+    step(AT_START)
+    step(RAVEN_WAITS)
+    // The reveal timer fires and the launch arrives before React renders:
+    // both updates are batched, so the holding call was never on screen.
+    act(() => {
+      vi.advanceTimersByTime(950)
+      emit(RAVEN_LAUNCHED)
+    })
+    expect(holding(feed)).toBe(false)
+    for (let t = 0; t < 8; t++) {
+      act(() => vi.advanceTimersByTime(1_000))
+      expect(holding(feed)).toBe(false)
+    }
+  })
 })

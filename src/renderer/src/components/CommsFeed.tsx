@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Deployment, MechClass } from '../../../shared/types'
 import { sfx } from '../audio/sfx'
 import { computeCommsMessages, dropStaleHolding, type CommsMessage } from '../comms'
@@ -57,6 +57,13 @@ export function CommsFeed(): React.JSX.Element {
   const previousRef = useRef<Deployment[] | null>(null)
   const lastRevealRef = useRef(0)
   const sequenceRef = useRef(0)
+  // The clock of the last render React committed: a line is on screen once
+  // revealAt <= this. The state's own clock can run ahead of what was drawn
+  // when a reveal and a state change are batched into one render.
+  const shownAtRef = useRef(0)
+  useLayoutEffect(() => {
+    shownAtRef.current = feed.clock
+  }, [feed.clock])
 
   useEffect(() => {
     let disposed = false
@@ -75,7 +82,7 @@ export function CommsFeed(): React.JSX.Element {
       const now = Date.now()
       if (messages.length === 0) {
         setFeed((current) => {
-          const items = dropStaleHolding(current.items, next, current.clock)
+          const items = dropStaleHolding(current.items, next, shownAtRef.current)
           return items === current.items ? current : { items, clock: now }
         })
         return
@@ -92,7 +99,7 @@ export function CommsFeed(): React.JSX.Element {
       })
       setFeed((current) => ({
         items: [
-          ...dropStaleHolding(current.items, next, current.clock).filter(
+          ...dropStaleHolding(current.items, next, shownAtRef.current).filter(
             (item) => item.expireAt > now
           ),
           ...scheduled
