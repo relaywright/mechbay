@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { DiffFileGetResult, FilePatch } from '../../../shared/types'
 import './diff-viewer.css'
+import { ipcErrorMessage } from '../../../shared/bridge-errors'
 
 type ViewerState =
   { status: 'loading' } | { status: 'error'; error: string } | { status: 'ready'; patch: FilePatch }
@@ -34,9 +35,7 @@ export function DiffViewer(props: { deploymentId: string; path: string }): React
             : { status: 'error', error: result.error }
         )
       )
-      .catch((err: unknown) =>
-        settle({ status: 'error', error: err instanceof Error ? err.message : String(err) })
-      )
+      .catch((err: unknown) => settle({ status: 'error', error: ipcErrorMessage(err) }))
 
     return () => {
       cancelled = true

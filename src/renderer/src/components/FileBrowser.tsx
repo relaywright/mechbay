@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FsNode } from '../../../shared/types'
 import { colors, fontSize } from '../theme'
+import { ipcErrorMessage } from '../../../shared/bridge-errors'
 
 /**
  * Read-only file browser that lives inside the sidebar's right pane.
@@ -37,7 +38,7 @@ export function FileBrowser(props: {
     try {
       return await window.mechbay.fsReadDir(p)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(ipcErrorMessage(e))
       return null
     }
   }
@@ -71,7 +72,7 @@ export function FileBrowser(props: {
         if (!cancelled) setFileContent(content)
       },
       (e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+        if (!cancelled) setError(ipcErrorMessage(e))
       }
     )
     return () => {

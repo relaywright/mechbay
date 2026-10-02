@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { DiscoveredProject } from '../../../shared/types'
 import { colors, fontSize } from '../theme'
+import { ipcErrorMessage } from '../../../shared/bridge-errors'
 
 interface BulkImportModalProps {
   onClose: () => void
@@ -22,7 +23,7 @@ export function BulkImportModal({ onClose }: BulkImportModalProps): React.JSX.El
         const results = await window.mechbay.scanProjects()
         setProjects(results)
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        setError(ipcErrorMessage(e))
       } finally {
         setIsLoading(false)
       }
@@ -68,7 +69,7 @@ export function BulkImportModal({ onClose }: BulkImportModalProps): React.JSX.El
         setError(result.error)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(ipcErrorMessage(e))
     } finally {
       setIsImporting(false)
     }
