@@ -45,6 +45,7 @@ describe('migration guard (Phase 0 Track B done criterion, S7)', () => {
       )
     }
     expect(manager.getHealth()).toEqual({ ok: true })
+    expect(manager.startedFresh()).toBe(false)
     expect(manager.takeLegacyLogChunks()).toHaveLength(before.logChunks.length)
     expect(manager.takeLegacyLogChunks()).toEqual([])
     const saved = JSON.parse(readFileSync(file, 'utf8')) as { state: { version: number } }
@@ -110,6 +111,27 @@ describe('migration guard (Phase 0 Track B done criterion, S7)', () => {
       ok: true,
       notice: expect.stringContaining('started a fresh one')
     })
+    expect(manager.startedFresh()).toBe(true)
+  })
+
+  it('moves log lines out of a schema 3 save written by an earlier development build', () => {
+    rmSync(file)
+    new StateManager(new JsonFileStore(file), dir)
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as { state: Record<string, unknown> }
+    const line = { id: 'u1', deploymentId: 'M1', timestamp: 1, stream: 'stdout', text: 'old' }
+    saved.state.logChunks = [line]
+    writeFileSync(file, JSON.stringify(saved))
+    const manager = new StateManager(new JsonFileStore(file), dir)
+    expect(manager.takeLegacyLogChunks()).toEqual([line])
+    expect(manager.getState()).not.toHaveProperty('logChunks')
+    const rewritten = JSON.parse(readFileSync(file, 'utf8')) as { state: Record<string, unknown> }
+    expect(rewritten.state).not.toHaveProperty('logChunks')
+  })
+
+  it('reports a fresh bay when there was no saved file', () => {
+    rmSync(file)
+    const manager = new StateManager(new JsonFileStore(file), dir)
+    expect(manager.startedFresh()).toBe(true)
   })
 
   it('never writes when the saved file cannot be read', () => {

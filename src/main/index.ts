@@ -13,7 +13,8 @@ import { KimiRunner } from './runners/kimi'
 import { GeminiRunner } from './runners/gemini'
 import { HermesRunner } from './runners/hermes'
 import { SimRunner } from './runners/sim'
-import { registerIpc } from './ipc'
+import { collectSecretValues, registerIpc } from './ipc'
+import { redactSecrets } from './redact'
 import { LogStore, logDirFor, prepareLogStore } from './log-store'
 import { hasSameOrigin, isOpenableExternalUrl } from './external-links'
 import { MissionAlerts } from './mission-alerts'
@@ -193,7 +194,14 @@ app.whenReady().then(() => {
       if (!win.isDestroyed()) win.webContents.send(IPC.LOG_STREAM, entries)
     }
   })
-  prepareLogStore(logs, state)
+  // A failure here must not stop the bay from opening: missions still log
+  // live, only the old-log import or cleanup is skipped.
+  try {
+    const bootSecrets = collectSecretValues({ runners, secrets })
+    prepareLogStore(logs, state, { redact: (text) => redactSecrets(text, bootSecrets) })
+  } catch (err) {
+    console.error('[boot] preparing mission logs failed:', err)
+  }
   app.on('before-quit', () => logs.flushAll())
 
   registerIpc({ win, state, runners, fsReader, secrets, demoMode, logs })

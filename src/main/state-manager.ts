@@ -198,6 +198,7 @@ export class StateManager extends EventEmitter {
   private readOnly = false
   private health: StateHealth = { ok: true }
   private legacyLogChunks: LogChunkV2[] = []
+  private freshBay = false
 
   constructor(
     store: StoreLike,
@@ -228,6 +229,7 @@ export class StateManager extends EventEmitter {
     }
 
     if (!hasExisting) {
+      this.freshBay = true
       this.persist(this.cache)
       this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
       return
@@ -235,9 +237,16 @@ export class StateManager extends EventEmitter {
 
     const outcome = migrateState(raw, options.migrations)
     switch (outcome.kind) {
-      case 'current':
-        this.cache = this.repairAndPersist(outcome.state, false)
+      case 'current': {
+        // Schema 3 saves written by Track B development builds before logs
+        // moved out still carry logChunks: hand them to the log store and
+        // drop them from saved state, as the v2 upgrade does.
+        const { logChunks, ...current } = outcome.state as AppState & { logChunks?: unknown }
+        const hadLogs = Array.isArray(logChunks)
+        if (hadLogs) this.legacyLogChunks = logChunks as LogChunkV2[]
+        this.cache = this.repairAndPersist(current, hadLogs)
         break
+      }
       case 'migrated': {
         const backup = this.backup(`v${outcome.from}`, copyFile)
         if (!backup.ok) {
@@ -276,6 +285,7 @@ export class StateManager extends EventEmitter {
           return
         }
         console.warn(`[state-manager] Saved bay unreadable (${outcome.reason}); starting fresh`)
+        this.freshBay = true
         this.persist(this.cache)
         notices.push(
           backup.path
@@ -286,6 +296,14 @@ export class StateManager extends EventEmitter {
       }
     }
     this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
+  }
+
+  /**
+   * True when this session began with a brand-new bay: there was no saved
+   * file (including one set aside as damaged) or it could not be read.
+   */
+  startedFresh(): boolean {
+    return this.freshBay
   }
 
   /** Schema 2 kept logs inside saved state. Returns them once for the log store to import. */

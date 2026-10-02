@@ -818,7 +818,7 @@ function secretEnvValues(env: Record<string, string | undefined>): string[] {
  * inherited environment variable whose name looks secret (an agent that
  * prints its environment would otherwise show, say, GITHUB_TOKEN).
  */
-function collectSecretValues(opts: IpcDeps): string[] {
+export function collectSecretValues(opts: Pick<IpcDeps, 'runners' | 'secrets'>): string[] {
   const families = Object.keys(opts.runners) as AgentFamily[]
   return [
     ...families.map((family) => opts.secrets.getSecret(family)),

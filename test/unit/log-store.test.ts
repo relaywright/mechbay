@@ -173,6 +173,41 @@ describe('LogStore', () => {
     expect(JSON.parse(saved[10]).text).toMatch(/^LOG TRUNCATED · /)
   })
 
+  it('shortens a single huge line instead of saving all of it', async () => {
+    const store = new LogStore({ dir })
+    store.append(ID, { stream: 'stdout', text: 'x'.repeat(100_000) })
+    store.close(ID)
+    const [entry] = await store.history(ID)
+    expect(entry.text.length).toBeLessThan(17_000)
+    expect(entry.text.endsWith('[line shortened]')).toBe(true)
+  })
+
+  it('never splits an emoji when shortening a line', async () => {
+    const store = new LogStore({ dir })
+    // 16,383 single characters put the cut between the two halves of the emoji.
+    store.append(ID, { stream: 'stdout', text: 'a'.repeat(16_383) + '\u{1F916}'.repeat(10) })
+    store.close(ID)
+    const [entry] = await store.history(ID)
+    expect(entry.text).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+  })
+
+  it('starts a new line after a saved log that was cut off mid-write', async () => {
+    const file = path.join(dir, `${ID}.jsonl`)
+    const first = {
+      id: `${ID}:1`,
+      deploymentId: ID,
+      seq: 1,
+      timestamp: 1,
+      stream: 'stdout',
+      text: 'a'
+    }
+    writeFileSync(file, JSON.stringify(first) + '\n{"id":"cut')
+    const store = new LogStore({ dir })
+    store.append(ID, { stream: 'stdout', text: 'after restart' })
+    store.close(ID)
+    expect((await store.history(ID)).map((e) => e.text)).toEqual(['a', 'after restart'])
+  })
+
   it('returns only the newest entries when a mission is long', async () => {
     const store = new LogStore({ dir, historyLimit: 3 })
     for (let i = 1; i <= 10; i++) store.append(ID, { stream: 'stdout', text: `l${i}` })
@@ -268,6 +303,45 @@ describe('LogStore', () => {
     expect(store.importLegacy([bad])).toBe(0)
     expect(readdirSync(dir)).toEqual([])
   })
+
+  it('writes an imported log under a temporary name first, so a crash never leaves half of it', () => {
+    const writes: string[] = []
+    const fs = {
+      ...realFs,
+      writeFileSync: vi.fn((file: realFs.PathOrFileDescriptor, data: string) => {
+        writes.push(String(file))
+        realFs.writeFileSync(file, data)
+      })
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    expect(store.importLegacy([chunk])).toBe(1)
+    expect(writes.map((f) => path.basename(f))).toEqual([`${ID}.jsonl.tmp`])
+    expect(readdirSync(dir)).toEqual([`${ID}.jsonl`])
+  })
+
+  it('skips malformed schema 2 log chunks and imports the rest', async () => {
+    const store = new LogStore({ dir })
+    const good = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'ok' }
+    const chunks = [null, 'text', { deploymentId: 5 }, { deploymentId: ID, text: 7 }, good]
+    expect(store.importLegacy(chunks as never)).toBe(1)
+    expect((await store.history(ID)).map((e) => e.text)).toEqual(['ok'])
+  })
+
+  it('hides known keys in imported schema 2 log lines', async () => {
+    const store = new LogStore({ dir })
+    const key = 'sk-ant-legacy-0123456789'
+    const chunk = {
+      id: 'u1',
+      deploymentId: ID,
+      timestamp: 1,
+      stream: 'stdout' as const,
+      text: `ANTHROPIC_API_KEY=${key}`
+    }
+    store.importLegacy([chunk], (text) => text.split(key).join('[redacted]'))
+    expect((await store.history(ID)).map((e) => e.text)).toEqual(['ANTHROPIC_API_KEY=[redacted]'])
+    expect(readFileSync(path.join(dir, `${ID}.jsonl`), 'utf8')).not.toContain(key)
+  })
 })
 
 describe('log folders and startup', () => {
@@ -285,10 +359,50 @@ describe('log folders and startup', () => {
     prepareLogStore(store, {
       getHealth: () => ({ ok: false, reason: 'newer-version', message: 'newer' }),
       getState: () => ({ deployments: [] }),
+      startedFresh: () => false,
       takeLegacyLogChunks: () => []
     } as never)
     expect(existsSync(path.join(dir, `${ID}.jsonl`))).toBe(true)
     rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('skips pruning when the saved bay was started fresh after damage', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'mechbay-logs-'))
+    try {
+      writeFileSync(path.join(dir, `${ID}.jsonl`), '')
+      const store = new LogStore({ dir })
+      prepareLogStore(store, {
+        getHealth: () => ({ ok: true, notice: 'started a fresh one' }),
+        getState: () => ({ deployments: [] }),
+        startedFresh: () => true,
+        takeLegacyLogChunks: () => []
+      } as never)
+      expect(existsSync(path.join(dir, `${ID}.jsonl`))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('passes legacy lines through the given redaction on startup', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'mechbay-logs-'))
+    try {
+      const store = new LogStore({ dir })
+      prepareLogStore(
+        store,
+        {
+          getHealth: () => ({ ok: true }),
+          getState: () => ({ deployments: [{ id: ID }] }),
+          startedFresh: () => false,
+          takeLegacyLogChunks: () => [
+            { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout', text: 'key sk-secret-99' }
+          ]
+        } as never,
+        { redact: (text) => text.replace('sk-secret-99', '[redacted]') }
+      )
+      expect((await store.history(ID)).map((e) => e.text)).toEqual(['key [redacted]'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('imports legacy logs, then prunes logs of missions no longer in history', async () => {
@@ -299,6 +413,7 @@ describe('log folders and startup', () => {
       prepareLogStore(store, {
         getHealth: () => ({ ok: true }),
         getState: () => ({ deployments: [{ id: ID }] }),
+        startedFresh: () => false,
         takeLegacyLogChunks: () => [
           { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout', text: 'kept line' }
         ]

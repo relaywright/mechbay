@@ -35,7 +35,9 @@ type LogFs = Pick<
   | 'mkdirSync'
   | 'readFileSync'
   | 'readdirSync'
+  | 'renameSync'
   | 'unlinkSync'
+  | 'writeFileSync'
 >
 
 export interface LogStoreOptions {
@@ -54,6 +56,18 @@ const MISSION_ID = /^[0-9A-Za-z_-]{1,64}$/
 /** Names Windows maps to devices whatever the extension (`CON.jsonl` is the console). */
 const WINDOWS_DEVICE = /^(con|prn|aux|nul|com\d|lpt\d|conin\$|conout\$)$/i
 const LOG_EXT = '.jsonl'
+/** One line longer than this (a minified bundle, say) is shortened before it is saved or shown. */
+const MAX_LINE_CHARS = 16_384
+const SHORTENED = ' ... [line shortened]'
+
+function capLine(text: string): string {
+  if (text.length <= MAX_LINE_CHARS) return text
+  let end = MAX_LINE_CHARS
+  // Never leave half of a surrogate pair (an emoji) at the cut.
+  const last = text.charCodeAt(end - 1)
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1
+  return text.slice(0, end) + SHORTENED
+}
 
 /**
  * Mission ids arrive from the renderer (`logs.history`), so this is the
@@ -62,6 +76,22 @@ const LOG_EXT = '.jsonl'
  */
 export function isValidMissionId(id: string): boolean {
   return typeof id === 'string' && MISSION_ID.test(id) && !WINDOWS_DEVICE.test(id)
+}
+
+const LOG_STREAMS: ReadonlySet<string> = new Set(['stdout', 'stderr', 'system', 'thought'])
+
+function isLegacyChunk(value: unknown): value is LogChunkV2 {
+  if (typeof value !== 'object' || value === null) return false
+  const c = value as Record<string, unknown>
+  return (
+    typeof c.deploymentId === 'string' &&
+    isValidMissionId(c.deploymentId) &&
+    typeof c.text === 'string' &&
+    typeof c.timestamp === 'number' &&
+    Number.isFinite(c.timestamp) &&
+    typeof c.stream === 'string' &&
+    LOG_STREAMS.has(c.stream)
+  )
 }
 
 /** Demo and real bays share userData; their logs must not mix. */
@@ -76,6 +106,8 @@ interface MissionBuffer {
   timer: ReturnType<typeof setTimeout> | null
   saving: boolean
   truncated: boolean
+  /** The saved file ends in a line cut off mid-write; start the next write on a new line. */
+  needsNewline: boolean
 }
 
 export class LogStore implements MissionLogSink {
@@ -109,7 +141,7 @@ export class LogStore implements MissionLogSink {
       seq: mission.seq,
       timestamp: this.now(),
       stream: input.stream,
-      text: input.text,
+      text: capLine(input.text),
       ...(input.thoughtKind ? { thoughtKind: input.thoughtKind } : {})
     })
     if (mission.pending.length >= this.flushLines) this.flush(missionId)
@@ -148,8 +180,15 @@ export class LogStore implements MissionLogSink {
   prune(keepIds: Iterable<string>): number {
     if (!this.isRealDir(this.dir)) return 0
     const keep = new Set(keepIds)
+    let names: string[]
+    try {
+      names = this.fs.readdirSync(this.dir)
+    } catch (err) {
+      console.warn('[log-store] could not list the log folder; nothing pruned:', err)
+      return 0
+    }
     let removed = 0
-    for (const name of this.fs.readdirSync(this.dir)) {
+    for (const name of names) {
       if (!name.endsWith(LOG_EXT)) continue
       const id = name.slice(0, -LOG_EXT.length)
       if (!isValidMissionId(id) || keep.has(id) || this.missions.has(id)) continue
@@ -166,11 +205,16 @@ export class LogStore implements MissionLogSink {
     return removed
   }
 
-  /** Move schema 2 log chunks into files. Skips a mission whose file already exists. */
-  importLegacy(chunks: LogChunkV2[]): number {
+  /**
+   * Move schema 2 log chunks into files. Skips a mission whose file already
+   * exists, and any chunk a hand-edited or damaged save left malformed.
+   * v1.4.0 saved lines before redaction existed, so each one goes through
+   * `redact` on the way in.
+   */
+  importLegacy(chunks: LogChunkV2[], redact: (text: string) => string = (text) => text): number {
     const byMission = new Map<string, LogChunkV2[]>()
-    for (const chunk of chunks) {
-      if (!isValidMissionId(chunk.deploymentId)) continue
+    for (const chunk of chunks as unknown[]) {
+      if (!isLegacyChunk(chunk)) continue
       const list = byMission.get(chunk.deploymentId) ?? []
       list.push(chunk)
       byMission.set(chunk.deploymentId, list)
@@ -187,12 +231,17 @@ export class LogStore implements MissionLogSink {
           seq: i + 1,
           timestamp: c.timestamp,
           stream: c.stream,
-          text: c.text,
+          text: redact(c.text),
           ...(c.thoughtKind ? { thoughtKind: c.thoughtKind } : {})
         }))
       try {
         this.ensureDir()
-        this.fs.appendFileSync(file, lines.map((l) => JSON.stringify(l)).join('\n') + '\n')
+        // Write aside, then rename: a crash mid-import leaves only a .tmp
+        // file, never a half log that the existence check above would
+        // later mistake for a finished import.
+        const tmp = `${file}.tmp`
+        this.fs.writeFileSync(tmp, lines.map((l) => JSON.stringify(l)).join('\n') + '\n')
+        this.fs.renameSync(tmp, file)
         imported += lines.length
       } catch (err) {
         console.warn(`[log-store] could not import logs for ${missionId}:`, err)
@@ -205,11 +254,20 @@ export class LogStore implements MissionLogSink {
     const file = this.fileFor(missionId)
     let mission = this.missions.get(missionId)
     if (!mission) {
-      mission = { seq: 0, pending: [], savedLines: 0, timer: null, saving: true, truncated: false }
+      mission = {
+        seq: 0,
+        pending: [],
+        savedLines: 0,
+        timer: null,
+        saving: true,
+        truncated: false,
+        needsNewline: false
+      }
       try {
-        const saved = this.readSaved(file)
+        const { entries: saved, cutOff } = this.readSavedFile(file)
         mission.seq = saved.at(-1)?.seq ?? 0
         mission.savedLines = saved.length
+        mission.needsNewline = cutOff
       } catch (err) {
         // The saved log exists but cannot be read (locked, permissions).
         // Appending blind could repeat sequence numbers, so show this
@@ -253,8 +311,11 @@ export class LogStore implements MissionLogSink {
           this.ensureDir()
           this.fs.appendFileSync(
             this.fileFor(missionId),
-            toSave.map((e) => JSON.stringify(e)).join('\n') + '\n'
+            (mission.needsNewline ? '\n' : '') +
+              toSave.map((e) => JSON.stringify(e)).join('\n') +
+              '\n'
           )
+          mission.needsNewline = false
           mission.savedLines += toSave.length
         }
         if (mission.truncated) mission.saving = false
@@ -290,17 +351,22 @@ export class LogStore implements MissionLogSink {
   }
 
   private readSaved(file: string): LogChunk[] {
-    if (!this.fs.existsSync(file)) return []
-    const out: LogChunk[] = []
-    for (const line of this.fs.readFileSync(file, 'utf8').split('\n')) {
+    return this.readSavedFile(file).entries
+  }
+
+  private readSavedFile(file: string): { entries: LogChunk[]; cutOff: boolean } {
+    if (!this.fs.existsSync(file)) return { entries: [], cutOff: false }
+    const raw = this.fs.readFileSync(file, 'utf8')
+    const entries: LogChunk[] = []
+    for (const line of raw.split('\n')) {
       if (!line.trim()) continue
       try {
-        out.push(JSON.parse(line) as LogChunk)
+        entries.push(JSON.parse(line) as LogChunk)
       } catch {
         // A line cut short by a crash mid-write: skip it, keep the rest.
       }
     }
-    return out
+    return { entries, cutOff: raw.length > 0 && !raw.endsWith('\n') }
   }
 
   /** The only place a mission id becomes a path. Throws for any id that is not a plain name. */
@@ -328,20 +394,23 @@ export class LogStore implements MissionLogSink {
 
 /**
  * Startup: move schema 2 logs into files, then delete logs of missions that
- * left saved history. Never prunes while the saved bay is read-only: the
- * in-memory default bay has no missions and would delete every log.
+ * left saved history. Never prunes while the saved bay is read-only or was
+ * started fresh this session (no saved file, or a damaged one set aside):
+ * either way the bay has no missions and pruning would delete every log,
+ * including the logs of a save the player may still restore.
  */
 export function prepareLogStore(
   logs: LogStore,
-  state: Pick<StateManager, 'getHealth' | 'getState' | 'takeLegacyLogChunks'>
+  state: Pick<StateManager, 'getHealth' | 'getState' | 'startedFresh' | 'takeLegacyLogChunks'>,
+  options: { redact?: (text: string) => string } = {}
 ): void {
   const legacy = state.takeLegacyLogChunks()
   if (legacy.length) {
     console.info(
-      `[log-store] moved ${logs.importLegacy(legacy)} saved log lines out of the state file`
+      `[log-store] moved ${logs.importLegacy(legacy, options.redact)} saved log lines out of the state file`
     )
   }
-  if (!state.getHealth().ok) return
+  if (!state.getHealth().ok || state.startedFresh()) return
   const removed = logs.prune(state.getState().deployments.map((d) => d.id))
   if (removed) console.info(`[log-store] removed ${removed} logs of missions no longer in history`)
 }
