@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow } from 'electron'
-import { dirname, join, sep } from 'path'
+import { dirname, join, resolve, sep } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 import icon from '../../resources/icon.png?asset'
@@ -13,6 +13,7 @@ import { GeminiRunner } from './runners/gemini'
 import { HermesRunner } from './runners/hermes'
 import { SimRunner } from './runners/sim'
 import { registerIpc } from './ipc'
+import { hasSameOrigin, isOpenableExternalUrl } from './external-links'
 import { MissionAlerts } from './mission-alerts'
 import { runCliAvailabilityCheck } from './cli-check'
 import { IPC } from '../shared/ipc-channels'
@@ -32,7 +33,9 @@ function createWindow(): BrowserWindow {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      // The preload only uses electron's contextBridge and ipcRenderer, so the
+      // renderer runs inside Chromium's OS-level sandbox.
+      sandbox: true
     }
   })
 
@@ -41,8 +44,17 @@ function createWindow(): BrowserWindow {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (isOpenableExternalUrl(details.url)) {
+      shell.openExternal(details.url).catch((err) => {
+        console.error('[main] Could not open link in the browser:', err)
+      })
+    }
     return { action: 'deny' }
+  })
+  // The window only ever shows the bay; it never navigates anywhere else.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const devUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+    if (!hasSameOrigin(url, devUrl)) event.preventDefault()
   })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
@@ -52,6 +64,21 @@ function createWindow(): BrowserWindow {
   }
 
   return mainWindow
+}
+
+// Smoke runs (scripts/smoke-electron.ts) set MECHBAY_REQUIRE_USER_DATA to their
+// throwaway profile. If the launch did not land there, exit before the lock
+// file, stores or companion files touch the real profile.
+const requiredUserData = process.env.MECHBAY_REQUIRE_USER_DATA
+if (requiredUserData) {
+  const normalize = (p: string): string =>
+    process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p)
+  const actual = app.getPath('userData')
+  if (normalize(actual) !== normalize(requiredUserData)) {
+    console.error(`[main] userData is ${actual}, expected ${requiredUserData}. Exiting.`)
+    // process.exit, not app.exit: nothing below this line may run.
+    process.exit(1)
+  }
 }
 
 // Single-instance lock: a second launch focuses the existing window instead

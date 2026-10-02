@@ -101,7 +101,21 @@ describe('StateManager — corrupt/malformed state handling', () => {
 
 describe('StateManager — store write failures', () => {
   it('updateState does not throw when store.set throws', () => {
-    const data: Record<string, unknown> = { state: { version: 2, companions: [], facilities: [], deployments: [], logChunks: [], settings: { concurrencyCap: 3, ignoredMarkers: [], projectsDir: '/tmp', companionNameOverrides: {} } } }
+    const data: Record<string, unknown> = {
+      state: {
+        version: 2,
+        companions: [],
+        facilities: [],
+        deployments: [],
+        logChunks: [],
+        settings: {
+          concurrencyCap: 3,
+          ignoredMarkers: [],
+          projectsDir: '/tmp',
+          companionNameOverrides: {}
+        }
+      }
+    }
     const throwingSetStore: StoreLike = {
       has: () => true,
       get: (k: string) => data[k],
@@ -111,7 +125,7 @@ describe('StateManager — store write failures', () => {
     }
 
     const sm = new StateManager(throwingSetStore, '/tmp/mechbay-test')
-    
+
     // updateState should NOT throw even if persistence fails (it catches and logs)
     expect(() => {
       sm.updateState((s) => ({ ...s, lastScanAt: 1234 }))
@@ -119,9 +133,23 @@ describe('StateManager — store write failures', () => {
   })
 
   it('emits stateChanged even when store.set throws', () => {
-    const data: Record<string, unknown> = { state: { version: 2, companions: [], facilities: [], deployments: [], logChunks: [], settings: { concurrencyCap: 3, ignoredMarkers: [], projectsDir: '/tmp', companionNameOverrides: {} } } }
+    const data: Record<string, unknown> = {
+      state: {
+        version: 2,
+        companions: [],
+        facilities: [],
+        deployments: [],
+        logChunks: [],
+        settings: {
+          concurrencyCap: 3,
+          ignoredMarkers: [],
+          projectsDir: '/tmp',
+          companionNameOverrides: {}
+        }
+      }
+    }
     let emitted = false
-    
+
     const throwingSetStore: StoreLike = {
       has: () => true,
       get: (k: string) => data[k],
@@ -143,10 +171,24 @@ describe('StateManager — store write failures', () => {
   })
 
   it('emits statePersistFailed when store.set throws', () => {
-    const data: Record<string, unknown> = { state: { version: 2, companions: [], facilities: [], deployments: [], logChunks: [], settings: { concurrencyCap: 3, ignoredMarkers: [], projectsDir: '/tmp', companionNameOverrides: {} } } }
+    const data: Record<string, unknown> = {
+      state: {
+        version: 2,
+        companions: [],
+        facilities: [],
+        deployments: [],
+        logChunks: [],
+        settings: {
+          concurrencyCap: 3,
+          ignoredMarkers: [],
+          projectsDir: '/tmp',
+          companionNameOverrides: {}
+        }
+      }
+    }
     let persistFailedEmitted = false
     let capturedErr: unknown
-    
+
     const throwingSetStore: StoreLike = {
       has: () => true,
       get: (k: string) => data[k],
@@ -184,7 +226,7 @@ describe('StateManager — zombie sweep edge cases', () => {
   it('sweepZombieDeployments handles empty deployments array', () => {
     const store = makeInMemoryStore()
     const sm = new StateManager(store, '/tmp/zombie-test')
-    
+
     // Default state has empty deployments
     expect(sm.sweepZombieDeployments()).toEqual([])
   })
@@ -192,42 +234,106 @@ describe('StateManager — zombie sweep edge cases', () => {
   it('sweepZombieDeployments preserves non-active statuses', () => {
     const store = makeInMemoryStore()
     const sm = new StateManager(store, '/tmp/zombie-test')
-    
+
     sm.updateState((s) => ({
       ...s,
       deployments: [
-        { id: 'd1', companionId: 'c1', facilityId: 'f1', taskPrompt: 't1', status: 'completed', startedAt: 1, completedAt: 2, exitCode: 0 },
-        { id: 'd2', companionId: 'c2', facilityId: 'f2', taskPrompt: 't2', status: 'failed', startedAt: 3, completedAt: 4 },
-        { id: 'd3', companionId: 'c3', facilityId: 'f3', taskPrompt: 't3', status: 'cancelled', startedAt: 5, completedAt: 6 },
-        { id: 'd4', companionId: 'c4', facilityId: 'f4', taskPrompt: 't4', status: 'queued', startedAt: 7 }
+        {
+          id: 'd1',
+          companionId: 'c1',
+          facilityId: 'f1',
+          taskPrompt: 't1',
+          status: 'completed',
+          startedAt: 1,
+          completedAt: 2,
+          exitCode: 0
+        },
+        {
+          id: 'd2',
+          companionId: 'c2',
+          facilityId: 'f2',
+          taskPrompt: 't2',
+          status: 'failed',
+          startedAt: 3,
+          completedAt: 4
+        },
+        {
+          id: 'd3',
+          companionId: 'c3',
+          facilityId: 'f3',
+          taskPrompt: 't3',
+          status: 'cancelled',
+          startedAt: 5,
+          completedAt: 6
+        },
+        {
+          id: 'd4',
+          companionId: 'c4',
+          facilityId: 'f4',
+          taskPrompt: 't4',
+          status: 'queued',
+          startedAt: 7
+        }
       ]
     }))
 
     const zombies = sm.sweepZombieDeployments()
     expect(zombies).toEqual([])
-    
+
     // All non-active statuses should be unchanged
     const state = sm.getState()
-    expect(state.deployments.every(d => ['completed', 'failed', 'cancelled', 'queued'].includes(d.status))).toBe(true)
+    expect(
+      state.deployments.every((d) =>
+        ['completed', 'failed', 'cancelled', 'queued'].includes(d.status)
+      )
+    ).toBe(true)
   })
 
   it('sweepZombieDeployments marks all active statuses as failed', () => {
     const store = makeInMemoryStore()
     const sm = new StateManager(store, '/tmp/zombie-test')
-    
+
     sm.updateState((s) => ({
       ...s,
       deployments: [
-        { id: 'd1', companionId: 'c1', facilityId: 'f1', taskPrompt: 't1', status: 'walking-to', startedAt: 1 },
-        { id: 'd2', companionId: 'c2', facilityId: 'f2', taskPrompt: 't2', status: 'working', startedAt: 2 },
-        { id: 'd3', companionId: 'c3', facilityId: 'f3', taskPrompt: 't3', status: 'awaiting-input', startedAt: 3 },
-        { id: 'd4', companionId: 'c4', facilityId: 'f4', taskPrompt: 't4', status: 'returning', startedAt: 4 }
+        {
+          id: 'd1',
+          companionId: 'c1',
+          facilityId: 'f1',
+          taskPrompt: 't1',
+          status: 'walking-to',
+          startedAt: 1
+        },
+        {
+          id: 'd2',
+          companionId: 'c2',
+          facilityId: 'f2',
+          taskPrompt: 't2',
+          status: 'working',
+          startedAt: 2
+        },
+        {
+          id: 'd3',
+          companionId: 'c3',
+          facilityId: 'f3',
+          taskPrompt: 't3',
+          status: 'awaiting-input',
+          startedAt: 3
+        },
+        {
+          id: 'd4',
+          companionId: 'c4',
+          facilityId: 'f4',
+          taskPrompt: 't4',
+          status: 'returning',
+          startedAt: 4
+        }
       ]
     }))
 
     const zombies = sm.sweepZombieDeployments()
     expect(zombies).toHaveLength(4)
-    expect(zombies.every(z => z.status === 'failed')).toBe(true)
-    expect(zombies.every(z => z.summary === 'Interrupted by app crash')).toBe(true)
+    expect(zombies.every((z) => z.status === 'failed')).toBe(true)
+    expect(zombies.every((z) => z.summary === 'Interrupted by app crash')).toBe(true)
   })
 })

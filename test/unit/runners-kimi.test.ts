@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'events'
-import { join } from 'path'
 import { Readable } from 'stream'
 
 const kimiMocks = vi.hoisted(() => ({
@@ -74,46 +73,41 @@ afterEach(() => {
 
 describe('KimiRunner (Fireworks wrapper)', () => {
   describe.each([
-    { pythonPresent: false, envKeyPresent: false, fileKeyPresent: false },
-    { pythonPresent: false, envKeyPresent: false, fileKeyPresent: true },
-    { pythonPresent: false, envKeyPresent: true, fileKeyPresent: false },
-    { pythonPresent: false, envKeyPresent: true, fileKeyPresent: true },
-    { pythonPresent: true, envKeyPresent: false, fileKeyPresent: false },
-    { pythonPresent: true, envKeyPresent: false, fileKeyPresent: true },
-    { pythonPresent: true, envKeyPresent: true, fileKeyPresent: false },
-    { pythonPresent: true, envKeyPresent: true, fileKeyPresent: true }
+    { pythonPresent: true, envKeyPresent: true },
+    { pythonPresent: true, envKeyPresent: false },
+    { pythonPresent: false, envKeyPresent: true },
+    { pythonPresent: false, envKeyPresent: false }
   ])(
-    'availability with Python=$pythonPresent, env key=$envKeyPresent, file key=$fileKeyPresent',
-    ({ pythonPresent, envKeyPresent, fileKeyPresent }) => {
-      it('requires Python and either Fireworks key source', async () => {
+    'availability with Python=$pythonPresent, env key=$envKeyPresent',
+    ({ pythonPresent, envKeyPresent }) => {
+      it('requires Python and a Fireworks key from the environment', async () => {
         if (envKeyPresent) process.env.FIREWORKS_API_KEY = 'env-fireworks-key'
-        if (fileKeyPresent) {
-          kimiMocks.readFile.mockResolvedValue('FIREWORKS_API_KEY=file-fireworks-key\n')
-        }
         const which = vi.fn().mockResolvedValue(pythonPresent ? '/usr/local/bin/python' : null)
         const runner = new KimiRunner({ scriptPath: SCRIPT, which })
 
-        expect(await runner.isAvailable()).toBe(pythonPresent && (envKeyPresent || fileKeyPresent))
+        expect(await runner.isAvailable()).toBe(pythonPresent && envKeyPresent)
         expect(which).toHaveBeenCalledWith('python')
-        if (envKeyPresent) {
-          expect(kimiMocks.readFile).not.toHaveBeenCalled()
-        } else {
-          expect(kimiMocks.readFile).toHaveBeenCalledWith(
-            join('/fake/home', '.claude', 'env', 'personal.env'),
-            'utf8'
-          )
-        }
       })
     }
   )
 
-  it('does not treat an empty env-file value as a usable Fireworks key', async () => {
-    kimiMocks.readFile.mockResolvedValue('FIREWORKS_API_KEY=\n')
+  it('never reads a key file from the home directory', async () => {
+    kimiMocks.readFile.mockResolvedValue('FIREWORKS_API_KEY=file-fireworks-key\n')
     const runner = new KimiRunner({
       scriptPath: SCRIPT,
       which: async () => '/usr/local/bin/python'
     })
 
+    expect(await runner.isAvailable()).toBe(false)
+    expect(kimiMocks.readFile).not.toHaveBeenCalled()
+  })
+
+  it('does not treat an empty environment value as a key', async () => {
+    process.env.FIREWORKS_API_KEY = ''
+    const runner = new KimiRunner({
+      scriptPath: SCRIPT,
+      which: async () => '/usr/local/bin/python'
+    })
     expect(await runner.isAvailable()).toBe(false)
   })
 

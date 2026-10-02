@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import type { AgentFamily } from '../../shared/types'
+import { extractTaskPrompt } from '../soul-memory'
 import type { Runner, RunnerChunk, SpawnResult } from './types'
 
 interface SimRunnerOptions {
@@ -102,6 +103,8 @@ export class SimRunner implements Runner {
   }
 
   async spawn(cwd: string, prompt: string): Promise<SpawnResult> {
+    // Deployments send soul + memory + task; a person should only see the task.
+    const task = extractTaskPrompt(prompt)
     const flavor = FLAVOR[this.family]
     const queue = createQueue()
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -114,7 +117,7 @@ export class SimRunner implements Runner {
     const beats = [
       flavor.boot,
       `ACK // ${flavor.mech} assigned.`,
-      `TASK // “${promptExcerpt(prompt)}”`,
+      `TASK // “${promptExcerpt(task)}”`,
       flavor.scan,
       'SCAN // reading facility manifest...',
       '  -> read_file({ path: "README.md" })',
@@ -145,7 +148,7 @@ export class SimRunner implements Runner {
         mkdirSync(cwd, { recursive: true })
         writeFileSync(
           join(cwd, 'mission-report.md'),
-          `# SimRunner Mission Report\n\n- Mech family: ${this.family}\n- Timestamp: ${timestamp}\n\n## Task\n\n${prompt}\n`,
+          `# SimRunner Mission Report\n\n- Mech family: ${this.family}\n- Timestamp: ${timestamp}\n\n## Task\n\n${task}\n`,
           'utf8'
         )
 

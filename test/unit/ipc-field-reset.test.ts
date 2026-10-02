@@ -19,7 +19,7 @@ vi.mock('electron', () => ({
 
 import { registerIpc } from '../../src/main/ipc'
 
-function setup(): { state: StateManager; reset: () => Promise<any> } {
+function setup(): { state: StateManager; reset: () => Promise<unknown> } {
   const data: Record<string, unknown> = {}
   const store: StoreLike = {
     get: (key) => data[key],
@@ -103,7 +103,7 @@ describe('IPC.FIELD_RESET', () => {
     }))
     expect(await reset()).toEqual({
       ok: false,
-      error: 'Deployments are active — wait or abort before resetting the field.'
+      error: 'Deployments are active. Wait for them to finish before resetting the field.'
     })
     expect(state.getState().facilities).toBe(before)
   })

@@ -22,7 +22,7 @@ import { CommsFeed } from './components/CommsFeed'
 import { TabInk } from './components/TabInk'
 import { TelemetryStrip } from './components/TelemetryStrip'
 import { MissionBoard } from './components/MissionBoard'
-import { fleetTelemetry, isActiveMission, STATUS_LABELS } from './operations'
+import { fleetTelemetry, isActiveMission, noun, STATUS_LABELS } from './operations'
 import { colors, type } from './theme'
 import { sfx } from './audio/sfx'
 import { resolveSoundSettings } from '../../shared/sound-settings'
@@ -168,8 +168,14 @@ function App(): React.JSX.Element {
     })
     resizeObserver.observe(parent)
     // Automation hook: smoke scripts (Playwright-Electron) drive the scene
-    // directly — e.g. walkTo — instead of pixel-hunting the canvas.
-    ;(window as unknown as Record<string, unknown>).__mechbayScene = scene
+    // directly. Exposed only in demo mode, so a production renderer never
+    // hands the Phaser scene to page scripts.
+    void window.mechbay
+      .getAppMode()
+      .then(({ demo }) => {
+        if (demo) (window as unknown as Record<string, unknown>).__mechbayScene = scene
+      })
+      .catch((error) => console.warn('[App] Could not resolve app mode:', error))
 
     const offDrop = (payload: { companionId: string; facilityId: string }): void => {
       setDeployError(null)
@@ -389,7 +395,7 @@ function App(): React.JSX.Element {
             </div>
             <CockpitHud />
             <div className="map-corner map-top-right">
-              {telemetry?.linked ?? 0} PROJECTS CONNECTED
+              {telemetry?.linked ?? 0} {noun(telemetry?.linked ?? 0, 'PROJECT')} CONNECTED
             </div>
             <div
               ref={canvasParentRef}
@@ -531,7 +537,13 @@ function App(): React.JSX.Element {
                 const facility = state.facilities.find((f) => f.id === browsingFacilityId)
                 if (!facility)
                   return <div style={{ color: colors.textSecondary }}>Facility not found.</div>
-                return <FileBrowser facilityPath={facility.path} facilityName={facility.name} />
+                return (
+                  <FileBrowser
+                    key={`${facility.id}:${facility.path}`}
+                    facilityPath={facility.path}
+                    facilityName={facility.name}
+                  />
+                )
               })()}
 
             {activeTab === 'journal' && (
@@ -541,7 +553,7 @@ function App(): React.JSX.Element {
                   deployments={state?.deployments ?? []}
                   facilities={state?.facilities ?? []}
                 />
-                <JournalTab companionId={selectedCompanionId} />
+                <JournalTab key={selectedCompanionId ?? 'none'} companionId={selectedCompanionId} />
               </div>
             )}
           </div>

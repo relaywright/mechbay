@@ -170,13 +170,9 @@ describe('deployment lifecycle (integration)', () => {
     expect(findings!.text).toBe('Electron + Vite project.\n')
 
     // Raw tool-call line still present on stderr (not reclassified).
-    expect(
-      emitted.find((c) => c.stream === 'stderr' && c.text.includes('read_file'))
-    ).toBeDefined()
+    expect(emitted.find((c) => c.stream === 'stderr' && c.text.includes('read_file'))).toBeDefined()
 
     // Final stdout not lost.
-    expect(
-      emitted.find((c) => c.stream === 'stdout' && c.text.includes('Done.'))
-    ).toBeDefined()
+    expect(emitted.find((c) => c.stream === 'stdout' && c.text.includes('Done.'))).toBeDefined()
   })
 })

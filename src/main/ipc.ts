@@ -1,4 +1,5 @@
 import { app, ipcMain, BrowserWindow, dialog } from 'electron'
+import fs from 'fs'
 import path from 'path'
 import { IPC } from '../shared/ipc-channels'
 import type {
@@ -37,7 +38,14 @@ import {
 import type { FsReader, FsNode } from './fs-reader'
 import { facilityTypeFromName } from './facility-type-hash'
 import { NarrationParser } from './log-narration-parser'
-import { captureGitBaseline, computeDiffSummary, readFilePatch, resolveInRepo } from './git-diff'
+import {
+  captureGitBaseline,
+  computeDiffSummary,
+  isGitRepository,
+  readFilePatch,
+  resolveInRepo
+} from './git-diff'
+import { redactSecrets } from './redact'
 
 const GRID_W = 16
 const GRID_H = 16
@@ -55,6 +63,15 @@ const FS_DIR_IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo
 
 const ACTIVE_STATUSES: DeploymentStatus[] = ['walking-to', 'working', 'awaiting-input', 'returning']
 const BLOCKING_STATUSES: DeploymentStatus[] = [...ACTIVE_STATUSES, 'queued']
+
+/**
+ * Raw task text of queued deployments, by deployment id, with the secrets
+ * known when it was queued. State keeps only a redacted copy for display, so
+ * the exact prompt the user typed waits here, in memory and never persisted,
+ * until the queue starts it. The secrets snapshot keeps a key the prompt
+ * quotes redacted even if Settings replaces that key before the run.
+ */
+const queuedRawPrompts = new Map<string, { prompt: string; secrets: string[] }>()
 
 export function registerIpc(opts: IpcDeps): void {
   const { win, state, runners, fsReader, secrets } = opts
@@ -154,7 +171,7 @@ export function registerIpc(opts: IpcDeps): void {
     if (active) {
       return {
         ok: false,
-        error: `«${facility.name}» has an active deployment — wait for it to finish or abort it first.`
+        error: `«${facility.name}» has an active deployment. Wait for it to finish first.`
       }
     }
     state.updateState((prev) => ({
@@ -172,7 +189,7 @@ export function registerIpc(opts: IpcDeps): void {
     ) {
       return {
         ok: false,
-        error: 'Deployments are active — wait or abort before resetting the field.'
+        error: 'Deployments are active. Wait for them to finish before resetting the field.'
       }
     }
     state.updateState((prev) => ({ ...prev, facilities: seedFacilities() }))
@@ -277,18 +294,28 @@ export function registerIpc(opts: IpcDeps): void {
 
   ipcMain.handle(IPC.STATE_GET, () => state.getState())
 
-  // Project scanner — returns a list of discovered project directories
-  // under a given root (defaults to state.settings.projectsDir). The
+  // Canonical paths of the projects the most recent scan returned. Bulk
+  // import only accepts these: an imported folder joins the File Browser
+  // allowlist and becomes a deploy working directory, so the renderer
+  // must never be able to name an arbitrary folder. Null until a scan runs.
+  let lastScanPaths: Set<string> | null = null
+
+  // Project scanner: returns a list of discovered project directories
+  // under state.settings.projectsDir (never a renderer-chosen root). The
   // renderer receives raw DiscoveredProject records and decides what to
   // do with them (picker UI, facility binding, etc.). We intentionally
   // DO NOT auto-populate facilities from scan results — how scanned
   // projects map onto the 6 seeded archetype-facilities is a design
   // decision the user needs to make. See docs/overnight-prep/
   // 2026-04-17-project-scanner-facility-binding.md for the analysis.
-  ipcMain.handle(IPC.SCAN_PROJECTS, async (_e, rootDir?: string): Promise<DiscoveredProject[]> => {
+  ipcMain.handle(IPC.SCAN_PROJECTS, async (): Promise<DiscoveredProject[]> => {
     const s = state.getState()
-    const root = rootDir ?? s.settings.projectsDir
-    const results = await scanProjects(root, s.settings.ignoredMarkers)
+    const results = await scanProjects(s.settings.projectsDir, s.settings.ignoredMarkers)
+    lastScanPaths = new Set(
+      results
+        .map((project) => canonicalPath(project.path))
+        .filter((canonical): canonical is string => canonical !== null)
+    )
     state.updateState((prev) => ({ ...prev, lastScanAt: Date.now() }))
     return results
   })
@@ -312,7 +339,7 @@ export function registerIpc(opts: IpcDeps): void {
       if (!facility) throw new Error(`Facility not found: ${args.facilityId}`)
       if (!facility.path) {
         throw new Error(
-          `${facility.name} isn't linked to a project folder yet — click the building to link it to a project directory, or use BULK IMPORT (top bar).`
+          `${facility.name} isn't linked to a project folder yet. Click the building to link it to a project directory, or use BULK IMPORT (top bar).`
         )
       }
 
@@ -320,11 +347,13 @@ export function registerIpc(opts: IpcDeps): void {
       const status: DeploymentStatus =
         activeCount >= s.settings.concurrencyCap ? 'queued' : 'walking-to'
 
+      const secretsNow = collectSecretValues(opts)
       const deployment: Deployment = {
         id: deploymentId,
         companionId: companion.id,
         facilityId: facility.id,
-        taskPrompt: args.taskPrompt,
+        // Saved state and the UI see the redacted copy; the runner gets the raw one.
+        taskPrompt: redactSecrets(args.taskPrompt, secretsNow),
         quickPromptUsed: args.quickPromptUsed,
         status,
         startedAt: Date.now()
@@ -335,12 +364,18 @@ export function registerIpc(opts: IpcDeps): void {
         deployments: [deployment, ...prev.deployments].slice(0, 200)
       }))
 
+      if (status === 'queued') {
+        queuedRawPrompts.set(deploymentId, { prompt: args.taskPrompt, secrets: secretsNow })
+      }
       if (status === 'walking-to') {
         // Fire and forget — execution updates state asynchronously. Attach
         // a catch so sync throws (e.g. runner lookup miss) don't become
         // unhandled rejections; they land in the deployment as 'failed'.
         executeDeployment(deploymentId, companion, facility, args.taskPrompt, opts).catch((err) => {
-          const message = err instanceof Error ? err.message : String(err)
+          const message = redactSecrets(
+            err instanceof Error ? err.message : String(err),
+            collectSecretValues(opts)
+          )
           console.error(`[ipc] executeDeployment(${deploymentId}) crashed:`, message)
           state.updateState((prev) => ({
             ...prev,
@@ -360,14 +395,20 @@ export function registerIpc(opts: IpcDeps): void {
   // dir the StateManager seeded companion.soulPath/memoryPath with —
   // soul-memory's default (os.homedir()) resolves to a different tree
   // than boot scaffolding, so omitting it splits Journal reads/writes
-  // from the files deployments actually inject.
+  // from the files deployments actually inject. Only IDs of companions in
+  // state are honored; soul-memory also refuses anything path-like.
+  const isKnownCompanion = (companionId: unknown): boolean =>
+    state.getState().companions.some((companion) => companion.id === companionId)
+
   ipcMain.handle(IPC.SOUL_READ, async (_e, payload: SoulReadPayload): Promise<SoulReadResult> => {
+    if (!isKnownCompanion(payload?.companionId)) return { ok: false, error: 'Unknown mech.' }
     return readSoul(payload.companionId, app.getPath('userData'))
   })
 
   ipcMain.handle(
     IPC.SOUL_WRITE,
     async (_e, payload: SoulWritePayload): Promise<SoulWriteResult> => {
+      if (!isKnownCompanion(payload?.companionId)) return { ok: false, error: 'Unknown mech.' }
       return writeSoul(payload.companionId, payload.content, app.getPath('userData'))
     }
   )
@@ -375,19 +416,39 @@ export function registerIpc(opts: IpcDeps): void {
   ipcMain.handle(
     IPC.MEMORY_READ,
     async (_e, payload: MemoryReadPayload): Promise<MemoryReadResult> => {
+      if (!isKnownCompanion(payload?.companionId)) return { ok: false, error: 'Unknown mech.' }
       return readMemory(payload.companionId, app.getPath('userData'))
     }
   )
 
-  // Bulk Import handler — places multiple facilities at empty tiles
+  // Bulk Import handler: places multiple facilities at empty tiles. Every
+  // requested path must canonicalize to a project from the latest scan,
+  // otherwise the whole request is refused and state is left untouched.
   ipcMain.handle(
     IPC.BULK_IMPORT_RUN,
     async (_e, payload: BulkImportRunPayload): Promise<BulkImportRunResult> => {
+      const rejected = { ok: false as const, error: 'Scan again and pick projects from the list.' }
+      const requested: unknown = payload?.selectedPaths
+      if (!lastScanPaths || !Array.isArray(requested)) return rejected
+      const canonicalPaths: string[] = []
+      for (const candidate of requested) {
+        const canonical = typeof candidate === 'string' ? canonicalPath(candidate) : null
+        if (!canonical || !lastScanPaths.has(canonical)) return rejected
+        canonicalPaths.push(canonical)
+      }
+
       const s = state.getState()
       const importedFacilities: Facility[] = []
       const occupied = new Set(s.facilities.map((f) => `${f.tile.x},${f.tile.y}`))
+      const linked = new Set(
+        s.facilities.filter((f) => f.path).map((f) => canonicalPath(f.path) ?? path.resolve(f.path))
+      )
 
-      for (const projectPath of payload.selectedPaths) {
+      for (const projectPath of canonicalPaths) {
+        // Already a facility (or listed twice in this request): skip it.
+        if (linked.has(projectPath)) continue
+        linked.add(projectPath)
+
         // Find an empty tile
         let emptyTile: { x: number; y: number } | null = null
         for (let y = 0; y < GRID_H && !emptyTile; y++) {
@@ -494,7 +555,9 @@ export async function executeDeployment(
   companion: Companion,
   facility: Facility,
   taskPrompt: string,
-  opts: IpcDeps
+  opts: IpcDeps,
+  /** Secrets known when a queued task was entered, redacted alongside today's. */
+  extraSecrets: readonly string[] = []
 ): Promise<void> {
   const { win, state, runners } = opts
   const effectiveRuntime = companion.runtime ?? companion.family
@@ -515,6 +578,13 @@ export async function executeDeployment(
     }))
     return
   }
+
+  // Every API key this run could see, so each log chunk and the failure
+  // summary can be scrubbed before it is shown or saved. Starts with the
+  // stored and environment keys (enough for a failure before launch) and
+  // gains the launch environment's secrets once that snapshot is taken.
+  let secretValues = [...collectSecretValues(opts), ...extraSecrets]
+  const redact = (text: string): string => redactSecrets(text, secretValues)
 
   // Transition to working
   state.updateState((prev) => ({
@@ -544,9 +614,14 @@ export async function executeDeployment(
       )
     }))
 
+    // One snapshot of the launch environment: the same object the child
+    // gets is the one its secrets are redacted from, so a key changed in
+    // Settings mid-launch can't slip past the redactor.
+    const launchEnv = opts.secrets.envFor(effectiveRuntime)
+    secretValues = [...secretValues, ...secretEnvValues(launchEnv)]
     const result = await runner.spawn(facility.path, fullPrompt, {
       model: companion.model,
-      env: opts.secrets.envFor(effectiveRuntime)
+      env: launchEnv
     })
     const parser = new NarrationParser()
 
@@ -560,7 +635,7 @@ export async function executeDeployment(
         deploymentId,
         timestamp: Date.now(),
         stream: p.stream,
-        text: p.text,
+        text: redact(p.text),
         ...(p.thoughtKind ? { thoughtKind: p.thoughtKind } : {})
       }
       if (!win.isDestroyed()) {
@@ -582,7 +657,7 @@ export async function executeDeployment(
 
     exitCode = await result.exit
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = redact(err instanceof Error ? err.message : String(err))
     state.updateState((prev) => ({
       ...prev,
       deployments: prev.deployments.map((d) =>
@@ -591,7 +666,7 @@ export async function executeDeployment(
           : d
       )
     }))
-    recordMemory(companion, facility, taskPrompt, `Failed before exit. ${message}`)
+    recordMemory(companion, facility, taskPrompt, `Failed before exit. ${message}`, secretValues)
     return
   }
 
@@ -607,10 +682,19 @@ export async function executeDeployment(
         diffFiles: diff.files
       }
     : {}
+  // A null diff means "no repository" only when there is truly none: a
+  // captured baseline, a repo without commits, or a .git that git could not
+  // read means git refused or failed.
+  const gitUnreadable =
+    exitCode === 0 &&
+    diff === null &&
+    (baselineSha !== null || (await isGitRepository(facility.path)) !== 'none')
   const outcome =
     exitCode === 0
       ? diff === null
-        ? 'Completed. (no git repository — diff unavailable)'
+        ? gitUnreadable
+          ? 'Completed. The diff is unavailable because git could not read this project.'
+          : 'Completed. (No git repository, so no diff is available.)'
         : diff.filesChanged === 0
           ? 'Completed. No file changes detected.'
           : `Completed. ${diff.filesChanged} file${diff.filesChanged === 1 ? '' : 's'} changed, +${diff.insertions} −${diff.deletions}.`
@@ -631,7 +715,7 @@ export async function executeDeployment(
     )
   }))
 
-  recordMemory(companion, facility, taskPrompt, outcome)
+  recordMemory(companion, facility, taskPrompt, outcome, secretValues)
 
   // Auto-advance the next queued deployment if a slot opened.
   // (Wave 4 Task 4.3 expands this; minimal version included here.)
@@ -650,9 +734,18 @@ export async function executeDeployment(
           )
         }))
         const queuedId = nextQueued.id
-        executeDeployment(queuedId, companion, facility, nextQueued.taskPrompt, opts).catch(
+        // After a restart the raw text is gone; the stored copy differs from
+        // it only where a key was redacted.
+        const queuedEntry = queuedRawPrompts.get(queuedId)
+        queuedRawPrompts.delete(queuedId)
+        const rawPrompt = queuedEntry?.prompt ?? nextQueued.taskPrompt
+        const queuedSecrets = queuedEntry?.secrets ?? []
+        executeDeployment(queuedId, companion, facility, rawPrompt, opts, queuedSecrets).catch(
           (err) => {
-            const message = err instanceof Error ? err.message : String(err)
+            const message = redactSecrets(err instanceof Error ? err.message : String(err), [
+              ...collectSecretValues(opts),
+              ...queuedSecrets
+            ])
             console.error(`[ipc] queued executeDeployment(${queuedId}) crashed:`, message)
             state.updateState((prev) => ({
               ...prev,
@@ -670,22 +763,76 @@ export async function executeDeployment(
 }
 
 /**
- * Append a deploy outcome to the companion's memory.md. Swallows errors
- * (logs only) — a memory-append failure should NEVER break an otherwise
- * successful deploy, so disk issues or path races are best-effort.
+ * The real, canonical spelling of an existing path (symlinks resolved,
+ * trailing separators dropped, true letter case on Windows), or null when
+ * it does not exist or cannot be read.
+ */
+function canonicalPath(target: string): string | null {
+  try {
+    return fs.realpathSync.native(target)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * API-key environment variables the runtimes read: the ones SecretsManager
+ * injects (secrets.ts ENV_BY_RUNTIME) plus ANTHROPIC_API_KEY, which the
+ * Claude CLI picks up from MechBay's own environment.
+ */
+const API_KEY_ENV_VARS = [
+  'ANTHROPIC_API_KEY',
+  'OPENAI_API_KEY',
+  'GEMINI_API_KEY',
+  'FIREWORKS_API_KEY',
+  'MECHBAY_HERMES_API_KEY'
+]
+
+/** An environment variable whose name says its value is a credential. */
+const SECRET_ENV_NAME = /KEY|TOKEN|SECRET|PASSWORD/i
+
+/** Values of the variables in `env` whose name looks secret. */
+function secretEnvValues(env: Record<string, string | undefined>): string[] {
+  return Object.entries(env)
+    .filter(([name]) => SECRET_ENV_NAME.test(name))
+    .map(([, value]) => value)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+}
+
+/**
+ * Stored keys for every runtime, the runtime API key variables, and every
+ * inherited environment variable whose name looks secret (an agent that
+ * prints its environment would otherwise show, say, GITHUB_TOKEN).
+ */
+function collectSecretValues(opts: IpcDeps): string[] {
+  const families = Object.keys(opts.runners) as AgentFamily[]
+  return [
+    ...families.map((family) => opts.secrets.getSecret(family)),
+    ...API_KEY_ENV_VARS.map((name) => process.env[name]),
+    ...secretEnvValues(process.env)
+  ].filter((value): value is string => typeof value === 'string' && value.length > 0)
+}
+
+/**
+ * Append a deploy outcome to the companion's memory.md, with every secret
+ * redacted from the task and the outcome (memory is shown in the Journal and
+ * fed into future prompts). Swallows errors (logs only): a memory-append
+ * failure should NEVER break an otherwise successful deploy, so disk issues
+ * or path races are best-effort.
  */
 function recordMemory(
   companion: Companion,
   facility: Facility,
   task: string,
-  outcome: string
+  outcome: string,
+  secrets: readonly string[]
 ): void {
   try {
     appendMemoryEntry(companion.memoryPath, {
       timestamp: new Date(),
       facility: facility.name,
-      task,
-      outcome
+      task: redactSecrets(task, secrets),
+      outcome: redactSecrets(outcome, secrets)
     })
   } catch (err) {
     console.error(`[ipc] appendMemoryEntry(${companion.name}) failed:`, err)

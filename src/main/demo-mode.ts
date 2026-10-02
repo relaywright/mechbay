@@ -109,6 +109,12 @@ export function encodeTelemetry(reading: ReactorReading): string {
         'user.email=demo@mechbay.local',
         '-c',
         'user.name=MechBay Demo',
+        // The player's global signing or hooks must not block the baseline
+        // commit; without it the debrief counts every seeded file as changed.
+        '-c',
+        'commit.gpgsign=false',
+        '-c',
+        `core.hooksPath=${join(dir, '.git', 'mechbay-no-hooks')}`,
         'commit',
         '-m',
         'initial survey'

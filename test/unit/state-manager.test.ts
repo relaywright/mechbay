@@ -47,7 +47,14 @@ describe('StateManager', () => {
   it('re-seeds state when cached version is stale (schema migration)', () => {
     const store = makeInMemoryStore()
     // Pre-populate store with v1 data (no facilities) to simulate pre-migration
-    store.set('state', { version: 1, companions: [], facilities: [], deployments: [], logChunks: [], settings: {} })
+    store.set('state', {
+      version: 1,
+      companions: [],
+      facilities: [],
+      deployments: [],
+      logChunks: [],
+      settings: {}
+    })
     const sm = new StateManager(store, '/tmp/mechbay-test')
     const state = sm.getState()
     expect(state.version).toBe(2)

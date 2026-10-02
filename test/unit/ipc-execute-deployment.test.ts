@@ -58,7 +58,9 @@ function recordingRunner(calls: SpawnCall[]): Runner {
     ): Promise<SpawnResult> => {
       calls.push({ cwd, prompt, options })
       return {
-        stream: (async function* () {})(),
+        stream: (async function* () {
+          yield* []
+        })(),
         abort: () => {},
         exit: Promise.resolve(0)
       }
@@ -130,7 +132,10 @@ describe('executeDeployment runtime selection', () => {
       state,
       runners,
       fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
-      secrets: { envFor: vi.fn(() => ({ OPENAI_API_KEY: 'stored-key' })) } as never
+      secrets: {
+        envFor: vi.fn(() => ({ OPENAI_API_KEY: 'stored-key' })),
+        getSecret: vi.fn(() => null)
+      } as never
     })
 
     expect(claudeCalls).toHaveLength(0)

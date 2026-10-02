@@ -25,7 +25,7 @@ export class SecretsManager {
 
   setSecret(runtime: AgentFamily, value: string): { ok: boolean; error?: string } {
     if (runtime === 'claude') {
-      return { ok: false, error: 'Claude Code uses its own login — no key needed.' }
+      return { ok: false, error: 'Claude Code uses its own login, so no key is needed.' }
     }
     const trimmed = value.trim()
     if (!trimmed) {
@@ -36,7 +36,7 @@ export class SecretsManager {
       return {
         ok: false,
         error:
-          'OS-level encryption is not available on this machine — set the key as an environment variable instead.'
+          'OS-level encryption is not available on this machine. Set the key as an environment variable instead.'
       }
     }
     const encrypted = this.crypto.encryptString(trimmed)

@@ -9,6 +9,7 @@ import type {
 import { colors, type } from '../theme'
 import { RUNTIME_OPTIONS } from '../runtime-options'
 import { computeServiceRecord } from '../service-record'
+import { runtimeSupportNote } from '../../../shared/runtime-support'
 
 interface CompanionPanelProps {
   companion: Companion | null
@@ -96,6 +97,10 @@ export function CompanionPanel({
     )
   }
 
+  // Unverified runtimes say so wherever the mech is shown (follows the
+  // runtime override, since that is what actually deploys).
+  const supportNote = runtimeSupportNote(companion.runtime ?? companion.family)
+
   return (
     <div style={panelStyle}>
       {/* Header */}
@@ -121,6 +126,11 @@ export function CompanionPanel({
           <div style={unavailableBadgeStyle}>
             <span style={unavailableIconStyle}>⚠</span>
             <span>NOT DEPLOYABLE</span>
+          </div>
+        )}
+        {supportNote && (
+          <div style={supportNoteStyle} title={supportNote}>
+            {supportNote}
           </div>
         )}
       </div>
@@ -207,7 +217,7 @@ function RuntimeSection({ companion }: { companion: Companion }): React.JSX.Elem
         {RUNTIME_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}
-            {opt.value === companion.family ? ' — DEFAULT' : ''}
+            {opt.value === companion.family ? ' · DEFAULT' : ''}
           </option>
         ))}
       </select>
@@ -434,6 +444,13 @@ const unavailableBadgeStyle: React.CSSProperties = {
 
 const unavailableIconStyle: React.CSSProperties = {
   fontSize: 10
+}
+
+const supportNoteStyle: React.CSSProperties = {
+  marginTop: 6,
+  fontSize: 11,
+  letterSpacing: '0.04em',
+  color: colors.textSecondary
 }
 
 const lastActiveStyle: React.CSSProperties = {

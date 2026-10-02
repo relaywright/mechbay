@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppState, Deployment } from '../../../shared/types'
-import { canDispatch, isActiveMission, missionDuration, STATUS_LABELS } from '../operations'
+import { canDispatch, isActiveMission, missionDuration, noun, STATUS_LABELS } from '../operations'
 import { CREW, RUNTIME_NAMES } from '../crew'
 
 export function MissionBoard({
@@ -109,7 +109,10 @@ export function MissionBoard({
       <section className="mission-section" aria-label="Mission history">
         <div className="section-caption">
           <span>02 / SORTIE BOARD</span>
-          <span>{state.deployments.length.toString().padStart(2, '0')} MISSIONS</span>
+          <span>
+            {state.deployments.length.toString().padStart(2, '0')}{' '}
+            {noun(state.deployments.length, 'MISSION')}
+          </span>
         </div>
         {missions.length === 0 ? (
           <div className="mission-empty">
@@ -152,7 +155,8 @@ export function MissionBoard({
                 </div>
                 {d.diffStats && (
                   <div className="mission-delta">
-                    {d.diffStats.filesChanged} files <span>+{d.diffStats.insertions}</span>
+                    {d.diffStats.filesChanged} {noun(d.diffStats.filesChanged, 'file')}{' '}
+                    <span>+{d.diffStats.insertions}</span>
                     <em>−{d.diffStats.deletions}</em>
                     <b>View debrief →</b>
                   </div>

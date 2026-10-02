@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { SOUL_NOT_FOUND } from '../../../shared/defaults'
 
 type JournalSubTab = 'soul' | 'memory'
 
@@ -10,91 +11,94 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
   const [activeSubTab, setActiveSubTab] = useState<JournalSubTab>('soul')
   const [soulContent, setSoulContent] = useState('')
   const [memoryContent, setMemoryContent] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  // `${companionId}:${tab}` of the last finished load. Loading is derived from
+  // it, so the effect never sets state synchronously.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<{ key: string; message: string } | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [saveToast, setSaveToast] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  // Load soul/memory when companion changes or tab switches
+  const currentKey = companionId ? `${companionId}:${activeSubTab}` : null
+  const isLoading = currentKey !== null && (loadedKey !== currentKey || refreshing)
+  const currentLoadError = loadError !== null && loadError.key === currentKey ? loadError : null
+  const error = actionError ?? currentLoadError?.message ?? null
+  // A soul that exists but couldn't be read (a locked file, say) would be
+  // wiped by SAVE, so editing is off until it loads. A missing soul.md has
+  // nothing to lose, so the player can still write one.
+  const soulLocked =
+    activeSubTab === 'soul' &&
+    currentLoadError !== null &&
+    !currentLoadError.message.startsWith(SOUL_NOT_FOUND)
+
+  // Load soul or memory when the companion or sub-tab changes. A response for
+  // a companion or tab the user already left is dropped, so one mech's soul
+  // can never land in another mech's editor and be saved there.
   useEffect(() => {
-    if (!companionId) {
-      setSoulContent('')
-      setMemoryContent('')
-      setError(null)
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    const loadData = async (): Promise<void> => {
-      try {
-        if (activeSubTab === 'soul') {
-          const result = await window.mechbay.soulRead(companionId)
-          if (result.ok) {
-            setSoulContent(result.content)
-          } else {
-            setError(result.error)
-          }
+    if (!companionId) return
+    const tab = activeSubTab
+    const key = `${companionId}:${tab}`
+    let cancelled = false
+    const read =
+      tab === 'soul' ? window.mechbay.soulRead(companionId) : window.mechbay.memoryRead(companionId)
+    read.then(
+      (result) => {
+        if (cancelled) return
+        if (result.ok) {
+          if (tab === 'soul') setSoulContent(result.content)
+          else setMemoryContent(result.content)
+          setLoadError(null)
         } else {
-          const result = await window.mechbay.memoryRead(companionId)
-          if (result.ok) {
-            setMemoryContent(result.content)
-          } else {
-            setError(result.error)
-          }
+          setLoadError({ key, message: result.error })
         }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-      } finally {
-        setIsLoading(false)
+        setLoadedKey(key)
+      },
+      (e: unknown) => {
+        if (cancelled) return
+        setLoadError({ key, message: e instanceof Error ? e.message : String(e) })
+        setLoadedKey(key)
       }
+    )
+    return () => {
+      cancelled = true
     }
-
-    void loadData()
   }, [companionId, activeSubTab])
 
   const handleSaveSoul = useCallback(async (): Promise<void> => {
     if (!companionId) return
-
+    setActionError(null)
     try {
       const result = await window.mechbay.soulWrite(companionId, soulContent)
       if (result.ok) {
         setSaveToast(true)
         setTimeout(() => setSaveToast(false), 2000)
       } else {
-        setError(result.error)
+        setActionError(result.error)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setActionError(e instanceof Error ? e.message : String(e))
     }
   }, [companionId, soulContent])
 
   const handleRefreshMemory = useCallback(async (): Promise<void> => {
     if (!companionId) return
-
-    setIsLoading(true)
-    setError(null)
-
+    setRefreshing(true)
+    setActionError(null)
     try {
       const result = await window.mechbay.memoryRead(companionId)
-      if (result.ok) {
-        setMemoryContent(result.content)
-      } else {
-        setError(result.error)
-      }
+      if (result.ok) setMemoryContent(result.content)
+      else setActionError(result.error)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setActionError(e instanceof Error ? e.message : String(e))
     } finally {
-      setIsLoading(false)
+      setRefreshing(false)
     }
   }, [companionId])
 
   if (!companionId) {
     return (
       <div style={containerStyle}>
-        <div style={emptyStateStyle}>
-          Select a companion (click on the bay).
-        </div>
+        <div style={emptyStateStyle}>Select a companion (click on the bay).</div>
       </div>
     )
   }
@@ -106,14 +110,20 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
         <button
           type="button"
           style={activeSubTab === 'soul' ? subTabActiveStyle : subTabStyle}
-          onClick={() => setActiveSubTab('soul')}
+          onClick={() => {
+            setActiveSubTab('soul')
+            setActionError(null)
+          }}
         >
           [SOUL]
         </button>
         <button
           type="button"
           style={activeSubTab === 'memory' ? subTabActiveStyle : subTabStyle}
-          onClick={() => setActiveSubTab('memory')}
+          onClick={() => {
+            setActiveSubTab('memory')
+            setActionError(null)
+          }}
         >
           [MEMORY]
         </button>
@@ -121,11 +131,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
 
       {isLoading && <div style={loadingStyle}>Loading...</div>}
 
-      {error && (
-        <div style={errorStyle}>
-          ⚠ {error}
-        </div>
-      )}
+      {error && <div style={errorStyle}>⚠ {error}</div>}
 
       {/* SOUL sub-tab */}
       {activeSubTab === 'soul' && (
@@ -135,13 +141,13 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
             onChange={(e) => setSoulContent(e.target.value)}
             style={textareaStyle}
             placeholder="Soul content..."
-            disabled={isLoading}
+            disabled={isLoading || soulLocked}
           />
           <div style={actionRowStyle}>
             <button
               type="button"
               onClick={handleSaveSoul}
-              disabled={isLoading}
+              disabled={isLoading || soulLocked}
               style={saveButtonStyle}
             >
               SAVE
@@ -155,9 +161,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
       {activeSubTab === 'memory' && (
         <div style={contentAreaStyle}>
           <div style={memoryScrollAreaStyle}>
-            <pre style={memoryPreStyle}>
-              {memoryContent || '(No memory entries yet)'}
-            </pre>
+            <pre style={memoryPreStyle}>{memoryContent || '(No memory entries yet)'}</pre>
           </div>
           <div style={actionRowStyle}>
             <button

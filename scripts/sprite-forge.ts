@@ -404,7 +404,7 @@ export const MECH_SPECS: Record<MechClass, MechSpec> = {
   locust: { height: 166, flipIdle: true, flipWalk: true }
 }
 
-type JimpImage = Awaited<ReturnType<typeof Jimp.read>>
+type JimpImage = Pick<Awaited<ReturnType<typeof Jimp.read>>, 'bitmap' | 'resize' | 'clone' | 'crop'>
 
 function toPixels(image: JimpImage): Pixels {
   return {

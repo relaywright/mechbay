@@ -88,7 +88,7 @@ describe('IPC.FACILITY_REMOVE', () => {
     }))
     expect(await remove({ facilityId: facility.id })).toEqual({
       ok: false,
-      error: `«${facility.name}» has an active deployment — wait for it to finish or abort it first.`
+      error: `«${facility.name}» has an active deployment. Wait for it to finish first.`
     })
     expect(state.getState().facilities.some((candidate) => candidate.id === facility.id)).toBe(true)
   })

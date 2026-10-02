@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sfx } from '../audio/sfx'
 import type { Companion, Facility } from '../../../shared/types'
 import { filterPromptsFor, type QuickPrompt } from '../quickPrompts'
@@ -82,7 +82,9 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
     }
   }, [])
 
-  // Keyboard handlers: ESC to cancel, Ctrl/Cmd+Enter to submit
+  // Keyboard handlers: ESC to cancel, Ctrl/Cmd+Enter to submit. Depends on
+  // handleDeploy, so a re-render with a new onDeploy is never shadowed by a
+  // stale closure. handleDeploy itself ignores the key while !canDeploy.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
@@ -90,18 +92,15 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
         handleCancel()
         return
       }
-
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault()
-        if (canDeploy) {
-          handleDeploy()
-        }
+        handleDeploy()
       }
     }
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [handleCancel, canDeploy, handleDeploy])
+  }, [handleCancel, handleDeploy])
 
   // Focus trap: keep tab cycling within modal
   // Recomputes focusable elements on each Tab/Shift-Tab to handle dynamic content
@@ -174,7 +173,7 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
       return {
         style: deployButtonDisabledStyle,
         text: '⚠ DEPLOY',
-        title: `${companion.family.toUpperCase()} CLI not available — install and restart to deploy`
+        title: `${companion.family.toUpperCase()} CLI not found. Install it, then restart MechBay to deploy.`
       }
     }
     if (!hasText) {

@@ -61,7 +61,7 @@ describe('SecretsManager', () => {
   it('rejects Claude secrets', () => {
     expect(secrets.setSecret('claude', 'nope')).toEqual({
       ok: false,
-      error: 'Claude Code uses its own login — no key needed.'
+      error: 'Claude Code uses its own login, so no key is needed.'
     })
   })
 
@@ -88,7 +88,7 @@ describe('SecretsManager', () => {
     expect(unavailable.setSecret('gemini', 'key')).toEqual({
       ok: false,
       error:
-        'OS-level encryption is not available on this machine — set the key as an environment variable instead.'
+        'OS-level encryption is not available on this machine. Set the key as an environment variable instead.'
     })
   })
 

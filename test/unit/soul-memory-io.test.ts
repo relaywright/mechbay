@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { readSoul, writeSoul, readMemory } from '../../src/main/soul-memory'
+import { SOUL_NOT_FOUND } from '../../src/shared/defaults'
 
 describe('soul-memory-io', () => {
   const tmp = path.join(os.tmpdir(), 'mechbay-soul-io-test-' + Date.now())
@@ -37,6 +38,20 @@ describe('soul-memory-io', () => {
     if (!result.ok) {
       expect(result.error).toContain('soul.md')
     }
+  })
+
+  it('readSoul() reports a missing soul.md with the prefix the Journal relies on', () => {
+    const companionId = 'test-companion-no-soul'
+    fs.mkdirSync(path.join(tmp, 'mechbay', 'companions', companionId), { recursive: true })
+
+    const result = readSoul(companionId, tmp)
+
+    // JournalTab keeps SAVE on only for this error, so a reworded message
+    // must fail here rather than silently lock a new mech out of its soul.
+    expect(result).toEqual({
+      ok: false,
+      error: expect.stringMatching(new RegExp(`^${SOUL_NOT_FOUND}`))
+    })
   })
 
   it('writeSoul() writes bytes and subsequent readSoul() matches', () => {
@@ -101,7 +116,7 @@ describe('soul-memory-io', () => {
     // We can't easily test the actual default path without mocking os.homedir()
     // but we can verify the function accepts single argument
     const companionId = 'test-companion-005'
-    
+
     // Should not throw when called with just companionId
     expect(() => readSoul(companionId, tmp)).not.toThrow()
   })

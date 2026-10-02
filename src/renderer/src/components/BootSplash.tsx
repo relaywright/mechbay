@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { colors, type } from '../theme'
-import { BOOT_LINES, bootTimings } from './boot-splash'
+import { bootLines, bootTimings } from './boot-splash'
+
+const BOOT_LINES = bootLines(__APP_VERSION__)
 
 const FADE_DURATION_MS = 400
 
@@ -20,7 +22,7 @@ export function BootSplash({
   const [fading, setFading] = useState(false)
 
   useEffect(() => {
-    const timings = bootTimings(reduceMotion)
+    const timings = bootTimings(reduceMotion, BOOT_LINES)
     const totalCharacters = BOOT_LINES.reduce((total, line) => total + line.length, 0)
     let intervalId: ReturnType<typeof setInterval> | undefined
     let completionId: ReturnType<typeof setTimeout>

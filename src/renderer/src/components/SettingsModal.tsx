@@ -238,8 +238,8 @@ export function SettingsModal({
             <div style={sectionLabelStyle}>MOTION</div>
             <div style={bayHintStyle}>
               {motionReduced
-                ? 'Reduced — the bay holds still: no idle sway, walk bob, or beacon blinks.'
-                : 'Full — mechs breathe, march with a walk cycle, and beacons pulse.'}
+                ? 'Reduced: the bay holds still. No idle sway, walk bob, or beacon blinks.'
+                : 'Full: mechs breathe, march with a walk cycle, and beacons pulse.'}
             </div>
           </div>
           <button
@@ -258,8 +258,8 @@ export function SettingsModal({
             <div style={sectionLabelStyle}>CRT OVERLAY</div>
             <div style={bayHintStyle}>
               {crtEnabled
-                ? 'On — subtle scanlines and edge shading sit over the command glass.'
-                : 'Off — the display renders without analog screen texture.'}
+                ? 'On: subtle scanlines and edge shading sit over the command glass.'
+                : 'Off: the display renders without analog screen texture.'}
             </div>
           </div>
           <button
@@ -479,7 +479,7 @@ function MechSettingsRow({
         <div style={fieldStyle}>
           <span style={labelStyle}>API KEY</span>
           {runtime === 'claude' ? (
-            <div style={loginNoteStyle}>Uses Claude Code login — no key needed</div>
+            <div style={loginNoteStyle}>Uses your Claude Code login, so no key is needed</div>
           ) : (
             <>
               <div style={inlineControlStyle}>

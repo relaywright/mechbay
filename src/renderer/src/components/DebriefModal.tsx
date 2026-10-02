@@ -157,7 +157,8 @@ export function DebriefModal(props: {
         </dl>
 
         {diffFiles === undefined ? (
-          <div style={unavailableStyle}>No git repository detected: file diff unavailable.</div>
+          // The summary names the reason (no repository, or git could not read it).
+          <div style={unavailableStyle}>File diff unavailable. The summary above says why.</div>
         ) : (
           <section aria-label="File changes">
             <div style={tableLabelStyle}>FILE DELTA</div>

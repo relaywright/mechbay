@@ -29,7 +29,7 @@ Raw screenshots, verification evidence, and frame sequences are in ignored `arti
 
 ## Verification record
 
-- 305 tests passed across 42 suites. The initial concurrent test/capture run exposed timing-sensitive test failures; the full suite passed with capture finished.
+- On 2026-09-16 the full suite passed (305 tests across 42 suites). The initial concurrent test/capture run exposed timing-sensitive test failures; the full suite passed with capture finished.
 - Electron production build and type checks passed. The updated command components, operations helpers, and capture/export utilities passed a scoped lint check.
 - The recorded app completed a simulation mission with two actual changed files. Opening the resulting debrief again, changing crew, opening Journal, browsing a linked project, and resizing to a laptop window were verified without renderer errors.
 - The consulting site reported zero errors, warnings, or hints and built successfully.

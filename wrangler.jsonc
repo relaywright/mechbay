@@ -1,10 +1,14 @@
 // Cloudflare Workers static-asset config for the landing page.
-// The connected CI deploy runs `npx wrangler deploy`, which publishes
-// the pre-built site/ folder as-is — no build step required.
+// The connected CI deploy runs `npx wrangler deploy`, which publishes the
+// pre-built site/ folder as-is, with no build step.
 {
   "name": "mechbay",
   "compatibility_date": "2026-07-18",
   "assets": {
     "directory": "./site"
-  }
+  },
+  // Custom domain on the samalbanese.com zone (same Cloudflare account).
+  // workers.dev stays on so older links keep working.
+  "routes": [{ "pattern": "mechbay.samalbanese.com", "custom_domain": true }],
+  "workers_dev": true
 }
