@@ -132,11 +132,12 @@ for (const [file, extension] of [
   if (media) copyFileSync(file, join(media, `mechbay-demo.${extension}`))
 }
 const gif = join(root, 'docs', 'demo.gif')
-// Bayer scale 5 keeps the README GIF under 5 MB now that the bay animates more.
+// 192 colors and Bayer scale 5 keep the README GIF under 5 MB now that the bay
+// animates more and fills its panel; neither shows at 2x zoom.
 ffmpeg([
   ...input,
   '-filter_complex',
-  'fps=8,scale=1000:625:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5',
+  'fps=8,scale=1000:625:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff:max_colors=192[p];[b][p]paletteuse=dither=bayer:bayer_scale=5',
   '-loop',
   '0',
   gif
