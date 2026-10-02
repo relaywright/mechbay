@@ -101,7 +101,7 @@ describe('migrateState', () => {
     })
   })
 
-  it('drops the fields no release ever wrote', () => {
+  it('drops the five fields no player sees or edits', () => {
     const outcome = migrateState(loadV2())
     if (outcome.kind !== 'migrated') throw new Error(outcome.kind)
     const state = outcome.state as unknown as Record<string, unknown> & {

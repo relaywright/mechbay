@@ -35,10 +35,10 @@ const [width, height] = (option('size') ?? '1600x1000').split('x').map(Number)
 const shot = option('shot')
 const keepProfile = option('profile')
 
-/** True when `path` is `dir` or inside it. Windows paths compare case-insensitively. */
+/** True when `path` is `dir` or inside it. Windows and macOS paths compare case-insensitively. */
 function isInside(path: string, dir: string): boolean {
-  const normalize = (p: string): string =>
-    process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p)
+  const caseless = process.platform === 'win32' || process.platform === 'darwin'
+  const normalize = (p: string): string => (caseless ? resolve(p).toLowerCase() : resolve(p))
   const target = normalize(path)
   const base = normalize(dir)
   return target === base || target.startsWith(base + sep)
@@ -54,12 +54,29 @@ function realProfileDir(): string {
   return join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'mechbay')
 }
 
-if (keepProfile) {
+/** The path with links and 8.3 short names resolved, or as given if it doesn't exist yet. */
+function canonical(path: string): string {
+  try {
+    return realpathSync.native(resolve(path))
+  } catch {
+    return resolve(path)
+  }
+}
+
+function assertNotRealProfile(dir: string): void {
+  const real = canonical(realProfileDir())
+  const target = canonical(dir)
   assert.ok(
-    !isInside(resolve(keepProfile), realProfileDir()) &&
-      !isInside(realProfileDir(), resolve(keepProfile)),
+    !isInside(target, real) && !isInside(real, target),
     `--profile must not be the installed app's profile (${realProfileDir()})`
   )
+}
+
+// Checked before creating the folder, and again once links are resolved: a
+// junction or symlink could otherwise point a harmless-looking path at the
+// real profile.
+if (keepProfile) {
+  assertNotRealProfile(keepProfile)
   mkdirSync(resolve(keepProfile), { recursive: true })
 }
 // Canonical path (no 8.3 short names or symlinks), so the main process can
@@ -67,6 +84,7 @@ if (keepProfile) {
 const profile = realpathSync.native(
   keepProfile ? resolve(keepProfile) : mkdtempSync(join(tmpdir(), 'mechbay-smoke-'))
 )
+if (keepProfile) assertNotRealProfile(profile)
 const env: Record<string, string> = {}
 for (const [key, value] of Object.entries(process.env)) {
   if (value !== undefined && key !== 'ELECTRON_RUN_AS_NODE' && key !== 'MECHBAY_DEMO') {

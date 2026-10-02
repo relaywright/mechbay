@@ -134,7 +134,12 @@ const SAVED_SHAPES: Readonly<Record<number, (value: unknown) => boolean>> = {
   2: isAppStateV2
 }
 
-/** Schema 2 to 3: drop the fields no release ever wrote or read. */
+/**
+ * Schema 2 to 3: drop five fields no player sees or edits. v1.4.0 wrote
+ * `lastScanAt` (a timestamp nothing displayed), seeded empty
+ * `recentDeploymentIds` and `companionNameOverrides`, and read
+ * `pendingInput`; none of them carries anything a player made.
+ */
 export function migrateV2ToV3(input: unknown): AppState {
   const s = input as AppStateV2
   const { lastScanAt: _lastScanAt, settings, ...rest } = s
