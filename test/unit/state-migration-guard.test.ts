@@ -60,6 +60,16 @@ describe('migration guard (Phase 0 Track B done criterion, S7)', () => {
     expect(readFileSync(path.join(dir, found[0])).equals(original)).toBe(true)
   })
 
+  it('names the backup when old logs could not be moved out of the save', () => {
+    const manager = new StateManager(new JsonFileStore(file), dir)
+    manager.noteLegacyLogsNotMoved()
+    manager.noteLegacyLogsNotMoved()
+    const health = manager.getHealth()
+    const backup = path.join(dir, backups('v2')[0])
+    expect(health).toEqual({ ok: true, notice: expect.stringContaining(backup) })
+    expect(health.ok && health.notice?.split(backup)).toHaveLength(2)
+  })
+
   it('leaves the original byte-identical when a migration fails, even after the app changes state', () => {
     const manager = new StateManager(new JsonFileStore(file), dir, {
       migrations: {
