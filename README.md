@@ -56,7 +56,9 @@ Have a real agent CLI installed? `npm run dev` and deploy for real.
 - Deploys real local agent processes into real project directories.
 - Maps five named mechs to Claude Code, Codex, Kimi on Fireworks AI, Gemini CLI, or any command-line agent you bring yourself. The author runs Claude Code and Codex and checks them before every release; the others are wired the same way but not verified by the author.
 - Streams live output to the HUD; Raven can also show opt-in `INTENT` and `FINDINGS` thought cards.
-- Runs up to three deployments at once. Missions you send while every slot is busy wait in line and start in the order you sent them, and you can cancel one that is still waiting.
+- Runs up to three deployments at once. Missions you send while every slot is busy wait in line and start in the order you sent them.
+- Lets you cancel a waiting mission or recall a running one at any time. Recall ends the agent and every program it started, and closing MechBay does the same for every mission.
+- Lets you choose how much each mech may do: Read only, Edit files, or Full. Claude Code and Codex enforce the level through their own permission flags; a level a runtime cannot enforce is shown disabled, never faked.
 - Captures a Mission Debrief after every run: changed files, insertions, deletions, and a built-in diff viewer. Click any changed file to read the exact lines the agent added and removed, new files included.
 - Renders a living bay: a hangar deck with hazard-striped landing pads, power conduits pulsing data between linked facilities, a radar sweep from the command center, drifting haze, sweeping searchlights, and a clickable minimap. Scroll to zoom, drag empty ground or the minimap to pan, and hit **RECENTER** to snap back.
 - Moves like an RTS: each mech walks with its own gait (the Atlas stomps and shakes the camera, the Locust skitters), with footfall dust, landing squash, and contact shadows. Hover and selection glows, unit plates with callsign, rank, and live status, and markers for mechs awaiting input or queued all come from real state.

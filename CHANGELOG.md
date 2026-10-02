@@ -1,5 +1,68 @@
 # Changelog
 
+## v1.4.2 - 2026-10-02
+
+A release about trust in the hangar: your bay survives upgrades, missions
+wait their turn fairly, you can call a mech back, and you choose how much
+each mech may do.
+
+### Added
+
+- **Recall.** Cancel a waiting mission, or recall a running one, from the
+  sortie board, the live log or the mech's panel. Recall ends the agent and
+  every program it started, and the mech walks home. A recalled mission
+  stays recalled, even if the agent exits cleanly a moment later.
+- **Autonomy.** Each mech has a level: Read only, Edit files or Full.
+  Claude Code and Codex enforce it through their own permission flags. A
+  level a runtime cannot enforce is shown disabled with the reason, never
+  approximated. Every mech starts at Edit files, including mechs from an
+  upgraded bay, and the debrief lists anything the agent was blocked from
+  doing. Switching a mech to a runtime that would let it do more asks
+  first.
+- **Claude shows its work.** Real Claude missions show each step live
+  (what it reads, edits and runs) instead of a silent log, and every
+  mission opens with a line saying the agent has launched. Claude can take
+  several seconds to load its own plugins and settings before its first
+  step.
+- **Logs are saved per mission** and come back after a restart. Each
+  mission keeps its first 20,000 lines; later lines still show live. Logs
+  move out of the saved bay file, so that file stays small.
+
+### Changed
+
+- **Text you can read.** Nothing in the app is smaller than 11px any more,
+  log and diff text is 13px, and the faintest grays are brighter. Bay
+  labels, unit plates and map tags grew to match.
+- **The queue is fair.** Missions you send while every slot is busy start
+  in the order you sent them, every free slot fills, and a mech takes one
+  mission at a time. A waiting mission shows its place in line.
+- **Your bay survives upgrades.** Saved data is upgraded in place, and the
+  old file is copied next to it first. A save from a newer MechBay, or one
+  that cannot be upgraded, is left untouched and MechBay tells you so. A
+  damaged save is copied aside before a fresh bay starts.
+
+### Fixed
+
+- **Closing MechBay stops its agents.** Quitting recalls every running
+  mission, cancels the waiting ones, and waits (up to 8 seconds) for each
+  to save its outcome before the app exits. No new mission can start while
+  it closes.
+- **A leftover program can no longer keep a mission open forever.** If the
+  agent exits but a program it started (a dev server, say) still holds its
+  output, MechBay stops reading 2 seconds later and finishes the mission.
+- **Mission time and stats are honest.** Time in the field starts when the
+  mission leaves the line, not when you sent it, and the header's heat
+  gauge counts the same slots the queue does.
+
+### Going back to v1.4.1
+
+v1.4.1 cannot read the upgraded bay. It leaves the file alone and opens a
+temporary bay that is not saved. Your v1.4.1 bay is kept as
+`mechbay-state.v2-backup-<date>.json` in `%APPDATA%\mechbay` (Windows),
+`~/Library/Application Support/mechbay` (macOS) or `~/.config/mechbay`
+(Linux). To go back: quit MechBay, rename that file to
+`mechbay-state.json`, then open v1.4.1.
+
 ## v1.4.1 - 2026-10-02
 
 A trust release: the app, the README and the landing page now say only what

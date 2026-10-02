@@ -414,3 +414,65 @@ player's own copies of the same tools.
 
 **Source:** internal Track B plan (2026-10-02, Task 7), Claude adversarial
 review (2026-10-02; cross-family = Claude + Codex, Codex review queued)
+
+## 2026-10-02 · One schema bump per release; refuse, never wipe
+
+**Context:** Up to v1.4.0, a saved bay with a schema MechBay did not know
+was replaced with a fresh one. Any release that touched the save format
+would have cost players their facilities, mission history and settings,
+and so would going back to an older version after an upgrade.
+
+**Decision:** Saves are upgraded, never reset:
+
+- _Migrations run one schema step at a time_ (`state-migrations.ts`), each
+  tested against a fixture saved by a released version. v1.4.2 makes one
+  bump (2 to 3) that carries every change in the release: removed fields,
+  logs moving out of the file, and Autonomy.
+- _A copy comes first._ Before an upgrade, the file is copied byte for byte
+  to `mechbay-state.v<old>-backup-<time>.json`. If the copy fails, nothing
+  is upgraded and the session runs without saving.
+- _Anything MechBay cannot upgrade is left alone._ A save from a newer
+  MechBay, or one whose upgrade fails, is never written over: the app
+  opens a temporary bay that is not saved, and says so.
+- _A damaged file is kept._ A save that cannot be parsed at all is copied
+  aside before a fresh bay starts, and MechBay says where the copy is. If
+  that copy fails, the file is left untouched and nothing is saved.
+
+**Alternatives rejected:** Resetting on an unknown schema (the old
+behavior) loses player data. Writing every version's format at once would
+let an older MechBay read a newer save, but every release would carry
+every old format forever.
+
+**Consequence:** Going back a version needs one manual step: rename the
+backup to `mechbay-state.json`. The release notes give the exact path for
+each platform. v1.4.1 already refuses a newer save instead of wiping it,
+so going back to it is safe.
+
+**Source:** internal Track B plan (2026-10-02, Task 1)
+
+## 2026-10-02 · Autonomy is a capability matrix, never an approximation
+
+**Context:** A mech runs a real agent in a real project, so how much it
+may do on its own has to be both clear and true. The runtimes differ: Claude Code (`--permission-mode`) and Codex (`--sandbox`) enforce
+limits themselves; Gemini runs non-interactively only with every action
+approved; Kimi and Hermes control their own permissions entirely.
+
+**Decision:** Each mech has a level (Read only, Edit files or Full),
+turned into the runtime's own flags. Where a runtime cannot enforce a
+level, the level is shown disabled with the reason, and the mission
+records what it really ran at ("unenforced" for runtimes MechBay cannot
+limit). A runtime switch that would raise what a mech may do asks first.
+Every mech starts at Edit files, including mechs from an upgraded bay.
+
+**Alternatives rejected:** Approximating a level MechBay cannot enforce
+(for example by putting "do not edit files" in Gemini's prompt) would be
+a promise the agent can ignore. A setting that looks like a guardrail but
+is not one is worse than none.
+
+**Consequence:** CLI settings on the player's computer or inside the
+project (allow rules, hooks) can permit more than the chosen level, and
+MechBay cannot remove them. The Settings panel says so under every
+control.
+
+**Source:** internal Track B plan (2026-10-02, Task 5); flags confirmed
+against the installed CLIs on clean profiles (Task 9 acceptance test)
