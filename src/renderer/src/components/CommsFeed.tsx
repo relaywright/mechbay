@@ -75,7 +75,7 @@ export function CommsFeed(): React.JSX.Element {
       const now = Date.now()
       if (messages.length === 0) {
         setFeed((current) => {
-          const items = dropStaleHolding(current.items, next, now)
+          const items = dropStaleHolding(current.items, next, current.clock)
           return items === current.items ? current : { items, clock: now }
         })
         return
@@ -92,7 +92,9 @@ export function CommsFeed(): React.JSX.Element {
       })
       setFeed((current) => ({
         items: [
-          ...dropStaleHolding(current.items, next, now).filter((item) => item.expireAt > now),
+          ...dropStaleHolding(current.items, next, current.clock).filter(
+            (item) => item.expireAt > now
+          ),
           ...scheduled
         ],
         clock: now

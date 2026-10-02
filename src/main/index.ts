@@ -117,13 +117,16 @@ app.whenReady().then(() => {
   // ─── MechBay subsystems ───────────────────────────────────────
   const demoMode = isDemoMode()
   const userData = app.getPath('userData')
+  // Before StateManager: a damaged secrets file throws here, and once an old
+  // save is upgraded its logs leave the saved file until prepareLogStore
+  // imports them below. Failing first keeps the save untouched.
+  const secrets = new SecretsManager(new Store({ name: 'mechbay-secrets' }))
   const opened = openStateStore({
     dir: userData,
     name: demoMode ? 'mechbay-state-demo' : 'mechbay-state',
     createStore: (name) => new Store({ name })
   })
   const state = new StateManager(opened.store, userData, { startupNotice: opened.notice })
-  const secrets = new SecretsManager(new Store({ name: 'mechbay-secrets' }))
 
   if (demoMode) {
     const demoDir = join(app.getPath('userData'), 'demo-facility')

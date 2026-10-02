@@ -342,9 +342,10 @@ describe('LogStore', () => {
       }),
       writeFileSync: vi.fn(
         (file: realFs.PathOrFileDescriptor, data: string, options?: realFs.WriteFileOptions) => {
-          if (String(file).endsWith('.jsonl')) {
-            // The disk fills partway through: a prefix lands, then the write throws.
-            realFs.writeFileSync(file, data.slice(0, 20), options)
+          if (typeof file === 'number') {
+            // The direct write to the opened log: the disk fills partway
+            // through, so a prefix lands, then the write throws.
+            realFs.writeSync(file, data.slice(0, 20))
             throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
           }
           realFs.writeFileSync(file, data, options)
@@ -364,6 +365,23 @@ describe('LogStore', () => {
       renameSync: vi.fn((_tmp: string, file: string) => {
         realFs.writeFileSync(file, '{"seq":1}\n') // another writer got there first
         throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      })
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    expect(store.importLegacy([chunk]).failed).toBe(1)
+    expect(realFs.readFileSync(path.join(dir, `${ID}.jsonl`), 'utf8')).toBe('{"seq":1}\n')
+  })
+
+  it('never removes a log another writer made when opening it for the direct write fails', () => {
+    const fs = {
+      ...realFs,
+      renameSync: vi.fn(() => {
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      }),
+      openSync: vi.fn((file: realFs.PathLike) => {
+        realFs.writeFileSync(file, '{"seq":1}\n') // a complete log appears meanwhile
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
       })
     }
     const store = new LogStore({ dir, fs: fs as never })

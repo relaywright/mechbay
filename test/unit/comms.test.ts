@@ -145,9 +145,9 @@ describe('dropStaleHolding', () => {
     facilities,
     settings
   })
-  const NOW = 10_000
-  const pending = { ...holding, revealAt: NOW + 900 }
-  const shown = { ...holding, revealAt: NOW - 100 }
+  const SHOWN_AT = 10_000
+  const pending = { ...holding, revealAt: SHOWN_AT + 900 }
+  const shown = { ...holding, revealAt: SHOWN_AT - 100 }
   const launched = {
     deployments: [
       deployment('completed', { id: 'deployment-0' }),
@@ -157,17 +157,17 @@ describe('dropStaleHolding', () => {
   }
 
   it('keeps a holding line that has not shown yet while its mission still waits', () => {
-    expect(dropStaleHolding([pending], { deployments: [out, held], settings }, NOW)).toEqual([
+    expect(dropStaleHolding([pending], { deployments: [out, held], settings }, SHOWN_AT)).toEqual([
       pending
     ])
   })
 
   it('drops a holding line that has not shown yet once its mission launched', () => {
-    expect(dropStaleHolding([pending], launched, NOW)).toEqual([])
+    expect(dropStaleHolding([pending], launched, SHOWN_AT)).toEqual([])
   })
 
   it('leaves a holding line already on screen alone', () => {
-    expect(dropStaleHolding([shown], launched, NOW)).toEqual([shown])
+    expect(dropStaleHolding([shown], launched, SHOWN_AT)).toEqual([shown])
   })
 })
 

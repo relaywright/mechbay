@@ -31,9 +31,11 @@ export interface MissionLogSink {
 type LogFs = Pick<
   typeof nodeFs,
   | 'appendFileSync'
+  | 'closeSync'
   | 'existsSync'
   | 'lstatSync'
   | 'mkdirSync'
+  | 'openSync'
   | 'readFileSync'
   | 'readdirSync'
   | 'renameSync'
@@ -258,13 +260,22 @@ export class LogStore implements MissionLogSink {
           // that appeared meanwhile) and drop the temporary copy.
           console.warn(`[log-store] rename refused for ${missionId}; writing directly:`, err)
           try {
-            this.fs.writeFileSync(file, data, { flag: 'wx' })
-          } catch (writeErr) {
-            // A write cut short (disk full) leaves a prefix that the existence
-            // check above would later skip as a finished import. Remove it,
-            // unless the file is not ours: EEXIST means another writer made it.
-            if ((writeErr as NodeJS.ErrnoException).code !== 'EEXIST') this.removeQuietly(file)
-            throw writeErr
+            // Open first: once 'wx' succeeds the file is this import's own,
+            // so only a failure after that point may remove it.
+            const fd = this.fs.openSync(file, 'wx')
+            let written = false
+            try {
+              this.fs.writeFileSync(fd, data)
+              written = true
+            } finally {
+              try {
+                this.fs.closeSync(fd)
+              } finally {
+                // A write cut short (disk full) leaves a prefix that the
+                // existence check above would later skip as a finished import.
+                if (!written) this.removeQuietly(file)
+              }
+            }
           } finally {
             this.removeQuietly(tmp)
           }
