@@ -254,6 +254,10 @@ describe('CliRunner environment pass-through', () => {
       spawnProcess: spawnProcess as never
     })
     await runner.spawn('/tmp', 'say hi')
-    expect(spawnProcess.mock.calls[0][2]).toEqual({ cwd: '/tmp', shell: false })
+    expect(spawnProcess.mock.calls[0][2]).toEqual({
+      cwd: '/tmp',
+      shell: false,
+      detached: process.platform !== 'win32'
+    })
   })
 })

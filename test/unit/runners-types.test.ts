@@ -9,7 +9,7 @@ describe('Runner interface', () => {
         stream: (async function* () {
           yield { stream: 'stdout', text: '' } as RunnerChunk
         })(),
-        abort: () => {},
+        abort: async () => {},
         exit: Promise.resolve(0)
       }),
       isAvailable: async () => true

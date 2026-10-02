@@ -166,7 +166,8 @@ describe('CliRunner spawn safety', () => {
       ['-p', '--output-format', 'stream-json', '--verbose', '--permission-mode', 'acceptEdits'],
       {
         cwd: '/tmp/project',
-        shell: false
+        shell: false,
+        detached: process.platform !== 'win32'
       }
     )
   })

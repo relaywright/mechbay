@@ -62,7 +62,7 @@ function recordingRunner(calls: SpawnCall[]): Runner {
         stream: (async function* () {
           yield* []
         })(),
-        abort: () => {},
+        abort: async () => {},
         exit: Promise.resolve(0)
       }
     }
@@ -174,7 +174,7 @@ describe('executeDeployment Autonomy (P0-12)', () => {
           stream: (async function* () {
             yield* []
           })(),
-          abort: () => {},
+          abort: async () => {},
           exit: Promise.resolve(0),
           ...result
         }

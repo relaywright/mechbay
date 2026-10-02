@@ -64,7 +64,7 @@ function streamOf(chunks: RunnerChunk[]): SpawnResult {
     stream: (async function* () {
       yield* chunks
     })(),
-    abort: () => {},
+    abort: async () => {},
     exit: Promise.resolve(0)
   }
 }

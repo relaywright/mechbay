@@ -3,6 +3,7 @@ import { StringDecoder } from 'string_decoder'
 import crossSpawn from 'cross-spawn'
 import type { Runner, RunnerSpawnOptions, SpawnResult, RunnerChunk } from './types'
 import type { StreamTransform } from './claude-stream'
+import { killProcessTree } from './process-tree'
 
 /**
  * Shared plumbing for CLI-backed runners (Claude/Codex/Kimi/Gemini).
@@ -23,6 +24,8 @@ export interface CliRunnerDeps {
   platform?: NodeJS.Platform
   /** Extra argv a runner inserts before its model flag. Used by acceptance tests to ignore the user's own CLI config. */
   profileArgs?: string[]
+  /** Ends the child and everything it started. Defaults to killProcessTree. */
+  killTree?: (child: ChildProcess) => Promise<void>
 }
 
 export async function defaultWhich(cmd: string): Promise<string | null> {
@@ -40,12 +43,15 @@ export abstract class CliRunner implements Runner {
   protected spawnProcess: typeof nodeSpawn
   protected platform: NodeJS.Platform
   protected profileArgs: string[]
+  protected killTree: (child: ChildProcess) => Promise<void>
 
   constructor(deps: Partial<CliRunnerDeps> = {}) {
     this.which = deps.which ?? defaultWhich
     this.spawnProcess = deps.spawnProcess ?? (crossSpawn as typeof nodeSpawn)
     this.platform = deps.platform ?? process.platform
     this.profileArgs = deps.profileArgs ?? []
+    this.killTree =
+      deps.killTree ?? ((child) => killProcessTree(child, { platform: this.platform }))
   }
 
   /** The executable to look up on PATH and invoke. */
@@ -76,6 +82,10 @@ export abstract class CliRunner implements Runner {
     const spawnOptions = {
       cwd,
       shell: false,
+      // POSIX: the child leads its own process group, so abort can signal
+      // everything it started. Windows keeps the default (no extra console
+      // window); taskkill /T finds the tree there.
+      detached: this.platform !== 'win32',
       ...(options?.env ? { env: { ...process.env, ...options.env } } : {})
     }
     const child = this.spawnProcess(
@@ -99,27 +109,9 @@ export abstract class CliRunner implements Runner {
       }
     }
 
-    let aborted = false
-    const abort = (): void => {
-      // `child.exitCode == null` covers both `null` (Node's "not yet
-      // exited" value) and `undefined` (mock children in tests).
-      if (aborted || child.killed || child.exitCode != null) return
-      aborted = true
-      try {
-        child.kill('SIGTERM')
-      } catch {
-        /* already gone */
-      }
-      setTimeout(() => {
-        if (!child.killed && child.exitCode === null) {
-          try {
-            child.kill('SIGKILL')
-          } catch {
-            /* already gone */
-          }
-        }
-      }, 5000).unref()
-    }
+    // Every call shares the first stop, so a second click never starts a second kill.
+    let stopping: Promise<void> | null = null
+    const abort = (): Promise<void> => (stopping ??= this.killTree(child))
 
     const exit = new Promise<number>((resolve) => {
       child.on('exit', (code) => resolve(code ?? -1))
@@ -131,6 +123,7 @@ export abstract class CliRunner implements Runner {
       stream: this.toAsyncStream(child, transform),
       abort,
       exit,
+      pid: child.pid,
       ...(transform ? { report: () => transform.report() } : {})
     }
   }
