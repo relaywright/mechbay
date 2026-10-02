@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import Phaser from 'phaser'
 import type { AppState, Deployment, StateHealth } from '../../shared/types'
+import { ipcErrorMessage } from '../../shared/bridge-errors'
 import { BayScene } from './game/BayScene'
 import { bus } from './bus'
 import { DeployModal } from './components/DeployModal'
@@ -63,7 +64,7 @@ function App(): React.JSX.Element {
         setState(initialState)
         setSelectedCompanionId(initialState.companions[0]?.id ?? null)
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => setError(ipcErrorMessage(e)))
     void window.mechbay
       .getStateHealth()
       .then(setStateHealth)
@@ -194,9 +195,7 @@ function App(): React.JSX.Element {
             setActiveTab('files')
           }
         })
-        .catch((e) =>
-          alert(`Could not link building: ${e instanceof Error ? e.message : String(e)}`)
-        )
+        .catch((e) => alert(`Could not link building: ${ipcErrorMessage(e)}`))
     }
     const offEmptyTile = (payload: { tile: { x: number; y: number } }): void => {
       window.mechbay
@@ -208,9 +207,7 @@ function App(): React.JSX.Element {
             setActiveTab('files')
           }
         })
-        .catch((e) =>
-          alert(`Could not place building: ${e instanceof Error ? e.message : String(e)}`)
-        )
+        .catch((e) => alert(`Could not place building: ${ipcErrorMessage(e)}`))
     }
     const offFacilityRightClick = (payload: { facilityId: string }): void => {
       const facility = latestStateRef.current?.facilities.find(
@@ -237,9 +234,7 @@ function App(): React.JSX.Element {
             return null
           })
         })
-        .catch((e) =>
-          alert(`Could not decommission building: ${e instanceof Error ? e.message : String(e)}`)
-        )
+        .catch((e) => alert(`Could not decommission building: ${ipcErrorMessage(e)}`))
     }
     bus.on('dropOnFacility', offDrop)
     bus.on('companionSelected', offSelect)
@@ -619,7 +614,7 @@ function App(): React.JSX.Element {
                     setPendingDeploy(null)
                     setActiveTab('log')
                   })
-                  .catch((e) => setDeployError(e instanceof Error ? e.message : String(e)))
+                  .catch((e) => setDeployError(ipcErrorMessage(e)))
                   .finally(() => setDeploying(false))
               }}
             />

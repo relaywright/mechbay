@@ -46,6 +46,7 @@ import {
   resolveInRepo
 } from './git-diff'
 import { redactSecrets } from './redact'
+import { NotYetAvailableError } from '../shared/bridge-errors'
 
 const GRID_W = 16
 const GRID_H = 16
@@ -376,6 +377,21 @@ export function registerIpc(opts: IpcDeps): void {
       return { deploymentId, status }
     }
   )
+
+  // Contract stubs (spec 7.5). Each is replaced by the task that ships the
+  // feature: logs.history (Task 3), deployAbort (Tasks 6 and 8), review (Phase 1).
+  ipcMain.handle(IPC.LOG_HISTORY, () => {
+    throw new NotYetAvailableError('Saved mission logs arrive in this release.')
+  })
+  ipcMain.handle(IPC.DEPLOY_ABORT, () => {
+    throw new NotYetAvailableError('Recalling a mission arrives in this release.')
+  })
+  ipcMain.handle(IPC.REVIEW_APPROVE, () => {
+    throw new NotYetAvailableError('Reviewing changes before they are kept arrives in v1.5.')
+  })
+  ipcMain.handle(IPC.REVIEW_REJECT, () => {
+    throw new NotYetAvailableError('Reviewing changes before they are kept arrives in v1.5.')
+  })
 
   // Soul/Memory read/write handlers for Journal tab. Pass the SAME base
   // dir the StateManager seeded companion.soulPath/memoryPath with —

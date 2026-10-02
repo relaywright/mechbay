@@ -1,7 +1,7 @@
-import type { MechBayApi } from './index'
+import type { MechbayBridge } from '../shared/bridge'
 
 declare global {
   interface Window {
-    mechbay: MechBayApi
+    mechbay: MechbayBridge
   }
 }

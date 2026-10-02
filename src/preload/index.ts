@@ -1,10 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc-channels'
 import type {
+  DeployStartArgs,
+  DeployStartResult,
+  MechbayBridge,
+  SettingsPatch
+} from '../shared/bridge'
+import type {
   AppMode,
   AppState,
   Deployment,
-  DeploymentStatus,
   Facility,
   FsNode,
   LogChunk,
@@ -30,18 +35,27 @@ const mechbayApi = {
     ipcRenderer.on(IPC.STATE_SUBSCRIBE, handler)
     return () => ipcRenderer.off(IPC.STATE_SUBSCRIBE, handler)
   },
-  onLogChunk: (cb: (chunk: LogChunk) => void): (() => void) => {
-    const handler = (_e: Electron.IpcRendererEvent, c: LogChunk): void => cb(c)
-    ipcRenderer.on(IPC.LOG_STREAM, handler)
-    return () => ipcRenderer.off(IPC.LOG_STREAM, handler)
-  },
-  deployStart: (args: {
-    companionId: string
-    facilityId: string
-    taskPrompt: string
-    quickPromptUsed?: string
-  }): Promise<{ deploymentId: string; status: DeploymentStatus }> =>
+  deployStart: (args: DeployStartArgs): Promise<DeployStartResult> =>
     ipcRenderer.invoke(IPC.DEPLOY_START, args),
+  deployAbort: (missionId: string): Promise<SimpleActionResult> =>
+    ipcRenderer.invoke(IPC.DEPLOY_ABORT, missionId),
+  logs: {
+    history: (missionId: string, afterSeq?: number): Promise<LogChunk[]> =>
+      ipcRenderer.invoke(IPC.LOG_HISTORY, missionId, afterSeq),
+    subscribe: (cb: (entries: LogChunk[]) => void): (() => void) => {
+      // Until Task 3 batches on the main side, each IPC message carries one entry.
+      const listener = (_e: Electron.IpcRendererEvent, payload: LogChunk | LogChunk[]): void =>
+        cb(Array.isArray(payload) ? payload : [payload])
+      ipcRenderer.on(IPC.LOG_STREAM, listener)
+      return () => ipcRenderer.removeListener(IPC.LOG_STREAM, listener)
+    }
+  },
+  review: {
+    approve: (missionId: string): Promise<SimpleActionResult> =>
+      ipcRenderer.invoke(IPC.REVIEW_APPROVE, missionId),
+    reject: (missionId: string): Promise<SimpleActionResult> =>
+      ipcRenderer.invoke(IPC.REVIEW_REJECT, missionId)
+  },
   onRecoveryZombies: (cb: (zombies: Deployment[]) => void): (() => void) => {
     const handler = (_e: Electron.IpcRendererEvent, zombies: Deployment[]): void => cb(zombies)
     ipcRenderer.on(IPC.RECOVERY_ZOMBIES, handler)
@@ -75,16 +89,14 @@ const mechbayApi = {
     ipcRenderer.invoke(IPC.SECRETS_SET, { runtime, value }),
   secretsStatus: (): Promise<Record<AgentFamily, boolean>> =>
     ipcRenderer.invoke(IPC.SECRETS_STATUS),
-  updateSettings: (patch: {
-    reduceMotion?: boolean
-    crtOverlay?: boolean
-    missionAlerts?: boolean
-  }): Promise<SimpleActionResult> => ipcRenderer.invoke(IPC.SETTINGS_UPDATE, patch),
+  updateSettings: (patch: SettingsPatch): Promise<SimpleActionResult> =>
+    ipcRenderer.invoke(IPC.SETTINGS_UPDATE, patch),
   diffFileGet: (deploymentId: string, path: string): Promise<DiffFileGetResult> =>
     ipcRenderer.invoke(IPC.DIFF_FILE_GET, { deploymentId, path })
-}
+} satisfies MechbayBridge
 
-export type MechBayApi = typeof mechbayApi
+// scripts/smoke-electron.ts types `window.mechbay` through this name.
+export type MechBayApi = MechbayBridge
 
 if (process.contextIsolated) {
   try {
