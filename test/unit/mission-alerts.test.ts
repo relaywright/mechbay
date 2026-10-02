@@ -13,7 +13,11 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { detectMissionEvents, formatMissionAlert, MissionAlerts } from '../../src/main/mission-alerts'
+import {
+  detectMissionEvents,
+  formatMissionAlert,
+  MissionAlerts
+} from '../../src/main/mission-alerts'
 
 function deployment(overrides: Partial<Deployment>): Deployment {
   return {

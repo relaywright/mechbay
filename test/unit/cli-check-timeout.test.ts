@@ -39,7 +39,7 @@ describe('runCliAvailabilityCheck — timeout and hang scenarios', () => {
     })
 
     const checkPromise = runCliAvailabilityCheck(state, runners)
-    
+
     // Expect the check to hang (no resolution within timeout)
     await expect(Promise.race([checkPromise, timeoutPromise])).rejects.toThrow('Timeout')
   })
@@ -70,7 +70,7 @@ describe('runCliAvailabilityCheck — timeout and hang scenarios', () => {
 
     // Should complete in roughly 50ms (parallel), not 250ms (sequential)
     expect(elapsed).toBeLessThan(200)
-    
+
     // All should be marked available
     expect(state.getState().companions.every((c) => c.cliAvailable === true)).toBe(true)
   })
@@ -139,7 +139,7 @@ describe('runCliAvailabilityCheck — timeout and hang scenarios', () => {
 
     const claude = state.getState().companions.find((c) => c.family === 'claude')!
     expect(claude.cliAvailable).toBe(false)
-    
+
     // Others should still be updated
     expect(state.getState().companions.filter((c) => c.cliAvailable).length).toBe(4)
   })
@@ -152,10 +152,18 @@ describe('runCliAvailabilityCheck — partial failure scenarios', () => {
 
     const runners: Record<AgentFamily, Runner> = {
       claude: { isAvailable: async () => true } as Runner,
-      codex: { isAvailable: async () => { throw new Error('codex error') } } as Runner,
+      codex: {
+        isAvailable: async () => {
+          throw new Error('codex error')
+        }
+      } as Runner,
       kimi: { isAvailable: async () => false } as Runner,
       gemini: { isAvailable: async () => true } as Runner,
-      hermes: { isAvailable: async () => { throw new Error('hermes error') } } as Runner
+      hermes: {
+        isAvailable: async () => {
+          throw new Error('hermes error')
+        }
+      } as Runner
     }
 
     await runCliAvailabilityCheck(state, runners)
@@ -163,14 +171,14 @@ describe('runCliAvailabilityCheck — partial failure scenarios', () => {
     const byFamily = Object.fromEntries(
       state.getState().companions.map((c) => [c.family, c.cliAvailable])
     )
-    
+
     // Available ones should be true
     expect(byFamily.claude).toBe(true)
     expect(byFamily.gemini).toBe(true)
-    
+
     // Unavailable (returned false) should be false
     expect(byFamily.kimi).toBe(false)
-    
+
     // Thrown errors should be treated as unavailable
     expect(byFamily.codex).toBe(false)
     expect(byFamily.hermes).toBe(false)
@@ -181,11 +189,31 @@ describe('runCliAvailabilityCheck — partial failure scenarios', () => {
     const state = new StateManager(store, '/tmp/cli-check-test')
 
     const runners: Record<AgentFamily, Runner> = {
-      claude: { isAvailable: async () => { throw new Error('error1') } } as Runner,
-      codex: { isAvailable: async () => { throw new Error('error2') } } as Runner,
-      kimi: { isAvailable: async () => { throw new Error('error3') } } as Runner,
-      gemini: { isAvailable: async () => { throw new Error('error4') } } as Runner,
-      hermes: { isAvailable: async () => { throw new Error('error5') } } as Runner
+      claude: {
+        isAvailable: async () => {
+          throw new Error('error1')
+        }
+      } as Runner,
+      codex: {
+        isAvailable: async () => {
+          throw new Error('error2')
+        }
+      } as Runner,
+      kimi: {
+        isAvailable: async () => {
+          throw new Error('error3')
+        }
+      } as Runner,
+      gemini: {
+        isAvailable: async () => {
+          throw new Error('error4')
+        }
+      } as Runner,
+      hermes: {
+        isAvailable: async () => {
+          throw new Error('error5')
+        }
+      } as Runner
     }
 
     // Should not throw - should complete and mark all as unavailable

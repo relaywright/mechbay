@@ -91,7 +91,7 @@ describe('IPC.DIFF_FILE_GET', () => {
     expect(result).toEqual({ ok: false, error: 'Deployment not found: does-not-exist' })
   })
 
-  it('rejects a path that is not in the deployment\'s own diffFiles, without touching git', async () => {
+  it("rejects a path that is not in the deployment's own diffFiles, without touching git", async () => {
     const repoPath = await makeRepo()
     tempDirs.push(repoPath)
     const { state, call } = setup()

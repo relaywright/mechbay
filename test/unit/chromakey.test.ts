@@ -18,7 +18,7 @@ async function createCheckerboardPNG(
   color2: { r: number; g: number; b: number } = { r: 204, g: 204, b: 204 } // white-ish
 ): Promise<void> {
   const image = new Jimp({ width: size, height: size })
-  
+
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const isEven = (x + y) % 2 === 0
@@ -27,7 +27,7 @@ async function createCheckerboardPNG(
       image.setPixelColor(hex, x, y)
     }
   }
-  
+
   await image.write(path)
 }
 
@@ -39,13 +39,13 @@ async function createSolidPNG(
 ): Promise<void> {
   const image = new Jimp({ width: size, height: size })
   const hex = rgbaToInt(color.r, color.g, color.b, 255)
-  
+
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       image.setPixelColor(hex, x, y)
     }
   }
-  
+
   await image.write(path)
 }
 
@@ -60,11 +60,11 @@ async function getPixelAlpha(path: string, x: number, y: number): Promise<number
 async function getAllAlphas(path: string): Promise<number[]> {
   const image = await Jimp.read(path)
   const alphas: number[] = []
-  
+
   image.scan(0, 0, image.bitmap.width, image.bitmap.height, (x, y, idx) => {
     alphas.push(image.bitmap.data[idx + 3])
   })
-  
+
   return alphas
 }
 
@@ -85,26 +85,26 @@ describe('chromakey', () => {
   it('detects and alpha-outs checkerboard pattern', async () => {
     const testFile = join(TEST_DIR, 'checker.png')
     await createCheckerboardPNG(testFile, 16)
-    
+
     // Import and run chromakey
     const { processImage } = await import('../../scripts/chromakey.js')
     await processImage(testFile)
-    
+
     // Check that all pixels have alpha = 0
     const alphas = await getAllAlphas(testFile)
-    expect(alphas.every(a => a === 0)).toBe(true)
+    expect(alphas.every((a) => a === 0)).toBe(true)
   })
 
   it('preserves solid colors', async () => {
     const testFile = join(TEST_DIR, 'solid-red.png')
     await createSolidPNG(testFile, 16, { r: 255, g: 0, b: 0 })
-    
+
     const { processImage } = await import('../../scripts/chromakey.js')
     await processImage(testFile)
-    
+
     // Check that all pixels still have alpha = 255
     const alphas = await getAllAlphas(testFile)
-    expect(alphas.every(a => a === 255)).toBe(true)
+    expect(alphas.every((a) => a === 255)).toBe(true)
   })
 
   it('detects checker across threshold variations', async () => {
@@ -114,17 +114,17 @@ describe('chromakey', () => {
       testFile,
       16,
       { r: 130, g: 125, b: 128 }, // slightly off gray
-      { r: 200, g: 208, b: 202 }  // slightly off white-ish
+      { r: 200, g: 208, b: 202 } // slightly off white-ish
     )
-    
+
     const { processImage } = await import('../../scripts/chromakey.js')
     await processImage(testFile)
-    
+
     // Most pixels should be transparent (allowing for edge preservation)
     const alphas = await getAllAlphas(testFile)
-    const transparentCount = alphas.filter(a => a === 0).length
+    const transparentCount = alphas.filter((a) => a === 0).length
     const totalCount = alphas.length
-    
+
     // At least 80% should be transparent (edges may be preserved)
     expect(transparentCount / totalCount).toBeGreaterThan(0.8)
   })
@@ -134,19 +134,17 @@ describe('chromakey', () => {
     const testFile = join(TEST_DIR, 'silhouette.png')
     const size = 16
     const image = new Jimp({ width: size, height: size })
-    
+
     // Fill with checkerboard
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const isEven = (x + y) % 2 === 0
-        const color = isEven 
-          ? { r: 128, g: 128, b: 128 }
-          : { r: 204, g: 204, b: 204 }
+        const color = isEven ? { r: 128, g: 128, b: 128 } : { r: 204, g: 204, b: 204 }
         const hex = rgbaToInt(color.r, color.g, color.b, 255)
         image.setPixelColor(hex, x, y)
       }
     }
-    
+
     // Add a solid red "mech" in the center (4x4)
     for (let y = 6; y < 10; y++) {
       for (let x = 6; x < 10; x++) {
@@ -154,15 +152,15 @@ describe('chromakey', () => {
         image.setPixelColor(hex, x, y)
       }
     }
-    
+
     await image.write(testFile)
-    
+
     const { processImage } = await import('../../scripts/chromakey.js')
     await processImage(testFile)
-    
+
     // Check that the mech pixels are still opaque
     const resultImage = await Jimp.read(testFile)
-    
+
     // Center mech pixels should be opaque
     for (let y = 6; y < 10; y++) {
       for (let x = 6; x < 10; x++) {
@@ -173,7 +171,7 @@ describe('chromakey', () => {
         expect(color.b).toBe(0)
       }
     }
-    
+
     // Checkerboard pixels adjacent to mech should have some alpha (edge preservation)
     // or at least the mech itself should be intact
     const mechAdjacentPixel = intToRGBA(resultImage.getPixelColor(5, 7))

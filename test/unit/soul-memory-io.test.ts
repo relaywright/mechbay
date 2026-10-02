@@ -101,7 +101,7 @@ describe('soul-memory-io', () => {
     // We can't easily test the actual default path without mocking os.homedir()
     // but we can verify the function accepts single argument
     const companionId = 'test-companion-005'
-    
+
     // Should not throw when called with just companionId
     expect(() => readSoul(companionId, tmp)).not.toThrow()
   })

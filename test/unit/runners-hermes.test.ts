@@ -65,13 +65,16 @@ describe('HermesRunner (bring-your-own agent)', () => {
   })
 
   it('substitutes every {PROMPT} token occurrence into argv', async () => {
-    process.env.MECHBAY_HERMES_CMD =
-      'custom-agent --message "{PROMPT}" --repeat={PROMPT}:{PROMPT}'
+    process.env.MECHBAY_HERMES_CMD = 'custom-agent --message "{PROMPT}" --repeat={PROMPT}:{PROMPT}'
     const child = makeFakeChild()
     const spawnCalls: Array<[string, string[], { cwd?: string; shell?: boolean }]> = []
     const runner = new HermesRunner({
       which: async () => '/fake/custom-agent',
-      spawnProcess: ((command: string, args: string[], options: { cwd?: string; shell?: boolean }) => {
+      spawnProcess: ((
+        command: string,
+        args: string[],
+        options: { cwd?: string; shell?: boolean }
+      ) => {
         spawnCalls.push([command, args, options])
         return child
       }) as never

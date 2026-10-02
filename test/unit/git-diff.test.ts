@@ -20,7 +20,11 @@ async function runGit(repoPath: string, args: string[]): Promise<void> {
  * not "the feature is broken". Callers should skip (return early from)
  * the test when this comes back false.
  */
-async function trySymlink(target: string, linkPath: string, type: 'file' | 'dir'): Promise<boolean> {
+async function trySymlink(
+  target: string,
+  linkPath: string,
+  type: 'file' | 'dir'
+): Promise<boolean> {
   try {
     await symlink(target, linkPath, type)
     return true

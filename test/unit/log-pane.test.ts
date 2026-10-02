@@ -8,7 +8,7 @@ describe('LogPane component logic', () => {
       deploymentId,
       timestamp: Date.now() + i,
       stream: i % 3 === 0 ? 'stderr' : i % 2 === 0 ? 'system' : 'stdout',
-      text: `Log line ${i}`,
+      text: `Log line ${i}`
     }))
   }
 
@@ -96,7 +96,7 @@ describe('LogPane component logic', () => {
     it('should detect deployment change between logs', () => {
       const logs: LogChunk[] = [
         { id: '1', deploymentId: 'dep-1', timestamp: 1000, stream: 'stdout', text: 'line 1' },
-        { id: '2', deploymentId: 'dep-2', timestamp: 2000, stream: 'stdout', text: 'line 2' },
+        { id: '2', deploymentId: 'dep-2', timestamp: 2000, stream: 'stdout', text: 'line 2' }
       ]
       const deploymentChanged = logs[0].deploymentId !== logs[1].deploymentId
       expect(deploymentChanged).toBe(true)
@@ -105,7 +105,7 @@ describe('LogPane component logic', () => {
     it('should detect time gap of 2+ seconds', () => {
       const logs: LogChunk[] = [
         { id: '1', deploymentId: 'dep-1', timestamp: 1000, stream: 'stdout', text: 'line 1' },
-        { id: '2', deploymentId: 'dep-1', timestamp: 3500, stream: 'stdout', text: 'line 2' },
+        { id: '2', deploymentId: 'dep-1', timestamp: 3500, stream: 'stdout', text: 'line 2' }
       ]
       const timeGap = logs[1].timestamp - logs[0].timestamp
       const hasGap = timeGap > 2000
@@ -115,7 +115,7 @@ describe('LogPane component logic', () => {
     it('should not detect time gap under 2 seconds', () => {
       const logs: LogChunk[] = [
         { id: '1', deploymentId: 'dep-1', timestamp: 1000, stream: 'stdout', text: 'line 1' },
-        { id: '2', deploymentId: 'dep-1', timestamp: 1500, stream: 'stdout', text: 'line 2' },
+        { id: '2', deploymentId: 'dep-1', timestamp: 1500, stream: 'stdout', text: 'line 2' }
       ]
       const timeGap = logs[1].timestamp - logs[0].timestamp
       const hasGap = timeGap > 2000
@@ -130,7 +130,7 @@ describe('LogPane component logic', () => {
       const colors: Record<string, string> = {
         stdout: '#9dd98a',
         stderr: '#ffaa55',
-        system: '#ffcc33',
+        system: '#ffcc33'
       }
       expect(colors[stream]).toBe(expectedColor)
     })
@@ -141,7 +141,7 @@ describe('LogPane component logic', () => {
       const colors: Record<string, string> = {
         stdout: '#9dd98a',
         stderr: '#ffaa55',
-        system: '#ffcc33',
+        system: '#ffcc33'
       }
       expect(colors[stream]).toBe(expectedColor)
     })
@@ -152,7 +152,7 @@ describe('LogPane component logic', () => {
       const colors: Record<string, string> = {
         stdout: '#9dd98a',
         stderr: '#ffaa55',
-        system: '#ffcc33',
+        system: '#ffcc33'
       }
       expect(colors[stream]).toBe(expectedColor)
     })
@@ -176,7 +176,8 @@ describe('LogPane component logic', () => {
       const failedCount = 0
       const queueCount = 0
       const activeCount = 2
-      const ledColor = failedCount > 0 ? '#ff4444' : queueCount > 0 ? '#ffcc33' : activeCount > 0 ? '#0f0' : '#0f0'
+      const ledColor =
+        failedCount > 0 ? '#ff4444' : queueCount > 0 ? '#ffcc33' : activeCount > 0 ? '#0f0' : '#0f0'
       expect(ledColor).toBe('#0f0')
     })
   })

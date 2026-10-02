@@ -55,13 +55,9 @@ export function appendMemoryEntry(memoryPath: string, entry: MemoryEntry): void 
 }
 
 // Result types for read/write operations
-export type ReadResult =
-  | { ok: true; content: string }
-  | { ok: false; error: string }
+export type ReadResult = { ok: true; content: string } | { ok: false; error: string }
 
-export type WriteResult =
-  | { ok: true }
-  | { ok: false; error: string }
+export type WriteResult = { ok: true } | { ok: false; error: string }
 
 /**
  * Resolve the barracks directory for a companion.
@@ -80,11 +76,11 @@ export function readSoul(companionId: string, userDataDir?: string): ReadResult 
   try {
     const companionDir = resolveCompanionDir(companionId, userDataDir)
     const soulPath = path.join(companionDir, 'soul.md')
-    
+
     if (!fs.existsSync(soulPath)) {
       return { ok: false, error: `soul.md not found for companion ${companionId}` }
     }
-    
+
     const content = fs.readFileSync(soulPath, 'utf-8')
     return { ok: true, content }
   } catch (err) {
@@ -102,10 +98,10 @@ export function writeSoul(companionId: string, content: string, userDataDir?: st
   try {
     const companionDir = resolveCompanionDir(companionId, userDataDir)
     const soulPath = path.join(companionDir, 'soul.md')
-    
+
     fs.mkdirSync(companionDir, { recursive: true })
     fs.writeFileSync(soulPath, content, 'utf-8')
-    
+
     return { ok: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -121,11 +117,11 @@ export function readMemory(companionId: string, userDataDir?: string): ReadResul
   try {
     const companionDir = resolveCompanionDir(companionId, userDataDir)
     const memoryPath = path.join(companionDir, 'memory.md')
-    
+
     if (!fs.existsSync(memoryPath)) {
       return { ok: false, error: `memory.md not found for companion ${companionId}` }
     }
-    
+
     const content = fs.readFileSync(memoryPath, 'utf-8')
     return { ok: true, content }
   } catch (err) {

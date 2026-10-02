@@ -1,0 +1,13 @@
+# Normalize text files to LF in the repo and in every checkout, including
+# Windows machines with core.autocrlf=true. Prettier and ESLint expect LF.
+* text=auto eol=lf
+
+# Binary assets: never touch their bytes.
+*.png binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.mp4 binary
+*.webm binary
+*.woff2 binary

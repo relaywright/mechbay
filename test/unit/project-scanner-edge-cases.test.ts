@@ -37,7 +37,7 @@ describe('scanProjects — edge cases', () => {
 
     // Should complete quickly (not stuck in infinite loop)
     expect(elapsed).toBeLessThan(1000)
-    
+
     // Should find the project (but not infinite entries)
     const project = found.find((p) => p.name === 'circular-project')
     expect(project).toBeDefined()
@@ -65,10 +65,10 @@ describe('scanProjects — edge cases', () => {
 
     try {
       const found = await scanProjects(tmpRoot, [])
-      
+
       // Should still find the readable project
       expect(found.some((p) => p.name === 'readable-project')).toBe(true)
-      
+
       // Should not include the unreadable directory (gracefully skipped)
       expect(found.some((p) => p.name === 'unreadable-dir')).toBe(false)
     } finally {
@@ -86,7 +86,7 @@ describe('scanProjects — edge cases', () => {
     // So deep/nesting/levels/here won't be found as a direct child
     // And 'deep' won't be found because it has no markers in its immediate children
     const found = await scanProjects(tmpRoot, [])
-    
+
     // 'deep' is not a project (no markers in its immediate children)
     // 'here' is not at the root level
     expect(found.some((p) => p.name === 'deep')).toBe(false)
@@ -198,7 +198,7 @@ describe('scanProjects — edge cases', () => {
 
     const found = await scanProjects(tmpRoot, [])
     const project = found.find((p) => p.name === 'multi-marker')
-    
+
     expect(project).toBeDefined()
     expect(project?.markers.sort()).toEqual(['.git', 'package.json'])
   })
@@ -208,7 +208,7 @@ describe('scanProjects — edge cases', () => {
     await fs.writeFile(path.join(tmpRoot, 'Cargo.toml'), '[package]')
 
     const found = await scanProjects(tmpRoot, [])
-    
+
     // Files at root should not be treated as projects
     expect(found.some((p) => p.name === 'package.json')).toBe(false)
     expect(found.some((p) => p.name === 'Cargo.toml')).toBe(false)

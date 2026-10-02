@@ -13,11 +13,11 @@ describe('ClaudeRunner — abort edge cases', () => {
       killed: boolean
       exitCode: number | null
     }
-    
+
     // Create a slow stream that yields over time
     let pushChunk: (() => void) | null = null
     const chunks: string[] = []
-    
+
     fakeChild.stdout = new Readable({
       read() {
         if (pushChunk) {
@@ -41,7 +41,7 @@ describe('ClaudeRunner — abort edge cases', () => {
     })
 
     const result = await runner.spawn('/tmp', 'long running task')
-    
+
     // Start consuming the stream
     const collected: string[] = []
     const streamPromise = (async () => {
@@ -59,7 +59,7 @@ describe('ClaudeRunner — abort edge cases', () => {
       fakeChild.stdout.push('chunk 1\n')
       fakeChild.stdout.push('chunk 2\n')
     }, 5)
-    
+
     // More chunks that should not be received due to abort
     setTimeout(() => {
       fakeChild.stdout.push('chunk 3 (should be ignored)\n')
@@ -82,7 +82,7 @@ describe('ClaudeRunner — abort edge cases', () => {
       killed: boolean
       exitCode: number | null
     }
-    
+
     fakeChild.stdout = Readable.from(['output'])
     fakeChild.stderr = Readable.from([])
     fakeChild.kill = vi.fn()
@@ -95,7 +95,7 @@ describe('ClaudeRunner — abort edge cases', () => {
     })
 
     const result = await runner.spawn('/tmp', 'task')
-    
+
     // Emit exit before abort
     setTimeout(() => {
       fakeChild.exitCode = 0
@@ -110,7 +110,7 @@ describe('ClaudeRunner — abort edge cases', () => {
 
     // Now abort - should be no-op since process already exited
     result.abort()
-    
+
     expect(fakeChild.kill).not.toHaveBeenCalled()
   })
 
@@ -122,7 +122,7 @@ describe('ClaudeRunner — abort edge cases', () => {
       killed: boolean
       exitCode: number | null
     }
-    
+
     fakeChild.stdout = Readable.from([])
     fakeChild.stderr = Readable.from([])
     fakeChild.kill = vi.fn(() => {
@@ -137,11 +137,11 @@ describe('ClaudeRunner — abort edge cases', () => {
     })
 
     const result = await runner.spawn('/tmp', 'task')
-    
+
     // First abort
     result.abort()
     expect(fakeChild.kill).toHaveBeenCalledTimes(1)
-    
+
     // Second abort should be no-op
     result.abort()
     expect(fakeChild.kill).toHaveBeenCalledTimes(1)
@@ -155,7 +155,7 @@ describe('ClaudeRunner — abort edge cases', () => {
       killed: boolean
       exitCode: number | null
     }
-    
+
     fakeChild.stdout = Readable.from([])
     fakeChild.stderr = Readable.from([])
     fakeChild.kill = vi.fn(() => {
@@ -170,7 +170,7 @@ describe('ClaudeRunner — abort edge cases', () => {
     })
 
     const result = await runner.spawn('/tmp', 'task')
-    
+
     // Should not throw even if kill throws
     expect(() => result.abort()).not.toThrow()
   })
@@ -183,7 +183,7 @@ describe('ClaudeRunner — non-zero exit codes', () => {
       stderr: Readable
       kill: ReturnType<typeof vi.fn>
     }
-    
+
     fakeChild.stdout = Readable.from(['some output'])
     fakeChild.stderr = Readable.from(['error message'])
     fakeChild.kill = vi.fn()
@@ -194,7 +194,7 @@ describe('ClaudeRunner — non-zero exit codes', () => {
     })
 
     const result = await runner.spawn('/tmp', 'failing task')
-    
+
     setTimeout(() => fakeChild.emit('exit', 1), 10)
     setTimeout(() => fakeChild.emit('close'), 15)
 
@@ -212,7 +212,7 @@ describe('ClaudeRunner — non-zero exit codes', () => {
       stderr: Readable
       kill: ReturnType<typeof vi.fn>
     }
-    
+
     fakeChild.stdout = Readable.from([])
     fakeChild.stderr = Readable.from(['fatal error'])
     fakeChild.kill = vi.fn()
@@ -223,7 +223,7 @@ describe('ClaudeRunner — non-zero exit codes', () => {
     })
 
     const result = await runner.spawn('/tmp', 'task')
-    
+
     setTimeout(() => fakeChild.emit('exit', 255), 10)
     setTimeout(() => fakeChild.emit('close'), 15)
 
@@ -240,7 +240,7 @@ describe('ClaudeRunner — non-zero exit codes', () => {
       stderr: Readable
       kill: ReturnType<typeof vi.fn>
     }
-    
+
     fakeChild.stdout = Readable.from([])
     fakeChild.stderr = Readable.from([])
     fakeChild.kill = vi.fn()
@@ -251,7 +251,7 @@ describe('ClaudeRunner — non-zero exit codes', () => {
     })
 
     const result = await runner.spawn('/tmp', 'task')
-    
+
     // null exit code means killed by signal
     setTimeout(() => fakeChild.emit('exit', null, 'SIGKILL'), 10)
     setTimeout(() => fakeChild.emit('close'), 15)
@@ -272,13 +272,13 @@ describe('ClaudeRunner — stream error handling', () => {
       stderr: Readable
       kill: ReturnType<typeof vi.fn>
     }
-    
+
     const errorStream = new Readable({
       read() {
         // Will emit error
       }
     })
-    
+
     fakeChild.stdout = errorStream
     fakeChild.stderr = Readable.from([])
     fakeChild.kill = vi.fn()
@@ -289,11 +289,11 @@ describe('ClaudeRunner — stream error handling', () => {
     })
 
     const result = await runner.spawn('/tmp', 'task')
-    
+
     setTimeout(() => {
       errorStream.emit('error', new Error('stdout error'))
     }, 5)
-    
+
     setTimeout(() => fakeChild.emit('exit', 0), 20)
     setTimeout(() => fakeChild.emit('close'), 25)
 
@@ -303,7 +303,7 @@ describe('ClaudeRunner — stream error handling', () => {
     }
 
     // Should have received the error message as stderr
-    expect(chunks.some(c => c.includes('stdout error'))).toBe(true)
+    expect(chunks.some((c) => c.includes('stdout error'))).toBe(true)
   })
 
   it('handles stderr data correctly tagged', async () => {
@@ -312,7 +312,7 @@ describe('ClaudeRunner — stream error handling', () => {
       stderr: Readable
       kill: ReturnType<typeof vi.fn>
     }
-    
+
     fakeChild.stdout = Readable.from(['stdout line\n'])
     fakeChild.stderr = Readable.from(['stderr warning\n'])
     fakeChild.kill = vi.fn()
@@ -323,13 +323,13 @@ describe('ClaudeRunner — stream error handling', () => {
     })
 
     const result = await runner.spawn('/tmp', 'task')
-    
+
     setTimeout(() => fakeChild.emit('exit', 0), 10)
     setTimeout(() => fakeChild.emit('close'), 15)
 
     const stdoutChunks: string[] = []
     const stderrChunks: string[] = []
-    
+
     for await (const chunk of result.stream) {
       if (chunk.stream === 'stdout') stdoutChunks.push(chunk.text)
       else stderrChunks.push(chunk.text)

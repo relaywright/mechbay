@@ -88,7 +88,10 @@ export function FileBrowser(props: {
     setError(null)
   }
 
-  const nodes = useMemo(() => renderNodes(props.facilityPath, tree, expanded, toggleFolder, openFile), [props.facilityPath, tree, expanded])
+  const nodes = useMemo(
+    () => renderNodes(props.facilityPath, tree, expanded, toggleFolder, openFile),
+    [props.facilityPath, tree, expanded]
+  )
 
   if (selectedFile) {
     return (
@@ -143,22 +146,16 @@ function renderNodes(
         style={{ ...rowStyle, paddingLeft: 8 + depth * 14 }}
         onClick={() => (node.type === 'directory' ? toggleFolder(node.path) : openFile(node.path))}
       >
-        <span style={iconStyle}>
-          {node.type === 'directory' ? (isExpanded ? '▼' : '▶') : ' '}
-        </span>
+        <span style={iconStyle}>{node.type === 'directory' ? (isExpanded ? '▼' : '▶') : ' '}</span>
         <span style={{ color: node.type === 'directory' ? '#ffcc33' : '#ccc' }}>
           {node.name}
           {node.type === 'directory' ? '/' : ''}
         </span>
-        {node.size !== undefined && (
-          <span style={sizeStyle}>{formatBytes(node.size)}</span>
-        )}
+        {node.size !== undefined && <span style={sizeStyle}>{formatBytes(node.size)}</span>}
       </div>
     )
     if (node.type === 'directory' && isExpanded && tree[node.path]) {
-      rendered.push(
-        ...renderNodes(node.path, tree, expanded, toggleFolder, openFile, depth + 1)
-      )
+      rendered.push(...renderNodes(node.path, tree, expanded, toggleFolder, openFile, depth + 1))
     }
   }
   return rendered

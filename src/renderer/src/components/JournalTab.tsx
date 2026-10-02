@@ -92,9 +92,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
   if (!companionId) {
     return (
       <div style={containerStyle}>
-        <div style={emptyStateStyle}>
-          Select a companion (click on the bay).
-        </div>
+        <div style={emptyStateStyle}>Select a companion (click on the bay).</div>
       </div>
     )
   }
@@ -121,11 +119,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
 
       {isLoading && <div style={loadingStyle}>Loading...</div>}
 
-      {error && (
-        <div style={errorStyle}>
-          ⚠ {error}
-        </div>
-      )}
+      {error && <div style={errorStyle}>⚠ {error}</div>}
 
       {/* SOUL sub-tab */}
       {activeSubTab === 'soul' && (
@@ -155,9 +149,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
       {activeSubTab === 'memory' && (
         <div style={contentAreaStyle}>
           <div style={memoryScrollAreaStyle}>
-            <pre style={memoryPreStyle}>
-              {memoryContent || '(No memory entries yet)'}
-            </pre>
+            <pre style={memoryPreStyle}>{memoryContent || '(No memory entries yet)'}</pre>
           </div>
           <div style={actionRowStyle}>
             <button

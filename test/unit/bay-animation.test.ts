@@ -34,7 +34,7 @@ describe('computeWalkBob', () => {
   })
 
   it('reaches peak amplitude a quarter of the way through one bob cycle', () => {
-    const quarterPeriodMs = (1000 / DEFAULT_WALK_BOB.frequencyHz) / 4
+    const quarterPeriodMs = 1000 / DEFAULT_WALK_BOB.frequencyHz / 4
     const bob = computeWalkBob(quarterPeriodMs)
     expect(bob.yOffset).toBeCloseTo(DEFAULT_WALK_BOB.amplitudePx, 5)
   })

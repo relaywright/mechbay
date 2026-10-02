@@ -34,9 +34,9 @@ describe('FsReader — security', () => {
 
   it('rejects path traversal via .. out of the whitelist', async () => {
     const reader = new FsReader([subDir])
-    await expect(
-      reader.readFile(path.join(subDir, '..', 'secret', 'oops.txt'))
-    ).rejects.toThrow(/access denied/i)
+    await expect(reader.readFile(path.join(subDir, '..', 'secret', 'oops.txt'))).rejects.toThrow(
+      /access denied/i
+    )
   })
 
   it('rejects absolute paths outside the whitelist', async () => {
@@ -94,9 +94,7 @@ describe('FsReader — behavior', () => {
 
   it('updateWhitelist reflects new paths immediately', async () => {
     const reader = new FsReader([])
-    await expect(reader.readFile(path.join(root, 'package.json'))).rejects.toThrow(
-      /access denied/i
-    )
+    await expect(reader.readFile(path.join(root, 'package.json'))).rejects.toThrow(/access denied/i)
     reader.updateWhitelist([root])
     await expect(reader.readFile(path.join(root, 'package.json'))).resolves.toBe('{}')
   })

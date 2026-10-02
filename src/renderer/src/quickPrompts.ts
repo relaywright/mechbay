@@ -39,7 +39,7 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
     label: 'Add Tests',
     icon: '✨',
     prompt:
-      'Add unit tests for the most under-tested module. Use the project\'s existing test framework. Aim for meaningful coverage of edge cases.'
+      "Add unit tests for the most under-tested module. Use the project's existing test framework. Aim for meaningful coverage of edge cases."
   },
   {
     id: 'docs-pass',
@@ -88,7 +88,7 @@ export const QUICK_PROMPTS: QuickPrompt[] = [
     label: 'Type Safety',
     icon: '🔒',
     prompt:
-      'Find the most type-unsafe areas. Add TypeScript types or JSDoc. Eliminate any\'s that can be properly typed. Do not change runtime behavior.'
+      "Find the most type-unsafe areas. Add TypeScript types or JSDoc. Eliminate any's that can be properly typed. Do not change runtime behavior."
   },
   {
     id: 'accessibility-pass',

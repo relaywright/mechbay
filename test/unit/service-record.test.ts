@@ -101,7 +101,11 @@ describe('computeServiceRecord', () => {
         status: 'completed',
         diffStats: { filesChanged: 2, insertions: 30, deletions: 15 }
       }),
-      deployment({ id: 'd2', status: 'failed', diffStats: { filesChanged: 3, insertions: 9, deletions: 9 } })
+      deployment({
+        id: 'd2',
+        status: 'failed',
+        diffStats: { filesChanged: 3, insertions: 9, deletions: 9 }
+      })
     ]
     const record = computeServiceRecord(COMPANION_A, deployments)
     // completed: 100 + floor(45/10)=4 => 104. failed: 20. total 124.

@@ -206,7 +206,7 @@ describe('soul-memory — edge cases', () => {
     }
 
     const mem = fs.readFileSync(paths.memoryPath, 'utf-8')
-    
+
     // All entries should be present in order
     for (let i = 0; i < 10; i++) {
       expect(mem).toContain(`Task ${i}`)

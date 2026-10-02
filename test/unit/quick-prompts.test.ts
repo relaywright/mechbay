@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  QUICK_PROMPTS,
-  filterPromptsFor,
-  getPromptById
-} from '../../src/renderer/src/quickPrompts'
+import { QUICK_PROMPTS, filterPromptsFor, getPromptById } from '../../src/renderer/src/quickPrompts'
 
 describe('quickPrompts library', () => {
   describe('QUICK_PROMPTS', () => {
@@ -50,9 +46,7 @@ describe('quickPrompts library', () => {
 
     it('filters by mechClass when specified', () => {
       // First, find a prompt with mechClass filter
-      const filteredPrompt = QUICK_PROMPTS.find(
-        (p) => p.mechClass && p.mechClass.length > 0
-      )
+      const filteredPrompt = QUICK_PROMPTS.find((p) => p.mechClass && p.mechClass.length > 0)
 
       if (filteredPrompt) {
         const allowedClasses = filteredPrompt.mechClass!
@@ -71,9 +65,7 @@ describe('quickPrompts library', () => {
 
     it('filters by facilityType when specified', () => {
       // Find a prompt with facilityType filter
-      const filteredPrompt = QUICK_PROMPTS.find(
-        (p) => p.facilityType && p.facilityType.length > 0
-      )
+      const filteredPrompt = QUICK_PROMPTS.find((p) => p.facilityType && p.facilityType.length > 0)
 
       if (filteredPrompt) {
         const allowedTypes = filteredPrompt.facilityType!
