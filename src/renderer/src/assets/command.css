@@ -1303,6 +1303,11 @@ input {
   line-height: 1.5;
   color: #abb0a3;
 }
+.autonomy-note-rules {
+  margin-top: 2px;
+  font-size: 9px;
+  color: #80857a;
+}
 .debrief-blocked {
   margin-top: 16px;
   padding: 10px 12px;

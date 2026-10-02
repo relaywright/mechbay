@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentFamily, Companion, CompanionConfigurePayload } from '../../../shared/types'
-import { DEFAULT_AUTONOMY } from '../../../shared/autonomy'
+import {
+  DEFAULT_AUTONOMY,
+  autonomyRaisedBy,
+  type EffectiveAutonomy
+} from '../../../shared/autonomy'
 import { ipcErrorMessage } from '../../../shared/bridge-errors'
 import { RUNTIME_ENV, RUNTIME_OPTIONS } from '../runtime-options'
 import { colors, type } from '../theme'
@@ -276,13 +280,29 @@ function MechSettingsRow({
     }
   }
 
-  const configure = (kind: 'name' | 'runtime'): Promise<void> =>
-    apply(
-      kind,
-      kind === 'name'
-        ? { companionId: companion.id, name }
-        : { companionId: companion.id, runtime, model }
-    )
+  // A runtime switch that would let missions do more than today (Read only on
+  // Claude runs at Full on Gemini) waits for an explicit confirmation.
+  const [confirmRaise, setConfirmRaise] = useState<EffectiveAutonomy | null>(null)
+
+  const saveName = (): Promise<void> => apply('name', { companionId: companion.id, name })
+
+  const applyRuntime = async (accepted?: EffectiveAutonomy): Promise<void> => {
+    const raised = autonomyRaisedBy(savedRuntime, runtime, companion.autonomy ?? DEFAULT_AUTONOMY)
+    if (raised !== undefined && accepted !== raised) {
+      setError(null)
+      setConfirmRaise(raised)
+      return
+    }
+    setConfirmRaise(null)
+    await apply('runtime', {
+      companionId: companion.id,
+      runtime,
+      model,
+      ...(raised !== undefined ? { acceptAutonomy: raised } : {})
+    })
+  }
+
+  const runtimeLabel = RUNTIME_OPTIONS.find((o) => o.value === runtime)?.label ?? runtime
 
   const saveSecret = async (value: string): Promise<void> => {
     setPending('key')
@@ -326,7 +346,7 @@ function MechSettingsRow({
               type="button"
               style={actionButtonStyle}
               disabled={pending !== null}
-              onClick={() => void configure('name')}
+              onClick={() => void saveName()}
             >
               SAVE
             </button>
@@ -343,6 +363,7 @@ function MechSettingsRow({
                 setRuntime(event.target.value as AgentFamily)
                 setKeyValue('')
                 setError(null)
+                setConfirmRaise(null)
               }}
             >
               {RUNTIME_OPTIONS.map((option) => (
@@ -361,12 +382,44 @@ function MechSettingsRow({
               type="button"
               style={actionButtonStyle}
               disabled={pending !== null}
-              onClick={() => void configure('runtime')}
+              onClick={() => void applyRuntime()}
             >
               APPLY
             </button>
           </span>
         </label>
+
+        {confirmRaise && (
+          <div style={fieldStyle}>
+            <span />
+            <div role="alert" aria-label="Confirm runtime switch" style={confirmStyle}>
+              <p style={confirmTextStyle}>
+                {confirmRaise === 'unenforced'
+                  ? `${runtimeLabel} controls its own permissions, so MechBay cannot limit what this mech does.`
+                  : `On ${runtimeLabel}, this mech runs at Full: it can change files and run any command without asking.`}{' '}
+                Missions already waiting in the queue will run this way too.
+              </p>
+              <span style={inlineControlStyle}>
+                <button
+                  type="button"
+                  style={dangerActionStyle}
+                  disabled={pending !== null}
+                  onClick={() => void applyRuntime(confirmRaise)}
+                >
+                  SWITCH ANYWAY
+                </button>
+                <button
+                  type="button"
+                  style={clearButtonStyle}
+                  disabled={pending !== null}
+                  onClick={() => setConfirmRaise(null)}
+                >
+                  CANCEL
+                </button>
+              </span>
+            </div>
+          </div>
+        )}
 
         <div style={fieldStyle}>
           <span style={labelStyle}>AUTONOMY</span>
@@ -546,6 +599,25 @@ const loginNoteStyle: React.CSSProperties = {
   color: colors.textSecondary,
   fontSize: 10,
   padding: '6px 0'
+}
+const confirmStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 8,
+  padding: '8px 10px',
+  border: `1px solid ${colors.statusFailedLight}`,
+  background: 'rgba(255, 107, 107, 0.08)'
+}
+const confirmTextStyle: React.CSSProperties = {
+  margin: 0,
+  color: colors.textPrimary,
+  fontSize: 10,
+  lineHeight: 1.5
+}
+const dangerActionStyle: React.CSSProperties = {
+  ...actionButtonStyle,
+  background: 'transparent',
+  borderColor: colors.statusFailedLight,
+  color: colors.statusFailedLight
 }
 const errorStyle: React.CSSProperties = {
   gridColumn: 2,

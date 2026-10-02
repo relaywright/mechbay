@@ -129,7 +129,11 @@ export function DebriefModal(props: {
                 </li>
               ))}
             </ul>
-            <p>Run these yourself, or raise this mech’s Autonomy in Settings and send it again.</p>
+            <p>
+              {deployment.autonomy === 'read' || deployment.autonomy === 'edit'
+                ? 'Run these yourself, or raise this mech’s Autonomy in Settings and send it again.'
+                : 'Run these yourself, or check the allow and deny rules in your CLI settings.'}
+            </p>
           </section>
         ) : null}
 

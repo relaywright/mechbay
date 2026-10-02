@@ -53,6 +53,7 @@ import {
   AUTONOMY_LABELS,
   AUTONOMY_LEVELS,
   DEFAULT_AUTONOMY,
+  autonomyRaisedBy,
   autonomySupport,
   effectiveAutonomy
 } from '../shared/autonomy'
@@ -529,10 +530,24 @@ export function registerIpc(opts: IpcDeps): void {
       if (autonomy !== undefined && !AUTONOMY_LEVELS.includes(autonomy)) {
         return { ok: false, error: `Unknown Autonomy level: ${String(autonomy)}` }
       }
-      if (runtime !== undefined && !(runtime in runners)) {
+      if (runtime !== undefined && !Object.hasOwn(runners, runtime)) {
         return { ok: false, error: `Unknown runtime: ${runtime}` }
       }
-      const targetRuntime = runtime ?? companion.runtime ?? companion.family
+      const savedRuntime = companion.runtime ?? companion.family
+      const savedLevel = companion.autonomy ?? DEFAULT_AUTONOMY
+      const targetRuntime = runtime ?? savedRuntime
+      if (runtime !== undefined && autonomy === undefined) {
+        // A runtime switch must never quietly give a mech more than it has
+        // today: Read only on Claude would run at Full on Gemini.
+        const raised = autonomyRaisedBy(savedRuntime, runtime, savedLevel)
+        if (raised !== undefined && payload.acceptAutonomy !== raised) {
+          const label = raised === 'unenforced' ? 'Not enforced' : AUTONOMY_LABELS[raised]
+          return {
+            ok: false,
+            error: `This runtime would raise the mech's Autonomy to ${label}. Confirm the switch to continue.`
+          }
+        }
+      }
       if (autonomy !== undefined) {
         const support = autonomySupport(targetRuntime)
         if (!support.available[autonomy]) {
@@ -551,6 +566,15 @@ export function registerIpc(opts: IpcDeps): void {
         } catch (err) {
           console.warn(`[ipc] isAvailable() threw for runtime ${runtime}:`, err)
           cliAvailable = false
+        }
+        // The checks above were made against the settings before the await;
+        // if another change landed meanwhile, they no longer hold.
+        const now = state.getState().companions.find((c) => c.id === companionId)
+        if (
+          (now?.runtime ?? now?.family) !== savedRuntime ||
+          (now?.autonomy ?? DEFAULT_AUTONOMY) !== savedLevel
+        ) {
+          return { ok: false, error: 'Settings changed while saving. Try again.' }
         }
       }
 

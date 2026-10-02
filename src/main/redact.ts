@@ -35,7 +35,9 @@ function hideCutOffSecrets(text: string, secrets: readonly string[]): string {
     let cut = 0
     for (const secret of secrets) {
       for (let k = Math.min(secret.length - 1, at - from); k >= MIN_SECRET_LENGTH && k > cut; k--) {
-        if (text.startsWith(secret.slice(0, k), at - k)) {
+        // Cheap first-character test before the slice, so long lines full of
+        // ellipses stay fast even with a large secret such as a PEM key.
+        if (text[at - k] === secret[0] && text.startsWith(secret.slice(0, k), at - k)) {
           cut = k
           break
         }

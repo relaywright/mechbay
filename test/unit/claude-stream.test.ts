@@ -92,6 +92,22 @@ describe('ClaudeStreamFormatter', () => {
     expect(formatter.report().permissionDenials).toEqual(['Bash: rm -rf build', 'Write /tmp/x'])
   })
 
+  it('does not list ExitPlanMode or AskUserQuestion as blocked actions', () => {
+    const line = JSON.stringify({
+      type: 'result',
+      subtype: 'success',
+      num_turns: 2,
+      permission_denials: [
+        { tool_name: 'ExitPlanMode', tool_use_id: 'p', tool_input: { plan: 'Do it' } },
+        { tool_name: 'AskUserQuestion', tool_use_id: 'q', tool_input: {} },
+        { tool_name: 'Write', tool_use_id: 'w', tool_input: { file_path: '/tmp/x' } }
+      ]
+    })
+    const { out, formatter } = run(`${line}\n`, 50)
+    expect(out).toBe('DONE · 2 turns\nBLOCKED · 1 action needed approval and was denied.\n')
+    expect(formatter.report().permissionDenials).toEqual(['Write /tmp/x'])
+  })
+
   it('keeps blank lines in plain text', () => {
     expect(run('first\n\nsecond\n', 4).out).toBe('first\n\nsecond\n')
   })
