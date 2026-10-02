@@ -202,6 +202,8 @@ app.whenReady().then(() => {
     prepareLogStore(logs, state, { redact: (text) => redactSecrets(text, bootSecrets) })
   } catch (err) {
     console.error('[boot] preparing mission logs failed:', err)
+    // Old lines the import never reached left the saved file already.
+    if (state.takeLegacyLogChunks().length) state.noteLegacyLogsNotMoved()
   }
   // Closing MechBay refuses new missions, recalls every running one and
   // cancels every queued one, waits for each to save its outcome, then
