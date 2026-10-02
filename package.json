@@ -65,7 +65,7 @@
     "happy-dom": "^20.14.5",
     "jimp": "^1.6.1",
     "mitt": "^3.0.1",
-    "phaser": "^3.90.0",
+    "phaser": "^4.2.1",
     "playwright-core": "^1.63.0",
     "prettier": "^3.9.8",
     "react": "^19.3.0",
