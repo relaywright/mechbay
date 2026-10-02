@@ -7,7 +7,7 @@
  * terse, all caps, one line at a time — about the lance as a whole.
  */
 import type { AppState, Deployment } from '../../shared/types'
-import { concurrencyCap } from '../../shared/mission-queue'
+import { concurrencyCap, waitingInLine } from '../../shared/mission-queue'
 
 export type CalloutTone = 'nominal' | 'warning' | 'critical'
 
@@ -40,6 +40,7 @@ export function computeCallouts(prev: AppState | null, next: AppState): Callout[
   const facility = (id: string): string =>
     upper(next.facilities.find((f) => f.id === id)?.name, 'OBJECTIVE')
   const before = new Map(prev.deployments.map((d) => [d.id, d.status]))
+  const waiting = waitingInLine(next)
 
   for (const d of next.deployments) {
     const was = before.get(d.id)
@@ -53,7 +54,7 @@ export function computeCallouts(prev: AppState | null, next: AppState): Callout[
         text: `TARGET LOCKED · ${facility(d.facilityId)}`,
         tone: 'nominal'
       })
-    } else if (d.status === 'queued' && was === undefined) {
+    } else if (d.status === 'queued' && was === undefined && waiting.has(d.id)) {
       callouts.push({
         id: `${d.id}:queued`,
         text: `LANCE AT CAPACITY · ${mech(d.companionId)} HOLDING`,

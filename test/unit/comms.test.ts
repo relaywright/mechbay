@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type {
+  AppState,
   Companion,
   Deployment,
   DeploymentStatus,
@@ -111,10 +112,25 @@ describe('buildCommsMessage', () => {
     const [message] = computeCommsMessages([], {
       deployments: [deployment('walking-to', { companionId: 'raven-1' })],
       companions,
-      facilities
+      facilities,
+      settings: { concurrencyCap: 3 } as AppState['settings']
     })
     expect(message.channel).toBe('CH 02 · ORDERS')
     expect(message.callsign).toBe('Raven-Prime')
+  })
+
+  it('reports holding only when the lane is full, not for the moment before a mission starts', () => {
+    const out = deployment('working', { id: 'deployment-0' })
+    const fresh = deployment('queued', { companionId: 'raven-1' })
+    const radio = (cap: number): string[] =>
+      computeCommsMessages([out], {
+        deployments: [out, fresh],
+        companions,
+        facilities,
+        settings: { concurrencyCap: cap } as AppState['settings']
+      }).map((m) => m.event)
+    expect(radio(3)).toEqual([])
+    expect(radio(1)).toEqual(['queued'])
   })
 })
 

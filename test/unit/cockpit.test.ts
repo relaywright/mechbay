@@ -60,8 +60,20 @@ describe('computeCallouts', () => {
     expect(out).toEqual([])
   })
 
+  it('stays quiet about a new mission that a free slot is about to start', () => {
+    // Every mission is saved as queued first; the scheduler starts it a moment
+    // later. With 1 of 3 mechs out, nothing is holding.
+    const lane = [deployment('d1', 'working')]
+    const out = computeCallouts(state(lane), state([...lane, deployment('d2', 'queued', 'c2')]))
+    expect(out).toEqual([])
+  })
+
   it('warns on a queued launch and on input requests', () => {
-    const queued = computeCallouts(state([]), state([deployment('d2', 'queued', 'c2')]))
+    const full = [deployment('d1', 'working')]
+    const queued = computeCallouts(
+      state(full, true, 1),
+      state([...full, deployment('d2', 'queued', 'c2')], true, 1)
+    )
     expect(queued[0]).toMatchObject({
       text: 'LANCE AT CAPACITY · RAVEN-PRIME HOLDING',
       tone: 'warning'

@@ -75,6 +75,20 @@ export function missionsToStart(state: Pick<AppState, 'deployments' | 'settings'
   return start
 }
 
+/**
+ * Queued missions that really wait. Every new mission is saved as queued and
+ * the scheduler starts it a moment later when a slot is free, so a queued
+ * status alone does not mean the lane is full.
+ */
+export function waitingInLine(state: Pick<AppState, 'deployments' | 'settings'>): Set<string> {
+  const starting = new Set(missionsToStart(state).map((d) => d.id))
+  return new Set(
+    queuedInOrder(state.deployments)
+      .filter((d) => !starting.has(d.id))
+      .map((d) => d.id)
+  )
+}
+
 export function hasOpenMission(deployments: Deployment[], companionId: string): boolean {
   return deployments.some((d) => d.companionId === companionId && isOpen(d.status))
 }
