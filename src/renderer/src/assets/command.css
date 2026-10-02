@@ -2201,6 +2201,13 @@ input {
     display: none;
   }
 }
+/* A narrow card whose status is longer than "Ready" leaves the stat line a
+   sliver ("N."); drop it there. The mech panel shows the full record. */
+@container (max-width: 180px) {
+  .crew-foot:has(.crew-status:not(.ready)) .crew-stat-line {
+    display: none;
+  }
+}
 @media (max-width: 520px) {
   .comms-feed {
     right: 12px;
