@@ -7,7 +7,6 @@ import type {
   AppState,
   Companion,
   Deployment,
-  DeploymentStatus,
   Facility,
   FacilityType,
   MechClass,
@@ -15,6 +14,7 @@ import type {
 } from '../shared/types'
 import { ulid } from '../shared/ulid'
 import { DEFAULT_AUTONOMY } from '../shared/autonomy'
+import { isActive } from '../shared/mission-queue'
 import {
   CURRENT_SCHEMA_VERSION,
   isAppStateV2,
@@ -387,42 +387,39 @@ export class StateManager extends EventEmitter {
   }
 
   /**
-   * Find deployments stuck in an active status (walking-to, working,
-   * awaiting-input, returning) from the previous run — these are
-   * zombies from a crash or force-quit. Mark each `failed` with a
-   * clear summary and return the affected records so the renderer
-   * can surface a recovery notice.
+   * After a crash or a hard quit: missions that were running are marked
+   * failed; missions still waiting are cancelled rather than started
+   * unattended. Returns the changed missions for the recovery dialog.
    *
    * Idempotent: calling on a freshly-seeded or already-swept state
    * returns an empty array and leaves state untouched.
    */
   sweepZombieDeployments(): Deployment[] {
-    const ACTIVE: DeploymentStatus[] = ['walking-to', 'working', 'awaiting-input', 'returning']
-    const zombies = this.cache.deployments.filter((d) => ACTIVE.includes(d.status))
-    if (zombies.length === 0) return []
-
-    const zombieIds = new Set(zombies.map((z) => z.id))
     const now = Date.now()
+    const changed: Deployment[] = []
+    for (const d of this.cache.deployments) {
+      if (isActive(d.status)) {
+        changed.push({
+          ...d,
+          status: 'failed',
+          summary: 'Interrupted when MechBay closed unexpectedly.',
+          completedAt: now
+        })
+      } else if (d.status === 'queued') {
+        changed.push({
+          ...d,
+          status: 'cancelled',
+          summary: 'Cancelled: MechBay closed before it started.',
+          completedAt: now
+        })
+      }
+    }
+    if (changed.length === 0) return []
+    const byId = new Map(changed.map((d) => [d.id, d]))
     this.updateState((prev) => ({
       ...prev,
-      deployments: prev.deployments.map((d) =>
-        zombieIds.has(d.id)
-          ? {
-              ...d,
-              status: 'failed' as DeploymentStatus,
-              summary: 'Interrupted by app crash',
-              completedAt: now
-            }
-          : d
-      )
+      deployments: prev.deployments.map((d) => byId.get(d.id) ?? d)
     }))
-    // Return the MUTATED records (with status=failed) so the modal
-    // shows consistent info.
-    return zombies.map((z) => ({
-      ...z,
-      status: 'failed' as DeploymentStatus,
-      summary: 'Interrupted by app crash',
-      completedAt: now
-    }))
+    return changed
   }
 }

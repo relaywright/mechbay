@@ -56,7 +56,7 @@ Have a real agent CLI installed? `npm run dev` and deploy for real.
 - Deploys real local agent processes into real project directories.
 - Maps five named mechs to Claude Code, Codex, Kimi on Fireworks AI, Gemini CLI, or any command-line agent you bring yourself. The author runs Claude Code and Codex and checks them before every release; the others are wired the same way but not verified by the author.
 - Streams live output to the HUD; Raven can also show opt-in `INTENT` and `FINDINGS` thought cards.
-- Runs up to three deployments at once and queues the rest.
+- Runs up to three deployments at once. Missions you send while every slot is busy wait in line and start in the order you sent them, and you can cancel one that is still waiting.
 - Captures a Mission Debrief after every run: changed files, insertions, deletions, and a built-in diff viewer. Click any changed file to read the exact lines the agent added and removed, new files included.
 - Renders a living bay: a hangar deck with hazard-striped landing pads, power conduits pulsing data between linked facilities, drifting haze, and sweeping searchlights. Scroll to zoom, drag empty ground to pan, and hit **RECENTER** to snap back.
 - Plays deploy cinematics: a target-lock reticle on the destination, a route line for the walk, a live data link while the mech works, a shockwave when it succeeds, and a red warning ring when it goes down.

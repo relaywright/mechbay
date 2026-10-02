@@ -1,4 +1,5 @@
 import type { AppState, Companion, Deployment, DeploymentStatus } from '../../shared/types'
+import { isActive, queuePosition } from '../../shared/mission-queue'
 
 export const STATUS_LABELS: Record<DeploymentStatus, string> = {
   queued: 'Queued',
@@ -12,7 +13,14 @@ export const STATUS_LABELS: Record<DeploymentStatus, string> = {
 }
 
 export function isActiveMission(deployment: Deployment): boolean {
-  return ['walking-to', 'working', 'awaiting-input', 'returning'].includes(deployment.status)
+  return isActive(deployment.status)
+}
+
+/** Status text for one mission; queued missions show their place in line. */
+export function missionStatusLabel(d: Deployment, all: Deployment[]): string {
+  if (d.status !== 'queued') return STATUS_LABELS[d.status]
+  const position = queuePosition(all, d.id)
+  return position ? `Queued · #${position} in line` : STATUS_LABELS.queued
 }
 
 export function currentMission(

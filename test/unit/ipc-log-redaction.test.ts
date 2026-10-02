@@ -31,7 +31,7 @@ vi.mock('electron', () => ({
   BrowserWindow: class {}
 }))
 
-import { executeDeployment, registerIpc } from '../../src/main/ipc'
+import { executeDeployment, registerIpc, startQueuedMissions } from '../../src/main/ipc'
 
 const STORED_KEY = 'fw-stored-secret-1234567890'
 const ENV_KEY = 'sk-env-secret-0987654321'
@@ -321,9 +321,11 @@ describe('task text is redacted where it is stored, never where it runs', () => 
   it('stores a redacted task for display and runs the raw one, for both started and queued missions', async () => {
     registeredHandlers.clear()
     const { state, send, companion, facility } = await setup()
+    // A mech holds one open mission at a time, so a second mech queues.
+    const mate = { ...companion, id: 'companion-queue-mate', name: 'Queue-Mate' }
     state.updateState((prev) => ({
       ...prev,
-      companions: prev.companions.map((c) => (c.id === companion.id ? companion : c)),
+      companions: [...prev.companions.map((c) => (c.id === companion.id ? companion : c)), mate],
       facilities: [...prev.facilities, facility],
       deployments: [],
       settings: { ...prev.settings, concurrencyCap: 1 }
@@ -345,16 +347,19 @@ describe('task text is redacted where it is stored, never where it runs', () => 
     })
     const deployStart = registeredHandlers.get(IPC.DEPLOY_START)
     if (!deployStart) throw new Error('DEPLOY_START handler was not registered')
-    const start = async (taskPrompt: string): Promise<{ deploymentId: string; status: string }> =>
-      (await deployStart(
-        {},
-        { companionId: companion.id, facilityId: facility.id, taskPrompt }
-      )) as { deploymentId: string; status: string }
+    const start = async (
+      taskPrompt: string,
+      companionId = companion.id
+    ): Promise<{ deploymentId: string; status: string }> =>
+      (await deployStart({}, { companionId, facilityId: facility.id, taskPrompt })) as {
+        deploymentId: string
+        status: string
+      }
 
     const first = await start(`First run uses ${STORED_KEY}`)
     // Real git runs for the baseline first, which is slow under a busy suite.
     await vi.waitFor(() => expect(spawnedPrompts).toHaveLength(1), { timeout: 15_000 })
-    const second = await start(`Queued run uses ${STORED_KEY}`)
+    const second = await start(`Queued run uses ${STORED_KEY}`, mate.id)
     expect(second.status).toBe('queued')
 
     const stored = (id: string): string | undefined =>
@@ -382,9 +387,11 @@ describe('task text is redacted where it is stored, never where it runs', () => 
     const REPLACED_KEY = 'fw-replacement-secret-2468024680'
     registeredHandlers.clear()
     const { state, send, companion, facility } = await setup()
+    // A second mech (same memory file) queues behind the first.
+    const mate = { ...companion, id: 'companion-queue-mate', name: 'Queue-Mate' }
     state.updateState((prev) => ({
       ...prev,
-      companions: prev.companions.map((c) => (c.id === companion.id ? companion : c)),
+      companions: [...prev.companions.map((c) => (c.id === companion.id ? companion : c)), mate],
       facilities: [...prev.facilities, facility],
       deployments: [],
       settings: { ...prev.settings, concurrencyCap: 1 }
@@ -419,15 +426,18 @@ describe('task text is redacted where it is stored, never where it runs', () => 
     })
     const deployStart = registeredHandlers.get(IPC.DEPLOY_START)
     if (!deployStart) throw new Error('DEPLOY_START handler was not registered')
-    const start = async (taskPrompt: string): Promise<{ deploymentId: string; status: string }> =>
-      (await deployStart(
-        {},
-        { companionId: companion.id, facilityId: facility.id, taskPrompt }
-      )) as { deploymentId: string; status: string }
+    const start = async (
+      taskPrompt: string,
+      companionId = companion.id
+    ): Promise<{ deploymentId: string; status: string }> =>
+      (await deployStart({}, { companionId, facilityId: facility.id, taskPrompt })) as {
+        deploymentId: string
+        status: string
+      }
 
     await start('Hold the slot')
     await vi.waitFor(() => expect(spawns).toBe(1), { timeout: 15_000 })
-    const queued = await start(`Rotate away from ${STORED_KEY}`)
+    const queued = await start(`Rotate away from ${STORED_KEY}`, mate.id)
     expect(queued.status).toBe('queued')
 
     // Sam replaces the stored key before the queued mission starts.
@@ -484,7 +494,12 @@ describe('crash summaries never contain API keys', () => {
     registeredHandlers.clear()
     const { state, send, facility } = await setup()
     const seeded = state.getState().companions[0]
-    state.updateState((prev) => ({ ...prev, facilities: [...prev.facilities, facility] }))
+    // Clear setup's open mission: a mech holds one open mission at a time.
+    state.updateState((prev) => ({
+      ...prev,
+      facilities: [...prev.facilities, facility],
+      deployments: []
+    }))
     registerIpc({
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
@@ -526,14 +541,17 @@ describe('crash summaries never contain API keys', () => {
       deployments: [...prev.deployments, queued]
     }))
 
-    await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, {
+    const opts = {
       win: { isDestroyed: () => false, webContents: { send } } as unknown as BrowserWindow,
       state,
       runners: runnersCrashingOn(queuedCompanion.runtime ?? queuedCompanion.family),
       logs: makeLogSink().sink,
       fsReader: {} as never,
       secrets: secretsStub()
-    })
+    }
+    await executeDeployment(deployment.id, companion, facility, deployment.taskPrompt, opts)
+    // In the app the scheduler runs after every mission ends; run it here.
+    startQueuedMissions(opts)
 
     await vi.waitFor(() => {
       const crashed = state.getState().deployments.find((d) => d.id === queued.id)

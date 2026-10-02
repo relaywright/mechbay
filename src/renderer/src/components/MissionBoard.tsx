@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { AppState, Deployment } from '../../../shared/types'
-import { canDispatch, isActiveMission, missionDuration, noun, STATUS_LABELS } from '../operations'
+import {
+  canDispatch,
+  isActiveMission,
+  missionDuration,
+  missionStatusLabel,
+  noun
+} from '../operations'
+import { RecallButton } from './RecallButton'
 import { CREW, RUNTIME_NAMES } from '../crew'
 
 export function MissionBoard({
@@ -34,7 +41,12 @@ export function MissionBoard({
     .sort((a, b) => {
       const priority = (d: Deployment): number =>
         isActiveMission(d) ? 0 : d.status === 'queued' ? 1 : 2
-      return priority(a) - priority(b) || b.startedAt - a.startedAt
+      // Waiting missions read in line order (#1 first); the rest newest first.
+      const age =
+        a.status === 'queued' && b.status === 'queued'
+          ? a.startedAt - b.startedAt
+          : b.startedAt - a.startedAt
+      return priority(a) - priority(b) || age
     })
     .slice(0, 6)
 
@@ -129,39 +141,41 @@ export function MissionBoard({
             const mech = state.companions.find((c) => c.id === d.companionId)
             const facility = state.facilities.find((f) => f.id === d.facilityId)
             return (
-              <button
-                key={d.id}
-                className={`mission-row status-${d.status}`}
-                onClick={() => (d.status === 'completed' ? onReview(d.id) : onLog())}
-                aria-label={
-                  d.status === 'completed'
-                    ? `Review mission: ${mech?.name}`
-                    : `View mission log: ${mech?.name}`
-                }
-              >
-                <div className="mission-row-top">
-                  <strong>{mech?.name ?? 'Archived mech'}</strong>
-                  <span className="mission-state">
-                    <i />
-                    {STATUS_LABELS[d.status]}
-                  </span>
-                </div>
-                <span className="mission-objective">{d.taskPrompt}</span>
-                <div className="mission-meta">
-                  <span>{facility?.name ?? 'Archived facility'}</span>
-                  <span>
-                    {missionDuration(d, now)} <span aria-hidden="true">↗</span>
-                  </span>
-                </div>
-                {d.diffStats && (
-                  <div className="mission-delta">
-                    {d.diffStats.filesChanged} {noun(d.diffStats.filesChanged, 'file')}{' '}
-                    <span>+{d.diffStats.insertions}</span>
-                    <em>−{d.diffStats.deletions}</em>
-                    <b>View debrief →</b>
+              <div className="mission-row-wrap" key={d.id}>
+                <button
+                  className={`mission-row status-${d.status}`}
+                  onClick={() => (d.status === 'completed' ? onReview(d.id) : onLog())}
+                  aria-label={
+                    d.status === 'completed'
+                      ? `Review mission: ${mech?.name}`
+                      : `View mission log: ${mech?.name}`
+                  }
+                >
+                  <div className="mission-row-top">
+                    <strong>{mech?.name ?? 'Archived mech'}</strong>
+                    <span className="mission-state">
+                      <i />
+                      {missionStatusLabel(d, state.deployments)}
+                    </span>
                   </div>
-                )}
-              </button>
+                  <span className="mission-objective">{d.taskPrompt}</span>
+                  <div className="mission-meta">
+                    <span>{facility?.name ?? 'Archived facility'}</span>
+                    <span>
+                      {missionDuration(d, now)} <span aria-hidden="true">↗</span>
+                    </span>
+                  </div>
+                  {d.diffStats && (
+                    <div className="mission-delta">
+                      {d.diffStats.filesChanged} {noun(d.diffStats.filesChanged, 'file')}{' '}
+                      <span>+{d.diffStats.insertions}</span>
+                      <em>−{d.diffStats.deletions}</em>
+                      <b>View debrief →</b>
+                    </div>
+                  )}
+                </button>
+                {d.status === 'queued' && <RecallButton deployment={d} />}
+              </div>
             )
           })
         )}

@@ -36,7 +36,9 @@ export function computeDeploymentActions(
         deploymentId: deployment.id
       })
     }
-    if (deployment.status === 'failed' && prevStatus !== 'failed') {
+    // A queued mission that could not start (building removed, folder
+    // unlinked) failed in the bay: the mech never left, so it does not fall.
+    if (deployment.status === 'failed' && prevStatus !== 'failed' && prevStatus !== 'queued') {
       actions.push({ kind: 'dead-in-field', companionId: deployment.companionId })
     }
     if (deployment.status === 'working' && prevStatus !== 'working') {
@@ -60,8 +62,10 @@ export function computeDeploymentActions(
         deploymentId: deployment.id
       })
     }
+    // A mission cancelled while queued never left the bay: no walk home.
     if (
       (deployment.status === 'completed' || deployment.status === 'cancelled') &&
+      prevStatus !== 'queued' &&
       prevStatus !== 'completed' &&
       prevStatus !== 'cancelled'
     ) {
