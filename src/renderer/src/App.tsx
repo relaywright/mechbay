@@ -148,8 +148,14 @@ function App(): React.JSX.Element {
     })
     resizeObserver.observe(parent)
     // Automation hook: smoke scripts (Playwright-Electron) drive the scene
-    // directly — e.g. walkTo — instead of pixel-hunting the canvas.
-    ;(window as unknown as Record<string, unknown>).__mechbayScene = scene
+    // directly. Exposed only in demo mode, so a production renderer never
+    // hands the Phaser scene to page scripts.
+    void window.mechbay
+      .getAppMode()
+      .then(({ demo }) => {
+        if (demo) (window as unknown as Record<string, unknown>).__mechbayScene = scene
+      })
+      .catch((error) => console.warn('[App] Could not resolve app mode:', error))
 
     const offDrop = (payload: { companionId: string; facilityId: string }): void => {
       setDeployError(null)

@@ -86,6 +86,19 @@ describe('StateManager with a bay saved by a newer MechBay', () => {
     expect((store.data.state as { version: number }).version).toBe(2)
   })
 
+  // A future schema is a whole number; 2.5 or Infinity is a corrupt value, not a newer MechBay.
+  it.each([2.5, Number.POSITIVE_INFINITY, Number.NaN])(
+    'treats version %s as malformed, not newer',
+    (version) => {
+      const store = storeHolding({ version, companions: [] })
+
+      const manager = new StateManager(store, userDataDir())
+
+      expect(manager.isReadOnly()).toBe(false)
+      expect((store.data.state as { version: number }).version).toBe(2)
+    }
+  )
+
   it('loads a valid schema 2 bay unchanged and stays writable', () => {
     const seeded = new StateManager(storeHolding(undefined), userDataDir()).getState()
     const store = storeHolding(structuredClone(seeded))

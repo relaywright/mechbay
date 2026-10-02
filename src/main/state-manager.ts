@@ -130,7 +130,12 @@ function isValidState(obj: unknown): obj is AppState {
 function newerSchemaVersion(raw: unknown): number | null {
   if (typeof raw !== 'object' || raw === null || !('version' in raw)) return null
   const { version } = raw as { version: unknown }
-  return typeof version === 'number' && version > STATE_SCHEMA_VERSION ? version : null
+  // Schema versions are whole numbers; anything else is corruption, not a newer MechBay.
+  return typeof version === 'number' &&
+    Number.isSafeInteger(version) &&
+    version > STATE_SCHEMA_VERSION
+    ? version
+    : null
 }
 
 export function repairFacilityTileCollisions(state: AppState): {

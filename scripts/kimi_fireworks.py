@@ -26,7 +26,7 @@ Options:
     --model           Override model name
 
 Environment:
-    FIREWORKS_API_KEY  Required. Falls back to ~/.claude/env/personal.env
+    FIREWORKS_API_KEY  Required. MechBay injects a key stored in Settings.
 """
 
 import argparse
@@ -44,7 +44,6 @@ from pathlib import Path
 # --- Configuration ---
 API_BASE = "https://api.fireworks.ai/inference/v1"
 DEFAULT_MODEL = "accounts/fireworks/routers/kimi-k2p5-turbo"
-ENV_FILE = Path.home() / ".claude" / "env" / "personal.env"
 API_KEY_ENV = "FIREWORKS_API_KEY"
 
 NARRATION_DIRECTIVE = (
@@ -254,17 +253,8 @@ TOOLS = [
 
 
 def get_api_key():
-    """Get Fireworks API key from environment or vault file."""
-    key = os.environ.get(API_KEY_ENV)
-    if key:
-        return key
-    if ENV_FILE.exists():
-        prefix = f"{API_KEY_ENV}="
-        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line.startswith(prefix) and not line.startswith("#"):
-                return line[len(prefix):].strip()
-    return None
+    """Get the Fireworks API key from the environment."""
+    return os.environ.get(API_KEY_ENV) or None
 
 
 # --- Tool Implementations ---
@@ -513,7 +503,7 @@ def chat_completion(messages, model, tools=None, temperature=0.3, max_tokens=163
     if not api_key:
         print(
             "[FATAL] FIREWORKS_API_KEY not found.\n"
-            "Set it via environment variable or in ~/.claude/env/personal.env",
+            "Set it in your environment, or store a Kimi key in MechBay Settings.",
             file=sys.stderr,
         )
         sys.exit(1)
