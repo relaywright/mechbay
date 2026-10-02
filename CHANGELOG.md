@@ -17,7 +17,9 @@ each mech may do.
   level a runtime cannot enforce is shown disabled with the reason, never
   approximated. Every mech starts at Edit files, including mechs from an
   upgraded bay, and the debrief lists anything the agent was blocked from
-  doing. Switching a mech to a runtime that would let it do more asks
+  doing. Edit files can be more than v1.4.1 allowed (Claude refused edits
+  there, and Codex may have run read only), so choose Read only in a
+  mech's settings if that is what you want. Switching a mech to a runtime that would let it do more asks
   first.
 - **Claude shows its work.** Real Claude missions show each step live
   (what it reads, edits and runs) instead of a silent log, and every
