@@ -16,6 +16,7 @@ import { SimRunner } from './runners/sim'
 import { collectSecretValues, registerIpc } from './ipc'
 import { redactSecrets } from './redact'
 import { LogStore, logDirFor, prepareLogStore } from './log-store'
+import { MissionRegistry, shutdownMissions } from './mission-registry'
 import { hasSameOrigin, isOpenableExternalUrl } from './external-links'
 import { MissionAlerts } from './mission-alerts'
 import { runCliAvailabilityCheck } from './cli-check'
@@ -202,9 +203,21 @@ app.whenReady().then(() => {
   } catch (err) {
     console.error('[boot] preparing mission logs failed:', err)
   }
-  app.on('before-quit', () => logs.flushAll())
+  // Closing MechBay recalls every running mission and cancels every queued
+  // one, then writes the last log lines (shutdownMissions does the flush),
+  // bounded at 8 seconds so a stuck agent cannot hold the app open.
+  const missions = new MissionRegistry()
+  let quitting = false
+  app.on('before-quit', (event) => {
+    // A second quit while shutting down waits for the first; app.exit below
+    // ends the app without emitting before-quit again.
+    event.preventDefault()
+    if (quitting) return
+    quitting = true
+    void shutdownMissions({ state, missions, logs, timeoutMs: 8000 }).finally(() => app.exit(0))
+  })
 
-  registerIpc({ win, state, runners, fsReader, secrets, demoMode, logs })
+  registerIpc({ win, state, runners, fsReader, secrets, demoMode, logs, missions })
 
   // Crash recovery: any deployment stuck in an active status is a
   // zombie from a previous crash or force-quit. Mark them failed and

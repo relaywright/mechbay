@@ -11,6 +11,7 @@ import {
   runnersFor
 } from '../helpers/ipc-harness'
 import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 const handlers = vi.hoisted(
   () => new Map<string, (event: unknown, ...args: unknown[]) => unknown>()
@@ -81,6 +82,7 @@ function setup(
       envFor: () => ({}),
       getSecret: (runtime: AgentFamily) => (runtime === 'claude' ? (storedKey ?? null) : null)
     } as never,
+    missions: new MissionRegistry(),
     logs: makeLogSink().sink
   }
   registerIpc(opts)
@@ -244,11 +246,15 @@ describe('mission queue scheduling', () => {
     expect(await abort('missing')).toEqual({ ok: false, error: 'Mission not found.' })
   })
 
-  it('does not yet recall a running mission', async () => {
-    const { deploy, abort } = setup(1)
+  it('recalls a running mission', async () => {
+    const { runs, deploy, abort, status } = setup(1)
     const running = await deploy(0, 'running')
-    await expect(abort(running.deploymentId)).rejects.toThrow(
-      'Recalling a running mission arrives in this release.'
-    )
+    await vi.waitFor(() => expect(runs).toHaveLength(1))
+    expect(await abort(running.deploymentId)).toEqual({ ok: true })
+    expect(runs[0].aborted).toBe(true)
+    expect(status(running.deploymentId)).toMatchObject({
+      status: 'cancelled',
+      summary: 'Recalled by the commander.'
+    })
   })
 })

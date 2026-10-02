@@ -648,6 +648,23 @@ input {
   font: 11px/1.5 var(--body);
   flex-basis: 100%;
 }
+.log-recall-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 107, 107, 0.3);
+}
+.log-recall-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d6dfcb;
+  font: 11px var(--body);
+}
+.log-recall-item .recall-control {
+  padding: 0;
+}
 .mission-row:hover strong {
   color: var(--amber);
 }

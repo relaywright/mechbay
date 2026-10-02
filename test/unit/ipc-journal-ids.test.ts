@@ -28,6 +28,7 @@ vi.mock('electron', () => ({
 
 import { registerIpc } from '../../src/main/ipc'
 import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 function makeInMemoryStore(): StoreLike {
   const data: Record<string, unknown> = {}
@@ -63,6 +64,7 @@ beforeEach(() => {
     win: makeFakeWin(),
     state,
     runners: {} as never,
+    missions: new MissionRegistry(),
     logs: makeLogSink().sink,
     fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
     secrets: {} as never

@@ -26,7 +26,7 @@ import type {
 } from '../shared/types'
 import { seedFacilities, type StateManager } from './state-manager'
 import type { SecretsManager } from './secrets'
-import type { Runner } from './runners/types'
+import type { Runner, SpawnResult } from './runners/types'
 import { ulid } from '../shared/ulid'
 import { scanProjects, type DiscoveredProject } from './project-scanner'
 import {
@@ -48,6 +48,8 @@ import {
 } from './git-diff'
 import { redactSecrets } from './redact'
 import type { MissionLogSink } from './log-store'
+import type { MissionRegistry } from './mission-registry'
+import { readUntilExitDrained } from './drain-output'
 import { NotYetAvailableError } from '../shared/bridge-errors'
 import {
   capDeployments,
@@ -80,9 +82,14 @@ export interface IpcDeps {
   logs: MissionLogSink & {
     history: (missionId: string, afterSeq?: number) => Promise<LogChunk[]>
   }
+  /** Abort handles of running agents, for recall and for closing MechBay. */
+  missions: MissionRegistry
 }
 
 const FS_DIR_IGNORE = ['node_modules', '.git', 'dist', 'build', '.next', '.turbo', 'out']
+
+/** After the agent exits, how long its last output may take to arrive. */
+const DRAIN_AFTER_EXIT_MS = 2000
 
 /**
  * Raw task text of queued deployments, by deployment id, with the secrets
@@ -195,7 +202,7 @@ export function registerIpc(opts: IpcDeps): void {
     if (active) {
       return {
         ok: false,
-        error: `«${facility.name}» has an active deployment. Wait for it to finish first.`
+        error: `${facility.name} has an active mission. Wait for it to return, or recall it first.`
       }
     }
     state.updateState((prev) => ({
@@ -209,7 +216,7 @@ export function registerIpc(opts: IpcDeps): void {
     if (state.getState().deployments.some((deployment) => isOpen(deployment.status))) {
       return {
         ok: false,
-        error: 'Deployments are active. Wait for them to finish before resetting the field.'
+        error: 'Missions are still running. Wait for them to return, or recall them first.'
       }
     }
     state.updateState((prev) => ({ ...prev, facilities: seedFacilities() }))
@@ -384,7 +391,7 @@ export function registerIpc(opts: IpcDeps): void {
     opts.logs.history(String(missionId), Number(afterSeq) || 0)
   )
 
-  // Cancel a queued mission (Task 6). Recalling a running one is Task 8.
+  // Cancel a queued mission, or recall a running one (P0-11).
   ipcMain.handle(IPC.DEPLOY_ABORT, async (_e, missionId: string): Promise<SimpleActionResult> => {
     const mission = state.getState().deployments.find((d) => d.id === missionId)
     if (!mission) return { ok: false, error: 'Mission not found.' }
@@ -400,7 +407,25 @@ export function registerIpc(opts: IpcDeps): void {
       startQueuedMissions(opts)
       return { ok: true }
     }
-    throw new NotYetAvailableError('Recalling a running mission arrives in this release.')
+    // Running (walking out, working, waiting for input, returning). Mark it
+    // first so the exit that follows cannot change the outcome.
+    setDeployment(state, missionId, {
+      status: 'cancelled',
+      completedAt: Date.now(),
+      summary: 'Recalled by the commander.'
+    })
+    // No handle yet means the agent is still starting: the launch sees the
+    // cancelled status and stops it, or never starts it.
+    try {
+      await opts.missions.get(missionId)?.abort()
+    } catch (err) {
+      // Already marked cancelled; the mission's exit still ends it.
+      console.error(`[ipc] abort failed for recalled mission ${missionId}:`, err)
+    }
+    // The mission's own exit reruns the queue too; this covers an agent that
+    // outlives its time-bounded stop, so the missions behind it never stall.
+    startQueuedMissions(opts)
+    return { ok: true }
   })
 
   // Contract stubs (spec 7.5), replaced by the task that ships the feature:
@@ -692,7 +717,9 @@ export async function executeDeployment(
   try {
     await runDeployment(deploymentId, companion, facility, taskPrompt, opts, extraSecrets)
   } finally {
-    // Every exit path, including a crash: write the last lines and free the buffer.
+    // Every exit path, including a crash: forget the abort handle, write the
+    // last lines and free the buffer.
+    opts.missions.delete(deploymentId)
     opts.logs.close(deploymentId)
   }
 }
@@ -728,12 +755,24 @@ async function runDeployment(
   // controls its own permissions and MechBay cannot limit it.
   const level = effectiveAutonomy(effectiveRuntime, companion.autonomy ?? DEFAULT_AUTONOMY)
 
+  // A recalled mission is 'cancelled' (P0-11). Checked after the waits
+  // before and during launch, since a recall can land during any of them.
+  const isCancelled = (): boolean =>
+    state.getState().deployments.find((d) => d.id === deploymentId)?.status === 'cancelled'
+  // How the mission was recalled ("by the commander", "when MechBay
+  // closed"), for the mech's memory.
+  const recalledAs = (): string =>
+    state.getState().deployments.find((d) => d.id === deploymentId)?.summary ??
+    'Recalled by the commander.'
+
   // Transition to working
   setDeployment(state, deploymentId, { status: 'working', autonomy: level ?? 'unenforced' })
 
   let exitCode: number
   let denials: string[] = []
   let baselineSha: string | null = null
+  // Outside the try, so a failure while reading the agent's output can stop it.
+  let result: SpawnResult | undefined
   try {
     // Wrap the task prompt in the companion's soul + memory so every
     // deploy carries personality context + past-run history. If assembly
@@ -752,11 +791,32 @@ async function runDeployment(
     // Settings mid-launch can't slip past the redactor.
     const launchEnv = opts.secrets.envFor(effectiveRuntime)
     secretValues = [...secretValues, ...secretEnvValues(launchEnv)]
-    const result = await runner.spawn(facility.path, fullPrompt, {
+    // Immediately before the launch, after every wait above it: a recall
+    // that landed during any of them means the agent never starts.
+    if (isCancelled()) {
+      // Recalled while the mech was still walking out: never start the agent.
+      recordMemory(
+        companion,
+        facility,
+        taskPrompt,
+        `${recalledAs()} The agent never started.`,
+        secretValues
+      )
+      return
+    }
+    result = await runner.spawn(facility.path, fullPrompt, {
       model: companion.model,
       env: launchEnv,
       autonomy: level ?? undefined
     })
+    const started = result
+    opts.missions.set(deploymentId, { abort: () => started.abort() })
+    // Recalled while the agent was starting: stop it now that it exists.
+    if (isCancelled()) {
+      void started.abort().catch((err) => {
+        console.error(`[ipc] abort failed for recalled mission ${deploymentId}:`, err)
+      })
+    }
     const parser = new NarrationParser()
 
     const emit = (p: {
@@ -771,7 +831,15 @@ async function runDeployment(
 
     // Drain stream BEFORE awaiting exit — exit may resolve while chunks
     // are still queued. Sequential await guarantees all chunks reach renderer.
-    for await (const chunk of result.stream) {
+    // Reading stops DRAIN_AFTER_EXIT_MS after the agent exits, even if a
+    // process it left running still holds the output open.
+    const output = readUntilExitDrained(result.stream, result.exit, DRAIN_AFTER_EXIT_MS, () =>
+      emit({
+        stream: 'system',
+        text: 'The agent exited, but a process it started is still holding its output open. MechBay stopped reading it.\n'
+      })
+    )
+    for await (const chunk of output) {
       for (const parsed of parser.feed(chunk)) emit(parsed)
     }
     // Flush any partial trailing line left in the parser buffers.
@@ -783,13 +851,25 @@ async function runDeployment(
     // they are saved and sent to the window.
     denials = (result.report?.().permissionDenials ?? []).map(redact)
   } catch (err) {
+    // The agent may still be running (its output stream failed, not the
+    // agent): stop it before the mission ends and its slot is reused.
+    await result?.abort().catch((abortErr) => {
+      console.error(`[ipc] abort failed for mission ${deploymentId}:`, abortErr)
+    })
     const message = redact(err instanceof Error ? err.message : String(err))
+    // A recalled mission stays cancelled: setDeployment keeps its outcome.
     setDeployment(state, deploymentId, {
       status: 'failed',
       completedAt: Date.now(),
       summary: message
     })
-    recordMemory(companion, facility, taskPrompt, `Failed before exit. ${message}`, secretValues)
+    recordMemory(
+      companion,
+      facility,
+      taskPrompt,
+      isCancelled() ? recalledAs() : `Failed before exit. ${message}`,
+      secretValues
+    )
     return
   }
 
@@ -812,16 +892,22 @@ async function runDeployment(
     exitCode === 0 &&
     diff === null &&
     (baselineSha !== null || (await isGitRepository(facility.path)) !== 'none')
+  const diffNote =
+    diff === null
+      ? ''
+      : diff.filesChanged === 0
+        ? 'No file changes detected.'
+        : `${diff.filesChanged} file${diff.filesChanged === 1 ? '' : 's'} changed, +${diff.insertions} −${diff.deletions}.`
   const outcome =
     exitCode === 0
       ? diff === null
         ? gitUnreadable
           ? 'Completed. The diff is unavailable because git could not read this project.'
           : 'Completed. (No git repository, so no diff is available.)'
-        : diff.filesChanged === 0
-          ? 'Completed. No file changes detected.'
-          : `Completed. ${diff.filesChanged} file${diff.filesChanged === 1 ? '' : 's'} changed, +${diff.insertions} −${diff.deletions}.`
+        : `Completed. ${diffNote}`
       : `Failed. Exit ${exitCode}.`
+  // For a recalled mission this only merges the diff and denials: its
+  // status, summary and exit code became final when it was recalled.
   setDeployment(state, deploymentId, {
     status: finalStatus,
     exitCode,
@@ -831,7 +917,13 @@ async function runDeployment(
     ...(denials.length ? { permissionDenials: denials } : {})
   })
 
-  recordMemory(companion, facility, taskPrompt, outcome, secretValues)
+  recordMemory(
+    companion,
+    facility,
+    taskPrompt,
+    isCancelled() ? `${recalledAs()} ${diffNote}`.trim() : outcome,
+    secretValues
+  )
 }
 
 /**

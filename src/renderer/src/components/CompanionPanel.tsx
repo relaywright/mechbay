@@ -10,6 +10,8 @@ import { colors, type } from '../theme'
 import { RUNTIME_OPTIONS } from '../runtime-options'
 import { computeServiceRecord } from '../service-record'
 import { runtimeSupportNote } from '../../../shared/runtime-support'
+import { currentMission, missionStatusLabel } from '../operations'
+import { RecallButton } from './RecallButton'
 
 interface CompanionPanelProps {
   companion: Companion | null
@@ -100,6 +102,8 @@ export function CompanionPanel({
   // Unverified runtimes say so wherever the mech is shown (follows the
   // runtime override, since that is what actually deploys).
   const supportNote = runtimeSupportNote(companion.runtime ?? companion.family)
+  // Queued or running: the mech can be recalled from here.
+  const mission = currentMission(companion.id, deployments)
 
   return (
     <div style={panelStyle}>
@@ -134,6 +138,16 @@ export function CompanionPanel({
           </div>
         )}
       </div>
+
+      {/* Current mission, with its recall control */}
+      {mission && (
+        <div style={currentMissionStyle} aria-label="Current mission">
+          <div style={currentMissionLabelStyle}>
+            ON MISSION · {missionStatusLabel(mission, deployments).toUpperCase()}
+          </div>
+          <RecallButton deployment={mission} />
+        </div>
+      )}
 
       {/* Runtime reassignment */}
       <RuntimeSection key={companion.id} companion={companion} />
@@ -446,6 +460,18 @@ const unavailableBadgeStyle: React.CSSProperties = {
 
 const unavailableIconStyle: React.CSSProperties = {
   fontSize: 10
+}
+
+const currentMissionStyle: React.CSSProperties = {
+  marginBottom: 12
+}
+
+const currentMissionLabelStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 'bold',
+  letterSpacing: '0.08em',
+  color: colors.textSecondary,
+  marginBottom: 6
 }
 
 const supportNoteStyle: React.CSSProperties = {

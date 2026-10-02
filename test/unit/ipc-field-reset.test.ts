@@ -19,6 +19,7 @@ vi.mock('electron', () => ({
 
 import { registerIpc } from '../../src/main/ipc'
 import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 function setup(): { state: StateManager; reset: () => Promise<unknown> } {
   const data: Record<string, unknown> = {}
@@ -41,6 +42,7 @@ function setup(): { state: StateManager; reset: () => Promise<unknown> } {
     win: { isDestroyed: () => false, webContents: { send: vi.fn() } } as unknown as BrowserWindow,
     state,
     runners,
+    missions: new MissionRegistry(),
     logs: makeLogSink().sink,
     fsReader: {} as never,
     secrets: {} as never
@@ -105,7 +107,7 @@ describe('IPC.FIELD_RESET', () => {
     }))
     expect(await reset()).toEqual({
       ok: false,
-      error: 'Deployments are active. Wait for them to finish before resetting the field.'
+      error: 'Missions are still running. Wait for them to return, or recall them first.'
     })
     expect(state.getState().facilities).toBe(before)
   })

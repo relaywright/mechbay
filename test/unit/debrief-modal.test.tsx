@@ -86,3 +86,30 @@ describe('DebriefModal blocked actions', () => {
     }
   )
 })
+
+describe('DebriefModal for a recalled mission', () => {
+  it('says the mission was recalled and shows no completion check mark', () => {
+    const deployment = {
+      id: 'dep-3',
+      companionId: 'atlas',
+      facilityId: 'reactor',
+      taskPrompt: 'Migrate the sensor schema',
+      status: 'cancelled',
+      startedAt: 0,
+      completedAt: 1000,
+      summary: 'Recalled by the commander.',
+      diffStats: { filesChanged: 2, insertions: 14, deletions: 3 }
+    } as Deployment
+    const { container } = render(
+      <DebriefModal
+        deployment={deployment}
+        companion={{ id: 'atlas', name: 'Atlas-Prime' } as Companion}
+        facility={{ id: 'reactor', name: 'Reactor Control' } as Facility}
+        onDismiss={() => {}}
+      />
+    )
+    expect(screen.getByRole('heading', { name: 'Mission recalled.' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Objective complete.' })).toBeNull()
+    expect(container.querySelector('.debrief-check')).toBeNull()
+  })
+})

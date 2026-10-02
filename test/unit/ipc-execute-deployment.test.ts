@@ -24,6 +24,7 @@ vi.mock('electron', () => ({
 // up the mocked 'electron' module even though this import comes after it.
 import { executeDeployment } from '../../src/main/ipc'
 import { makeLogSink } from '../helpers/log-sink'
+import { MissionRegistry } from '../../src/main/mission-registry'
 
 function makeInMemoryStore(): StoreLike {
   const data: Record<string, unknown> = {}
@@ -132,6 +133,7 @@ describe('executeDeployment runtime selection', () => {
       win: makeFakeWin(),
       state,
       runners,
+      missions: new MissionRegistry(),
       logs: makeLogSink().sink,
       fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
       secrets: {
@@ -230,6 +232,7 @@ describe('executeDeployment Autonomy (P0-12)', () => {
       win: makeFakeWin(),
       state,
       runners,
+      missions: new MissionRegistry(),
       logs: logs.sink,
       fsReader: { readDir: vi.fn(), readFile: vi.fn(), updateWhitelist: vi.fn() } as never,
       secrets: {

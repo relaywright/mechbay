@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppState, Deployment } from '../../../shared/types'
+import { isOpen } from '../../../shared/mission-queue'
 import {
   canDispatch,
   isActiveMission,
@@ -140,15 +141,16 @@ export function MissionBoard({
           missions.map((d) => {
             const mech = state.companions.find((c) => c.id === d.companionId)
             const facility = state.facilities.find((f) => f.id === d.facilityId)
+            // A recalled mission's partial work is reviewable too.
+            const reviewable =
+              d.status === 'completed' || (d.status === 'cancelled' && Boolean(d.diffStats))
             return (
               <div className="mission-row-wrap" key={d.id}>
                 <button
                   className={`mission-row status-${d.status}`}
-                  onClick={() => (d.status === 'completed' ? onReview(d.id) : onLog())}
+                  onClick={() => (reviewable ? onReview(d.id) : onLog())}
                   aria-label={
-                    d.status === 'completed'
-                      ? `Review mission: ${mech?.name}`
-                      : `View mission log: ${mech?.name}`
+                    reviewable ? `Review mission: ${mech?.name}` : `View mission log: ${mech?.name}`
                   }
                 >
                   <div className="mission-row-top">
@@ -174,7 +176,7 @@ export function MissionBoard({
                     </div>
                   )}
                 </button>
-                {d.status === 'queued' && <RecallButton deployment={d} />}
+                {isOpen(d.status) && <RecallButton deployment={d} />}
               </div>
             )
           })
