@@ -54,14 +54,20 @@ each mech may do.
   mission leaves the line, not when you sent it, and the header's heat
   gauge counts the same slots the queue does.
 
-### Going back to v1.4.1
+### Going back to an earlier version
 
-v1.4.1 cannot read the upgraded bay. It leaves the file alone and opens a
-temporary bay that is not saved. Your v1.4.1 bay is kept as
+Your bay from before the upgrade is kept as
 `mechbay-state.v2-backup-<date>.json` in `%APPDATA%\mechbay` (Windows),
 `~/Library/Application Support/mechbay` (macOS) or `~/.config/mechbay`
-(Linux). To go back: quit MechBay, rename that file to
-`mechbay-state.json`, then open v1.4.1.
+(Linux). It is an exact copy, so any mission logs from v1.4.0 inside it
+are kept as they were, unredacted.
+
+- **v1.4.1** cannot read the upgraded bay. It leaves the file alone and
+  opens a temporary bay that is not saved. To go back: quit MechBay,
+  rename the backup to `mechbay-state.json`, then open v1.4.1.
+- **v1.4.0** does not recognize the upgraded bay and replaces it with a
+  fresh one, with no copy. Rename the backup to `mechbay-state.json`
+  **before** you open v1.4.0, and your bay comes back.
 
 ## v1.4.1 - 2026-10-02
 
