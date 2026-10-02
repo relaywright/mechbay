@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FsNode } from '../../../shared/types'
 
 /**
@@ -14,11 +14,17 @@ import type { FsNode } from '../../../shared/types'
  * Fires window.mechbay.fsReadDir / fsReadFile which delegate to the
  * whitelist-guarded FsReader in the main process. Any "Access denied"
  * errors surface inline — the component never assumes a path is readable.
+ *
+ * The parent keys this component by facility, so a new facility starts with
+ * fresh state. Loads still guard against late responses: a slow read for an
+ * earlier facility or file never overwrites the current one.
  */
 export function FileBrowser(props: {
   facilityPath: string
   facilityName: string
 }): React.JSX.Element {
+  const { facilityPath } = props
+  const unbound = facilityPath.length === 0
   const [tree, setTree] = useState<Record<string, FsNode[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -26,34 +32,51 @@ export function FileBrowser(props: {
   const [error, setError] = useState<string | null>(null)
   const [rootErr, setRootErr] = useState<string | null>(null)
 
-  const loadDir = useCallback(async (p: string): Promise<FsNode[] | null> => {
+  async function loadDir(p: string): Promise<FsNode[] | null> {
     try {
       return await window.mechbay.fsReadDir(p)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setError(msg)
+      setError(e instanceof Error ? e.message : String(e))
       return null
     }
-  }, [])
+  }
 
-  // Load root when facility changes. Reset viewer state.
+  // Load the root listing. State is fresh per facility (parent key), so the
+  // effect only loads; `cancelled` drops a response for a facility the user
+  // already left.
   useEffect(() => {
-    setTree({})
-    setExpanded(new Set())
-    setSelectedFile(null)
-    setFileContent(null)
-    setError(null)
-    setRootErr(null)
-
-    if (!props.facilityPath || props.facilityPath.length === 0) {
-      setRootErr('This facility has no bound directory yet.')
-      return
+    if (unbound) return
+    let cancelled = false
+    window.mechbay.fsReadDir(facilityPath).then(
+      (nodes) => {
+        if (!cancelled) setTree((prev) => ({ ...prev, [facilityPath]: nodes }))
+      },
+      () => {
+        if (!cancelled) setRootErr(`Couldn't read ${facilityPath}`)
+      }
+    )
+    return () => {
+      cancelled = true
     }
-    loadDir(props.facilityPath).then((nodes) => {
-      if (nodes) setTree({ [props.facilityPath]: nodes })
-      else setRootErr(`Couldn't read ${props.facilityPath}`)
-    })
-  }, [props.facilityPath, loadDir])
+  }, [facilityPath, unbound])
+
+  // Read the selected file. Closing it or opening another cancels the read,
+  // so only the file on screen can fill the viewer.
+  useEffect(() => {
+    if (selectedFile === null) return
+    let cancelled = false
+    window.mechbay.fsReadFile(selectedFile).then(
+      (content) => {
+        if (!cancelled) setFileContent(content)
+      },
+      (e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [selectedFile])
 
   async function toggleFolder(dirPath: string): Promise<void> {
     if (expanded.has(dirPath)) {
@@ -70,16 +93,10 @@ export function FileBrowser(props: {
     setExpanded((prev) => new Set(prev).add(dirPath))
   }
 
-  async function openFile(filePath: string): Promise<void> {
+  function openFile(filePath: string): void {
     setSelectedFile(filePath)
     setFileContent(null)
     setError(null)
-    try {
-      const content = await window.mechbay.fsReadFile(filePath)
-      setFileContent(content)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
   }
 
   function closeFile(): void {
@@ -88,10 +105,8 @@ export function FileBrowser(props: {
     setError(null)
   }
 
-  const nodes = useMemo(
-    () => renderNodes(props.facilityPath, tree, expanded, toggleFolder, openFile),
-    [props.facilityPath, tree, expanded]
-  )
+  // Cheap to rebuild each render; memoizing it captured stale handlers.
+  const nodes = renderNodes(facilityPath, tree, expanded, toggleFolder, openFile)
 
   if (selectedFile) {
     return (
@@ -100,7 +115,7 @@ export function FileBrowser(props: {
           <button type="button" onClick={closeFile} style={backButtonStyle}>
             ◂ BACK
           </button>
-          <span style={filePathStyle}>{relPath(props.facilityPath, selectedFile)}</span>
+          <span style={filePathStyle}>{relPath(facilityPath, selectedFile)}</span>
         </div>
         {error && <div style={errorStyle}>⚠ {error}</div>}
         {fileContent === null && !error && <div style={mutedStyle}>Loading…</div>}
@@ -114,10 +129,11 @@ export function FileBrowser(props: {
       <div style={breadcrumbStyle}>
         <span style={facilityLabelStyle}>📁 {props.facilityName.toUpperCase()}</span>
       </div>
-      {rootErr && <div style={errorStyle}>⚠ {rootErr}</div>}
-      {!rootErr && (
+      {unbound && <div style={errorStyle}>⚠ This facility has no bound directory yet.</div>}
+      {!unbound && rootErr && <div style={errorStyle}>⚠ {rootErr}</div>}
+      {!unbound && !rootErr && (
         <div style={treePaneStyle}>
-          {nodes.length === 0 && !tree[props.facilityPath] ? (
+          {nodes.length === 0 && !tree[facilityPath] ? (
             <div style={mutedStyle}>Loading…</div>
           ) : (
             nodes

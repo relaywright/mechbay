@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Companion, Facility } from '../../../shared/types'
 import { filterPromptsFor, type QuickPrompt } from '../quickPrompts'
 import { colors, type } from '../theme'
@@ -40,7 +40,10 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
   const lastFocusedRef = useRef<HTMLElement | null>(null)
 
   // Filter prompts for this mech/facility combo
-  const availablePrompts = filterPromptsFor(companion.mechClass, facility.facilityType)
+  const availablePrompts = useMemo(
+    () => filterPromptsFor(companion.mechClass, facility.facilityType),
+    [companion.mechClass, facility.facilityType]
+  )
 
   // Determine deploy button state
   const hasText = text.trim().length > 0
@@ -58,7 +61,17 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
     }
   }, [])
 
-  // Keyboard handlers: ESC to cancel, Ctrl/Cmd+Enter to submit
+  const handleDeploy = useCallback(() => {
+    if (!canDeploy) return
+    const quickPromptLabel = activePromptId
+      ? availablePrompts.find((p) => p.id === activePromptId)?.label
+      : undefined
+    onDeploy(text.trim(), quickPromptLabel)
+  }, [canDeploy, text, activePromptId, availablePrompts, onDeploy])
+
+  // Keyboard handlers: ESC to cancel, Ctrl/Cmd+Enter to submit. Depends on
+  // handleDeploy, so a re-render with a new onDeploy is never shadowed by a
+  // stale closure. handleDeploy itself ignores the key while !canDeploy.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
@@ -66,18 +79,15 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
         onCancel()
         return
       }
-
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault()
-        if (canDeploy) {
-          handleDeploy()
-        }
+        handleDeploy()
       }
     }
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onCancel, canDeploy, text, activePromptId])
+  }, [onCancel, handleDeploy])
 
   // Focus trap: keep tab cycling within modal
   // Recomputes focusable elements on each Tab/Shift-Tab to handle dynamic content
@@ -111,14 +121,6 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
     modal.addEventListener('keydown', handleTabKey)
     return () => modal.removeEventListener('keydown', handleTabKey)
   }, [])
-
-  const handleDeploy = useCallback(() => {
-    if (!canDeploy) return
-    const quickPromptLabel = activePromptId
-      ? availablePrompts.find((p) => p.id === activePromptId)?.label
-      : undefined
-    onDeploy(text.trim(), quickPromptLabel)
-  }, [canDeploy, text, activePromptId, availablePrompts, onDeploy])
 
   const handleChipClick = useCallback(
     (prompt: QuickPrompt) => {

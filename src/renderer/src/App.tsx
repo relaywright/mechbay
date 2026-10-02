@@ -511,7 +511,13 @@ function App(): React.JSX.Element {
                 const facility = state.facilities.find((f) => f.id === browsingFacilityId)
                 if (!facility)
                   return <div style={{ color: colors.textSecondary }}>Facility not found.</div>
-                return <FileBrowser facilityPath={facility.path} facilityName={facility.name} />
+                return (
+                  <FileBrowser
+                    key={`${facility.id}:${facility.path}`}
+                    facilityPath={facility.path}
+                    facilityName={facility.name}
+                  />
+                )
               })()}
 
             {activeTab === 'journal' && (
@@ -521,7 +527,7 @@ function App(): React.JSX.Element {
                   deployments={state?.deployments ?? []}
                   facilities={state?.facilities ?? []}
                 />
-                <JournalTab companionId={selectedCompanionId} />
+                <JournalTab key={selectedCompanionId ?? 'none'} companionId={selectedCompanionId} />
               </div>
             )}
           </div>
