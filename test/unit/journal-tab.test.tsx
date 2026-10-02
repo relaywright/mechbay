@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { JournalTab } from '../../src/renderer/src/components/JournalTab'
+import { SOUL_NOT_FOUND } from '../../src/shared/defaults'
 
 type ReadResult = { ok: true; content: string } | { ok: false; error: string }
 
@@ -70,7 +71,7 @@ describe('JournalTab', () => {
   })
 
   it('still lets a mech with no soul.md write a new one', async () => {
-    const soulWrite = mockSoulRead({ ok: false, error: 'soul.md not found for companion atlas' })
+    const soulWrite = mockSoulRead({ ok: false, error: `${SOUL_NOT_FOUND} for companion atlas` })
     await act(async () => {
       render(<JournalTab companionId="atlas" />)
     })

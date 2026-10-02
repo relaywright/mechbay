@@ -11,3 +11,17 @@ export function isOpenableExternalUrl(url: string): boolean {
     return false
   }
 }
+
+/**
+ * True when `url` has the same scheme, host and port as `base`. A prefix
+ * check is not enough: http://localhost:51730 starts with
+ * http://localhost:5173.
+ */
+export function hasSameOrigin(url: string, base: string | undefined): boolean {
+  if (!base) return false
+  try {
+    return new URL(url).origin === new URL(base).origin
+  } catch {
+    return false
+  }
+}

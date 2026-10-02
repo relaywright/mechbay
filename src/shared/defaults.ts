@@ -1,6 +1,12 @@
 import type { MechClass } from './types'
 
 /**
+ * Start of readSoul's error when a mech has no soul.md yet. The Journal
+ * keeps SAVE on only for this error: there is no soul to overwrite.
+ */
+export const SOUL_NOT_FOUND = 'soul.md not found'
+
+/**
  * Initial `soul.md` content per mech class. Written once on boot scaffolding
  * — thereafter the user owns the file and can edit it freely. Later
  * deployments read the (possibly-edited) file and inject it into the system

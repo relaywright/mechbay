@@ -13,7 +13,7 @@ import { GeminiRunner } from './runners/gemini'
 import { HermesRunner } from './runners/hermes'
 import { SimRunner } from './runners/sim'
 import { registerIpc } from './ipc'
-import { isOpenableExternalUrl } from './external-links'
+import { hasSameOrigin, isOpenableExternalUrl } from './external-links'
 import { MissionAlerts } from './mission-alerts'
 import { runCliAvailabilityCheck } from './cli-check'
 import { IPC } from '../shared/ipc-channels'
@@ -44,13 +44,17 @@ function createWindow(): BrowserWindow {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    if (isOpenableExternalUrl(details.url)) shell.openExternal(details.url)
+    if (isOpenableExternalUrl(details.url)) {
+      shell.openExternal(details.url).catch((err) => {
+        console.error('[main] Could not open link in the browser:', err)
+      })
+    }
     return { action: 'deny' }
   })
   // The window only ever shows the bay; it never navigates anywhere else.
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const devUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
-    if (!devUrl || !url.startsWith(devUrl)) event.preventDefault()
+    if (!hasSameOrigin(url, devUrl)) event.preventDefault()
   })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {

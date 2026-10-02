@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { SOUL_NOT_FOUND } from '../../../shared/defaults'
 
 type JournalSubTab = 'soul' | 'memory'
 
@@ -28,7 +29,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
   const soulLocked =
     activeSubTab === 'soul' &&
     currentLoadError !== null &&
-    !currentLoadError.message.startsWith('soul.md not found')
+    !currentLoadError.message.startsWith(SOUL_NOT_FOUND)
 
   // Load soul or memory when the companion or sub-tab changes. A response for
   // a companion or tab the user already left is dropped, so one mech's soul

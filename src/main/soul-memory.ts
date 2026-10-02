@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import type { MechClass } from '../shared/types'
-import { defaultSoul, defaultMemory } from '../shared/defaults'
+import { defaultSoul, defaultMemory, SOUL_NOT_FOUND } from '../shared/defaults'
 
 export interface SoulMemoryPaths {
   soulPath: string
@@ -107,8 +107,7 @@ export function readSoul(companionId: string, userDataDir?: string): ReadResult 
     const soulPath = path.join(companionDir, 'soul.md')
 
     if (!fs.existsSync(soulPath)) {
-      // JournalTab matches this prefix to keep SAVE on for a missing soul.
-      return { ok: false, error: `soul.md not found for companion ${companionId}` }
+      return { ok: false, error: `${SOUL_NOT_FOUND} for companion ${companionId}` }
     }
 
     const content = fs.readFileSync(soulPath, 'utf-8')
