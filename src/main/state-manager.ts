@@ -122,6 +122,17 @@ function isValidState(obj: unknown): obj is AppState {
   )
 }
 
+/**
+ * The schema version of a stored bay written by a newer MechBay, or null.
+ * This version can't read such a bay, but it must not overwrite it either:
+ * the user may go back to the newer version.
+ */
+function newerSchemaVersion(raw: unknown): number | null {
+  if (typeof raw !== 'object' || raw === null || !('version' in raw)) return null
+  const { version } = raw as { version: unknown }
+  return typeof version === 'number' && version > STATE_SCHEMA_VERSION ? version : null
+}
+
 export function repairFacilityTileCollisions(state: AppState): {
   state: AppState
   changed: boolean
@@ -179,6 +190,8 @@ export function repairFacilityTileCollisions(state: AppState): {
 export class StateManager extends EventEmitter {
   private store: StoreLike
   private cache: AppState
+  /** True when the stored bay came from a newer schema; nothing is ever saved. */
+  private readOnly = false
 
   constructor(store: StoreLike, userDataDir: string = os.homedir()) {
     super()
@@ -191,7 +204,13 @@ export class StateManager extends EventEmitter {
       hasExisting = store.has('state')
       if (hasExisting) {
         const raw = store.get('state')
-        if (isValidState(raw)) {
+        const newer = newerSchemaVersion(raw)
+        if (newer !== null) {
+          this.readOnly = true
+          console.warn(
+            `[state-manager] Saved bay uses schema ${newer}, newer than this version reads (${STATE_SCHEMA_VERSION}). Leaving it untouched; this session will not be saved. Update MechBay to keep using this bay.`
+          )
+        } else if (isValidState(raw)) {
           existing = raw
         }
       }
@@ -201,9 +220,14 @@ export class StateManager extends EventEmitter {
       existing = undefined
     }
 
-    // Reset state whenever the schema version bumps. Seed data (companion home
-    // tiles, facility roster) is treated as part of the schema until players
-    // can edit it in-app.
+    if (this.readOnly) {
+      this.cache = defaultState(userDataDir)
+      return
+    }
+
+    // Reset an older or unreadable bay to a fresh one (a newer bay returned
+    // above, untouched). Seed data (companion home tiles, facility roster) is
+    // treated as part of the schema until players can edit it in-app.
     if (!existing) {
       try {
         store.set('state', defaultState(userDataDir))
@@ -238,9 +262,15 @@ export class StateManager extends EventEmitter {
     return this.cache
   }
 
+  /** True when a newer MechBay's bay is on disk and this session won't save. */
+  isReadOnly(): boolean {
+    return this.readOnly
+  }
+
   updateState(updater: (s: AppState) => AppState): AppState {
     this.cache = updater(this.cache)
     this.emit('stateChanged', this.cache)
+    if (this.readOnly) return this.cache
     try {
       this.store.set('state', this.cache)
     } catch (err) {
