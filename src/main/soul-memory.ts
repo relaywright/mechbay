@@ -64,7 +64,10 @@ export interface MemoryEntry {
 
 export function appendMemoryEntry(memoryPath: string, entry: MemoryEntry): void {
   const ts = entry.timestamp.toISOString().replace('T', ' ').slice(0, 16)
-  const block = `\n## ${ts} · ${entry.facility} · "${entry.task}"\n${entry.outcome}\n`
+  // One line per heading: a multi-line task would break the markdown, and a
+  // task quoting TASK_SEPARATOR would make extractTaskPrompt cut inside memory.
+  const task = entry.task.replace(/\s*\r?\n\s*/g, ' ').trim()
+  const block = `\n## ${ts} · ${entry.facility} · "${task}"\n${entry.outcome}\n`
   fs.appendFileSync(memoryPath, block)
 }
 
@@ -104,6 +107,7 @@ export function readSoul(companionId: string, userDataDir?: string): ReadResult 
     const soulPath = path.join(companionDir, 'soul.md')
 
     if (!fs.existsSync(soulPath)) {
+      // JournalTab matches this prefix to keep SAVE on for a missing soul.
       return { ok: false, error: `soul.md not found for companion ${companionId}` }
     }
 

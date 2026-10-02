@@ -35,6 +35,16 @@ describe('public claims (S3: zero claim drift)', () => {
     expect(read('README.md')).toContain('`reactor-control`')
   })
 
+  it("landing page's memory example uses the format appendMemoryEntry writes", () => {
+    const html = read('site/index.html')
+    const example = html.slice(html.indexOf('Example memory file'), html.indexOf('</pre>'))
+    // appendMemoryEntry: `## YYYY-MM-DD HH:MM · <facility name> · "<task>"`, then the outcome line.
+    expect(example).toMatch(/## \d{4}-\d{2}-\d{2} \d{2}:\d{2} · reactor-control · "[^"]+"/)
+    expect(example).toMatch(/Completed\. \d+ files? changed, \+\d+ −\d+\./)
+    // Lines MechBay never writes.
+    expect(example).not.toMatch(/Next time|Edits:|Objective:/)
+  })
+
   it('README labels every runtime the author has not verified', () => {
     const rows = read('README.md')
       .split('\n')

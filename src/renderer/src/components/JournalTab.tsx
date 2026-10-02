@@ -20,8 +20,15 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
 
   const currentKey = companionId ? `${companionId}:${activeSubTab}` : null
   const isLoading = currentKey !== null && (loadedKey !== currentKey || refreshing)
-  const error =
-    actionError ?? (loadError !== null && loadError.key === currentKey ? loadError.message : null)
+  const currentLoadError = loadError !== null && loadError.key === currentKey ? loadError : null
+  const error = actionError ?? currentLoadError?.message ?? null
+  // A soul that exists but couldn't be read (a locked file, say) would be
+  // wiped by SAVE, so editing is off until it loads. A missing soul.md has
+  // nothing to lose, so the player can still write one.
+  const soulLocked =
+    activeSubTab === 'soul' &&
+    currentLoadError !== null &&
+    !currentLoadError.message.startsWith('soul.md not found')
 
   // Load soul or memory when the companion or sub-tab changes. A response for
   // a companion or tab the user already left is dropped, so one mech's soul
@@ -133,13 +140,13 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
             onChange={(e) => setSoulContent(e.target.value)}
             style={textareaStyle}
             placeholder="Soul content..."
-            disabled={isLoading}
+            disabled={isLoading || soulLocked}
           />
           <div style={actionRowStyle}>
             <button
               type="button"
               onClick={handleSaveSoul}
-              disabled={isLoading}
+              disabled={isLoading || soulLocked}
               style={saveButtonStyle}
             >
               SAVE

@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { pathToFileURL } from 'url'
+import { runInNewContext } from 'vm'
 import { describe, expect, it } from 'vitest'
 
 const SITE = readFileSync('site/index.html', 'utf8')
@@ -42,6 +43,33 @@ describe('landing page funnel', () => {
       expect(video).toContain(attr)
     }
     expect(SITE).toContain('prefers-reduced-motion: reduce')
+  })
+
+  it('the hero script stops autoplay when the visitor prefers reduced motion, and only then', () => {
+    const script = SITE.match(/<script>\s*(\/\/ Respect reduced motion[\s\S]*?)<\/script>/)?.[1]
+    expect(script, 'inline reduced-motion script').toBeDefined()
+    const run = (reduce: boolean): { autoplay: boolean; paused: boolean } => {
+      const video = {
+        autoplay: true,
+        paused: false,
+        removeAttribute(name: string) {
+          if (name === 'autoplay') this.autoplay = false
+        },
+        pause() {
+          this.paused = true
+        }
+      }
+      const document = { getElementById: (id: string) => (id === 'hero-video' ? video : null) }
+      const window = {
+        matchMedia: (query: string) => ({
+          matches: reduce && query === '(prefers-reduced-motion: reduce)'
+        })
+      }
+      runInNewContext(script as string, { document, window })
+      return { autoplay: video.autoplay, paused: video.paused }
+    }
+    expect(run(true)).toEqual({ autoplay: false, paused: true })
+    expect(run(false)).toEqual({ autoplay: true, paused: false })
   })
 
   it('offers a download that works without JavaScript and never sends the hero visitor to git clone', () => {

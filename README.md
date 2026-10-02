@@ -109,7 +109,7 @@ explicit in-app choice.
 
 ## Quickstart (real agents)
 
-Requirements: Node.js 20+, npm, and git on `PATH` (git powers Mission Debrief). MechBay runs on Windows, macOS, and Linux; it is developed on Windows. Install at least one runtime from the table above.
+Requirements: Node.js 22+, npm, and git on `PATH` (git powers Mission Debrief). MechBay runs on Windows, macOS, and Linux; it is developed on Windows. Install at least one runtime from the table above.
 
 ```bash
 git clone https://github.com/samalbanese/mechbay.git

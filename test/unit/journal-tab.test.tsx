@@ -43,4 +43,42 @@ describe('JournalTab', () => {
     })
     expect(soulWrite).toHaveBeenCalledWith('raven', 'Raven soul')
   })
+
+  function mockSoulRead(result: ReadResult): ReturnType<typeof vi.fn> {
+    const soulWrite = vi.fn(async () => ({ ok: true as const }))
+    Object.assign(window, {
+      mechbay: {
+        soulRead: async () => result,
+        memoryRead: () => new Promise(() => {}),
+        soulWrite
+      }
+    })
+    return soulWrite
+  }
+
+  it('cannot save over a soul it failed to read', async () => {
+    const soulWrite = mockSoulRead({ ok: false, error: 'Failed to read soul.md: EBUSY' })
+    await act(async () => {
+      render(<JournalTab companionId="atlas" />)
+    })
+
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(true)
+    const save = screen.getByRole('button', { name: 'SAVE' }) as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    fireEvent.click(save)
+    expect(soulWrite).not.toHaveBeenCalled()
+  })
+
+  it('still lets a mech with no soul.md write a new one', async () => {
+    const soulWrite = mockSoulRead({ ok: false, error: 'soul.md not found for companion atlas' })
+    await act(async () => {
+      render(<JournalTab companionId="atlas" />)
+    })
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A new soul' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'SAVE' }))
+    })
+    expect(soulWrite).toHaveBeenCalledWith('atlas', 'A new soul')
+  })
 })
