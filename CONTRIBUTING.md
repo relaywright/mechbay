@@ -11,17 +11,20 @@ npm install
 npm run dev
 ```
 
-Use Node.js 20+ and keep git on `PATH`; Mission Debrief uses it to capture facility diffs.
+Use Node.js 22+ and keep git on `PATH`; Mission Debrief uses it to capture facility diffs.
 
 ## Before every pull request
 
-Run all three gates:
+Run these checks:
 
 ```bash
-npm run typecheck
+npm run typecheck   # app and tests
+npm run lint        # must finish with zero warnings
 npm test
 npm run build
 ```
+
+CI runs the same checks on Windows and Linux through `.github/workflows/verify.yml`, and a release cannot publish unless they pass.
 
 ## Code conventions
 
