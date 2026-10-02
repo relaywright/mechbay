@@ -26,6 +26,9 @@ export function scaffoldSoulAndMemory(
   if (!fs.existsSync(paths.memoryPath)) fs.writeFileSync(paths.memoryPath, defaultMemory(name))
 }
 
+/** Separator between the soul/memory preamble and the task in an assembled prompt. */
+const TASK_SEPARATOR = '\n---\n\n# Current Task\n\n'
+
 export function assembleSystemPrompt(
   name: string,
   paths: SoulMemoryPaths,
@@ -33,12 +36,23 @@ export function assembleSystemPrompt(
 ): string {
   if (!fs.existsSync(paths.soulPath) || !fs.existsSync(paths.memoryPath)) {
     throw new Error(
-      `soul/memory missing for ${name} — call scaffoldSoulAndMemory first (soulPath=${paths.soulPath})`
+      `soul/memory missing for ${name}. Call scaffoldSoulAndMemory first (soulPath=${paths.soulPath})`
     )
   }
   const soul = fs.readFileSync(paths.soulPath, 'utf-8')
   const memory = fs.readFileSync(paths.memoryPath, 'utf-8')
-  return `# ${name} — Soul\n\n${soul}\n\n# ${name} — Memory\n\n${memory}\n\n---\n\n# Current Task\n\n${taskPrompt}\n`
+  return `# ${name} · Soul\n\n${soul}\n\n# ${name} · Memory\n\n${memory}\n${TASK_SEPARATOR}${taskPrompt}\n`
+}
+
+/**
+ * Recovers the task text from a prompt built by assembleSystemPrompt, for
+ * places that show the task to a person (sim log, mission report). It uses
+ * the first separator, so a task that itself contains "# Current Task"
+ * survives whole. A prompt without the separator is returned trimmed.
+ */
+export function extractTaskPrompt(prompt: string): string {
+  const at = prompt.indexOf(TASK_SEPARATOR)
+  return (at === -1 ? prompt : prompt.slice(at + TASK_SEPARATOR.length)).trim()
 }
 
 export interface MemoryEntry {
@@ -50,7 +64,7 @@ export interface MemoryEntry {
 
 export function appendMemoryEntry(memoryPath: string, entry: MemoryEntry): void {
   const ts = entry.timestamp.toISOString().replace('T', ' ').slice(0, 16)
-  const block = `\n## ${ts} — ${entry.facility} · "${entry.task}"\n${entry.outcome}\n`
+  const block = `\n## ${ts} · ${entry.facility} · "${entry.task}"\n${entry.outcome}\n`
   fs.appendFileSync(memoryPath, block)
 }
 

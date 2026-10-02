@@ -1,6 +1,9 @@
+import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+
+const { version } = JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as { version: string }
 
 export default defineConfig({
   main: {
@@ -20,6 +23,10 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   renderer: {
+    // UI version text reads __APP_VERSION__; never hand-type a version.
+    define: {
+      __APP_VERSION__: JSON.stringify(version)
+    },
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src')

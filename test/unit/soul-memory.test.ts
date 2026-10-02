@@ -49,8 +49,8 @@ describe('soul-memory', () => {
     scaffoldSoulAndMemory('atlas', 'Atlas-Prime', paths)
     const prompt = assembleSystemPrompt('Atlas-Prime', paths, 'Fix the failing tests.')
 
-    expect(prompt).toContain('Atlas-Prime — Soul')
-    expect(prompt).toContain('Atlas-Prime — Memory')
+    expect(prompt).toContain('Atlas-Prime · Soul')
+    expect(prompt).toContain('Atlas-Prime · Memory')
     expect(prompt).toContain('Fix the failing tests.')
     expect(prompt.indexOf('Soul')).toBeLessThan(prompt.indexOf('Memory'))
     expect(prompt.indexOf('Memory')).toBeLessThan(prompt.indexOf('Current Task'))

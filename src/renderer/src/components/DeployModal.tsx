@@ -158,7 +158,7 @@ export function DeployModal(props: DeployModalProps): React.JSX.Element {
       return {
         style: deployButtonDisabledStyle,
         text: '⚠ DEPLOY',
-        title: `${companion.family.toUpperCase()} CLI not available — install and restart to deploy`
+        title: `${companion.family.toUpperCase()} CLI not found. Install it, then restart MechBay to deploy.`
       }
     }
     if (!hasText) {

@@ -157,8 +157,8 @@ describe('soul-memory — edge cases', () => {
     const prompt = assembleSystemPrompt('Atlas-Prime', paths, longPrompt)
 
     expect(prompt).toContain(longPrompt)
-    expect(prompt).toContain('Atlas-Prime — Soul')
-    expect(prompt).toContain('Atlas-Prime — Memory')
+    expect(prompt).toContain('Atlas-Prime · Soul')
+    expect(prompt).toContain('Atlas-Prime · Memory')
   })
 
   it('throws clear error for non-existent soul path', () => {

@@ -56,4 +56,21 @@ describe('SimRunner', () => {
     expect(chunks.length).toBeLessThanOrEqual(1)
     await expect(result.exit).resolves.toBe(-1)
   })
+
+  it('quotes only the task, never the soul preamble, in the log and the report', async () => {
+    const cwd = makeTempDir()
+    const assembledPrompt =
+      '# Atlas-Prime · Soul\n\nI am Atlas. I hold the line.\n\n# Atlas-Prime · Memory\n\n(no entries)\n\n---\n\n# Current Task\n\nRefactor the reactor telemetry module.\n'
+    const result = await new SimRunner('claude', { pacingMs: 0 }).spawn(cwd, assembledPrompt)
+    const chunks = await collect(result.stream)
+    await expect(result.exit).resolves.toBe(0)
+
+    const taskLine = chunks.find((chunk) => chunk.includes('TASK //'))
+    expect(taskLine).toContain('Refactor the reactor telemetry module.')
+    expect(taskLine).not.toContain('Soul')
+
+    const report = readFileSync(join(cwd, 'mission-report.md'), 'utf8')
+    expect(report).toContain('Refactor the reactor telemetry module.')
+    expect(report).not.toContain('I hold the line')
+  })
 })

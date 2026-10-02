@@ -4,7 +4,8 @@ import {
   currentMission,
   fleetTelemetry,
   isActiveMission,
-  missionDuration
+  missionDuration,
+  noun
 } from '../../src/renderer/src/operations'
 import type { AppState, Companion, Deployment, DeploymentStatus } from '../../src/shared/types'
 
@@ -64,5 +65,16 @@ describe('fleet operations', () => {
     expect(missionDuration(mission('working'), 66000)).toBe('01:05')
     expect(missionDuration(mission('completed', { completedAt: 3000 }), 1000000)).toBe('00:02')
     expect(missionDuration(mission('working'), 0)).toBe('00:00')
+  })
+})
+
+describe('noun', () => {
+  it('uses the singular only for exactly one', () => {
+    expect(noun(1, 'PROJECT')).toBe('PROJECT')
+    expect(noun(0, 'PROJECT')).toBe('PROJECTS')
+    expect(noun(2, 'MISSION')).toBe('MISSIONS')
+    expect(noun(1, 'file')).toBe('file')
+    expect(noun(3, 'file')).toBe('files')
+    expect(noun(2, 'facility', 'facilities')).toBe('facilities')
   })
 })

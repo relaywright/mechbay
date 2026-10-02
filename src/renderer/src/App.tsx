@@ -18,7 +18,7 @@ import { BootSplash } from './components/BootSplash'
 import { CrtOverlay } from './components/CrtOverlay'
 import { CrewRoster } from './components/CrewRoster'
 import { MissionBoard } from './components/MissionBoard'
-import { fleetTelemetry, isActiveMission, STATUS_LABELS } from './operations'
+import { fleetTelemetry, isActiveMission, noun, STATUS_LABELS } from './operations'
 import { colors, type } from './theme'
 
 type SidebarTab = 'operations' | 'log' | 'files' | 'journal'
@@ -371,7 +371,7 @@ function App(): React.JSX.Element {
               </button>
             </div>
             <div className="map-corner map-top-right">
-              {telemetry?.linked ?? 0} PROJECTS CONNECTED
+              {telemetry?.linked ?? 0} {noun(telemetry?.linked ?? 0, 'PROJECT')} CONNECTED
             </div>
             <div
               ref={canvasParentRef}

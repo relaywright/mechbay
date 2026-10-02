@@ -153,7 +153,7 @@ export function registerIpc(opts: IpcDeps): void {
     if (active) {
       return {
         ok: false,
-        error: `«${facility.name}» has an active deployment — wait for it to finish or abort it first.`
+        error: `«${facility.name}» has an active deployment. Wait for it to finish first.`
       }
     }
     state.updateState((prev) => ({
@@ -171,7 +171,7 @@ export function registerIpc(opts: IpcDeps): void {
     ) {
       return {
         ok: false,
-        error: 'Deployments are active — wait or abort before resetting the field.'
+        error: 'Deployments are active. Wait for them to finish before resetting the field.'
       }
     }
     state.updateState((prev) => ({ ...prev, facilities: seedFacilities() }))
@@ -297,7 +297,7 @@ export function registerIpc(opts: IpcDeps): void {
       if (!facility) throw new Error(`Facility not found: ${args.facilityId}`)
       if (!facility.path) {
         throw new Error(
-          `${facility.name} isn't linked to a project folder yet — click the building to link it to a project directory, or use BULK IMPORT (top bar).`
+          `${facility.name} isn't linked to a project folder yet. Click the building to link it to a project directory, or use BULK IMPORT (top bar).`
         )
       }
 
@@ -595,7 +595,7 @@ export async function executeDeployment(
   const outcome =
     exitCode === 0
       ? diff === null
-        ? 'Completed. (no git repository — diff unavailable)'
+        ? 'Completed. (No git repository, so no diff is available.)'
         : diff.filesChanged === 0
           ? 'Completed. No file changes detected.'
           : `Completed. ${diff.filesChanged} file${diff.filesChanged === 1 ? '' : 's'} changed, +${diff.insertions} −${diff.deletions}.`

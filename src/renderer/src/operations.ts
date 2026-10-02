@@ -53,3 +53,12 @@ export function missionDuration(deployment: Deployment, now: number): string {
     .toString()
     .padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`
 }
+
+/**
+ * Singular or plural noun for a count. The default plural adds "S" to an
+ * all-caps HUD label and "s" otherwise; pass `plural` for irregular nouns.
+ */
+export function noun(count: number, singular: string, plural?: string): string {
+  if (count === 1) return singular
+  return plural ?? (singular === singular.toUpperCase() ? `${singular}S` : `${singular}s`)
+}

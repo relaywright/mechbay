@@ -207,7 +207,7 @@ function RuntimeSection({ companion }: { companion: Companion }): React.JSX.Elem
         {RUNTIME_OPTIONS.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}
-            {opt.value === companion.family ? ' — DEFAULT' : ''}
+            {opt.value === companion.family ? ' · DEFAULT' : ''}
           </option>
         ))}
       </select>
