@@ -6,6 +6,7 @@ import { computeFacingFlipX, computeWalkBob, computeWalkFrame } from './bay-anim
 import { canvasPointToPage } from './bay-layout'
 import { computeDeploymentActions } from './deployment-transitions'
 import { deckTile, conduitPath, clampZoom, clampPan, panBounds } from './bay-environment'
+import { textResolutionForZoom } from './text-resolution'
 
 import atlasUrl from '../../../../assets/mechs/atlas-poc.png?url'
 import marauderUrl from '../../../../assets/mechs/marauder-poc.png?url'
@@ -421,12 +422,22 @@ export class BayScene extends Phaser.Scene {
    */
   private applyCameraTransform(): void {
     const renderScale = this.scale.gameSize.width / BASE_VIEW_W
-    this.cameras.main.setZoom(BASE_ZOOM * renderScale * this.userZoom)
+    const zoom = BASE_ZOOM * renderScale * this.userZoom
+    this.cameras.main.setZoom(zoom)
+    this.syncLabelResolution(zoom)
     // Center on the geometric middle of the 16×16 iso diamond, offset by the
     // user's pan. Center tile is (GRID_W/2, GRID_H/2), which iso-maps to
     // (0, GRID_H*TILE_H/2).
     const center = isoToScreen({ x: GRID_W / 2, y: GRID_H / 2 })
     this.cameras.main.centerOn(center.x + this.userPan.x, center.y + this.userPan.y)
+  }
+
+  /** Re-rasterize world-space labels at the camera's zoom (see text-resolution.ts). */
+  private syncLabelResolution(zoom: number): void {
+    const resolution = textResolutionForZoom(zoom)
+    for (const label of [...this.facilityLabels.values(), ...this.unavailableLabels.values()]) {
+      if (label.style.resolution !== resolution) label.setResolution(resolution)
+    }
   }
 
   /**
@@ -863,7 +874,8 @@ export class BayScene extends Phaser.Scene {
             fontFamily: 'Courier New',
             fontStyle: 'bold',
             stroke: '#000',
-            strokeThickness: 3
+            strokeThickness: 3,
+            resolution: textResolutionForZoom(this.cameras.main.zoom)
           })
           .setOrigin(0.5)
           .setDepth(sprite.depth + 1)
@@ -905,7 +917,8 @@ export class BayScene extends Phaser.Scene {
           fontFamily: 'IBM Plex Mono',
           fontStyle: 'normal',
           stroke: '#000',
-          strokeThickness: 3
+          strokeThickness: 3,
+          resolution: textResolutionForZoom(this.cameras.main.zoom)
         })
         .setOrigin(0.5)
         .setDepth(500)
