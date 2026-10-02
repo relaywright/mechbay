@@ -241,10 +241,16 @@ export class StateManager extends EventEmitter {
         // Schema 3 saves written by Track B development builds before logs
         // moved out still carry logChunks: hand them to the log store and
         // drop them from saved state, as the v2 upgrade does.
+        // Back the file up first, as the v2 upgrade does: the lines leave
+        // saved state before the log store has written them. Without a
+        // backup the save is left as it is (stale lines kept, nothing lost).
         const { logChunks, ...current } = outcome.state as AppState & { logChunks?: unknown }
-        const hadLogs = Array.isArray(logChunks)
-        if (hadLogs) this.legacyLogChunks = logChunks as LogChunkV2[]
-        this.cache = this.repairAndPersist(current, hadLogs)
+        if (Array.isArray(logChunks) && this.backup('v3-logs', copyFile).ok) {
+          this.legacyLogChunks = logChunks as LogChunkV2[]
+          this.cache = this.repairAndPersist(current, true)
+        } else {
+          this.cache = this.repairAndPersist(outcome.state, false)
+        }
         break
       }
       case 'migrated': {

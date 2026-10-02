@@ -2,6 +2,7 @@ import { app, ipcMain, BrowserWindow, dialog } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { IPC } from '../shared/ipc-channels'
+import { MAX_SAVED_MISSIONS } from '../shared/defaults'
 import type {
   AgentFamily,
   AppMode,
@@ -353,7 +354,7 @@ export function registerIpc(opts: IpcDeps): void {
 
       state.updateState((prev) => ({
         ...prev,
-        deployments: [deployment, ...prev.deployments].slice(0, 200)
+        deployments: [deployment, ...prev.deployments].slice(0, MAX_SAVED_MISSIONS)
       }))
 
       if (status === 'queued') {

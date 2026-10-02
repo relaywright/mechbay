@@ -1,5 +1,6 @@
 import * as nodeFs from 'fs'
 import path from 'path'
+import { MAX_SAVED_MISSIONS } from '../shared/defaults'
 import type { LogChunk } from '../shared/types'
 import type { StateManager } from './state-manager'
 import type { LogChunkV2 } from './state-migrations'
@@ -231,8 +232,10 @@ export class LogStore implements MissionLogSink {
           seq: i + 1,
           timestamp: c.timestamp,
           stream: c.stream,
-          text: redact(c.text),
-          ...(c.thoughtKind ? { thoughtKind: c.thoughtKind } : {})
+          text: capLine(redact(c.text)),
+          ...(c.thoughtKind === 'intent' || c.thoughtKind === 'findings'
+            ? { thoughtKind: c.thoughtKind }
+            : {})
         }))
       try {
         this.ensureDir()
@@ -240,8 +243,22 @@ export class LogStore implements MissionLogSink {
         // file, never a half log that the existence check above would
         // later mistake for a finished import.
         const tmp = `${file}.tmp`
-        this.fs.writeFileSync(tmp, lines.map((l) => JSON.stringify(l)).join('\n') + '\n')
-        this.fs.renameSync(tmp, file)
+        const data = lines.map((l) => JSON.stringify(l)).join('\n') + '\n'
+        this.fs.writeFileSync(tmp, data)
+        try {
+          this.fs.renameSync(tmp, file)
+        } catch (err) {
+          // Antivirus or the search indexer can hold a just-written file on
+          // Windows. Write the log directly instead ('wx': never over a log
+          // that appeared meanwhile) and drop the temporary copy.
+          console.warn(`[log-store] rename refused for ${missionId}; writing directly:`, err)
+          this.fs.writeFileSync(file, data, { flag: 'wx' })
+          try {
+            this.fs.unlinkSync(tmp)
+          } catch (unlinkErr) {
+            console.warn(`[log-store] could not remove ${path.basename(tmp)}:`, unlinkErr)
+          }
+        }
         imported += lines.length
       } catch (err) {
         console.warn(`[log-store] could not import logs for ${missionId}:`, err)
@@ -394,10 +411,12 @@ export class LogStore implements MissionLogSink {
 
 /**
  * Startup: move schema 2 logs into files, then delete logs of missions that
- * left saved history. Never prunes while the saved bay is read-only or was
- * started fresh this session (no saved file, or a damaged one set aside):
- * either way the bay has no missions and pruning would delete every log,
- * including the logs of a save the player may still restore.
+ * left saved history. A mission leaves history only when a full history
+ * (MAX_SAVED_MISSIONS) drops its oldest, so pruning waits until the history
+ * is full. A bay started fresh after a damaged save, or reset by hand, has
+ * few missions for many launches; pruning it would delete the logs of a
+ * save the player may still restore. Never prunes while the saved bay is
+ * read-only or was started fresh this session.
  */
 export function prepareLogStore(
   logs: LogStore,
@@ -411,6 +430,8 @@ export function prepareLogStore(
     )
   }
   if (!state.getHealth().ok || state.startedFresh()) return
-  const removed = logs.prune(state.getState().deployments.map((d) => d.id))
+  const deployments = state.getState().deployments
+  if (deployments.length < MAX_SAVED_MISSIONS) return
+  const removed = logs.prune(deployments.map((d) => d.id))
   if (removed) console.info(`[log-store] removed ${removed} logs of missions no longer in history`)
 }

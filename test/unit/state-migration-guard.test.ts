@@ -121,11 +121,34 @@ describe('migration guard (Phase 0 Track B done criterion, S7)', () => {
     const line = { id: 'u1', deploymentId: 'M1', timestamp: 1, stream: 'stdout', text: 'old' }
     saved.state.logChunks = [line]
     writeFileSync(file, JSON.stringify(saved))
+    const withLogs = readFileSync(file)
     const manager = new StateManager(new JsonFileStore(file), dir)
     expect(manager.takeLegacyLogChunks()).toEqual([line])
     expect(manager.getState()).not.toHaveProperty('logChunks')
     const rewritten = JSON.parse(readFileSync(file, 'utf8')) as { state: Record<string, unknown> }
     expect(rewritten.state).not.toHaveProperty('logChunks')
+    const found = backups('v3-logs')
+    expect(found).toHaveLength(1)
+    expect(readFileSync(path.join(dir, found[0])).equals(withLogs)).toBe(true)
+  })
+
+  it('leaves a development schema 3 save untouched when it cannot back it up first', () => {
+    rmSync(file)
+    new StateManager(new JsonFileStore(file), dir)
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as { state: Record<string, unknown> }
+    saved.state.logChunks = [
+      { id: 'u1', deploymentId: 'M1', timestamp: 1, stream: 'stdout', text: 'old' }
+    ]
+    writeFileSync(file, JSON.stringify(saved))
+    const withLogs = readFileSync(file)
+    const manager = new StateManager(new JsonFileStore(file), dir, {
+      copyFile: () => {
+        throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+      }
+    })
+    expect(manager.takeLegacyLogChunks()).toEqual([])
+    expect(readFileSync(file).equals(withLogs)).toBe(true)
+    expect(manager.getHealth()).toEqual({ ok: true })
   })
 
   it('reports a fresh bay when there was no saved file', () => {

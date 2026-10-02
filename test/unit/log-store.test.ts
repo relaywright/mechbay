@@ -320,6 +320,36 @@ describe('LogStore', () => {
     expect(readdirSync(dir)).toEqual([`${ID}.jsonl`])
   })
 
+  it('still imports when Windows refuses the rename, and leaves no temporary file', async () => {
+    const fs = {
+      ...realFs,
+      renameSync: vi.fn(() => {
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      })
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    expect(store.importLegacy([chunk])).toBe(1)
+    expect(readdirSync(dir)).toEqual([`${ID}.jsonl`])
+    expect((await store.history(ID)).map((e) => e.text)).toEqual(['x'])
+  })
+
+  it('shortens huge imported lines and drops an unknown thought kind', async () => {
+    const store = new LogStore({ dir })
+    const chunk = {
+      id: 'u1',
+      deploymentId: ID,
+      timestamp: 1,
+      stream: 'stdout' as const,
+      text: 'y'.repeat(100_000),
+      thoughtKind: 5
+    }
+    expect(store.importLegacy([chunk as never])).toBe(1)
+    const [entry] = await store.history(ID)
+    expect(entry.text.endsWith('[line shortened]')).toBe(true)
+    expect(entry).not.toHaveProperty('thoughtKind')
+  })
+
   it('skips malformed schema 2 log chunks and imports the rest', async () => {
     const store = new LogStore({ dir })
     const good = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'ok' }
@@ -344,7 +374,32 @@ describe('LogStore', () => {
   })
 })
 
+/** A saved history at the 200-mission cap whose newest mission is `newest`. */
+const fullHistory = (newest: string): { id: string }[] => [
+  { id: newest },
+  ...Array.from({ length: 199 }, (_, i) => ({ id: `KEEP${String(i).padStart(22, '0')}` }))
+]
+
 describe('log folders and startup', () => {
+  it('keeps old logs on the launch after a fresh start, until the history is full', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'mechbay-logs-'))
+    try {
+      writeFileSync(path.join(dir, `${ID}.jsonl`), '')
+      const store = new LogStore({ dir })
+      // Second launch after a damaged save was set aside: the fresh bay now
+      // loads normally with a few new missions and none of the old ones.
+      prepareLogStore(store, {
+        getHealth: () => ({ ok: true }),
+        getState: () => ({ deployments: [{ id: 'NEW1' }, { id: 'NEW2' }] }),
+        startedFresh: () => false,
+        takeLegacyLogChunks: () => []
+      } as never)
+      expect(existsSync(path.join(dir, `${ID}.jsonl`))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('demo and real logs live in separate folders', () => {
     const userData = path.join('C:', 'Users', 'pilot', 'AppData', 'Roaming', 'mechbay')
     expect(logDirFor(userData, false)).toBe(path.join(userData, 'mechbay', 'logs'))
@@ -412,7 +467,7 @@ describe('log folders and startup', () => {
       const store = new LogStore({ dir })
       prepareLogStore(store, {
         getHealth: () => ({ ok: true }),
-        getState: () => ({ deployments: [{ id: ID }] }),
+        getState: () => ({ deployments: fullHistory(ID) }),
         startedFresh: () => false,
         takeLegacyLogChunks: () => [
           { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout', text: 'kept line' }
