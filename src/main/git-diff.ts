@@ -1,6 +1,8 @@
-import { execFile } from 'node:child_process'
+import { execFile, type ExecFileOptionsWithStringEncoding } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import { lstat, open, readFile, readlink, realpath } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import type { DiffFileStat, DiffHunk, DiffLine, FilePatch } from '../shared/types'
 import { parseUnifiedDiff } from '../shared/diff-parse'
@@ -29,24 +31,233 @@ const BINARY_PROBE_BYTES = 8 * 1024
 const PATCH_MAX_LINES = 3000
 const PATCH_MAX_BYTES = 400 * 1024
 
+// A mission can rewrite the facility's .git/config and hooks. Every git call
+// MechBay makes goes through execGit with these global options: no optional
+// index writes, no fsmonitor hook, no transport at all (so a lazy fetch can't
+// reach core.sshCommand), and hooks looked up in a folder that never exists.
+// Diff calls also pass --no-ext-diff --no-textconv, status and diff pass
+// --ignore-submodules=dirty and diffs --submodule=short (a submodule is
+// another repo with its own config; only its pointer shows), and every call
+// that can read file content first passes repoGuard (see below).
+const HOOKS_OFF = path.join(os.tmpdir(), `mechbay-no-hooks-${randomUUID()}`)
+const SAFE_GIT_OPTIONS = [
+  '--no-optional-locks',
+  '-c',
+  'core.fsmonitor=false',
+  '-c',
+  'protocol.allow=never',
+  '-c',
+  `core.hooksPath=${HOOKS_OFF}`
+]
+
+/** The person's own choice of trusted config files; every other GIT_* variable is dropped. */
+const KEPT_GIT_ENV = new Set(['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_NOSYSTEM'])
+
+/** Config scopes the person sets up themselves; their filters (e.g. Git LFS) stay on. */
+const TRUSTED_CONFIG_SCOPES = new Set(['global', 'system'])
+const FILTER_COMMANDS = ['clean', 'smudge', 'process']
+
+/**
+ * MechBay's environment minus inherited GIT_* variables (an inherited
+ * GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would point git at another repo or
+ * make the filter lookup read a different file than status does), plus
+ * settings that keep git offline, lock-free and non-interactive. Names are
+ * compared case-insensitively because Windows environment names are.
+ * GIT_ALLOW_PROTOCOL is an allowlist that repo config (protocol.<name>.allow)
+ * cannot widen. Its only entry is '0', a name no URL can carry: git reads
+ * `<name>::` as a remote helper only when the name is empty or starts with a
+ * letter. An empty value would be a list holding '', which allows a `::x`
+ * URL and runs a `git-remote-` helper on PATH; 'none' would likewise allow
+ * `none::x` and run git-remote-none.
+ */
+export function gitEnv(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {}
+  for (const [name, value] of Object.entries(process.env)) {
+    const upper = name.toUpperCase()
+    if (upper.startsWith('GIT_') && !KEPT_GIT_ENV.has(upper)) continue
+    env[name] = value
+  }
+  return {
+    ...env,
+    GIT_ALLOW_PROTOCOL: '0',
+    GIT_NO_LAZY_FETCH: '1',
+    GIT_OPTIONAL_LOCKS: '0',
+    GIT_TERMINAL_PROMPT: '0'
+  }
+}
+
+/** The one way MechBay runs git: safe options, filter overrides, clean env. */
+function execGit(
+  repoPath: string,
+  args: string[],
+  filterOverrides: readonly string[],
+  signal?: AbortSignal
+): Promise<{ stdout: string }> {
+  const options: ExecFileOptionsWithStringEncoding = {
+    encoding: 'utf8',
+    env: gitEnv(),
+    timeout: GIT_TIMEOUT_MS,
+    maxBuffer: GIT_MAX_BUFFER,
+    windowsHide: true,
+    signal
+  }
+  return execFileAsync(
+    'git',
+    [...SAFE_GIT_OPTIONS, ...filterOverrides, '-C', repoPath, ...args],
+    options
+  )
+}
+
 async function runGit(
   repoPath: string,
   args: string[],
+  filterOverrides: readonly string[],
   signal?: AbortSignal
 ): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync('git', ['-C', repoPath, ...args], {
-      timeout: GIT_TIMEOUT_MS,
-      maxBuffer: GIT_MAX_BUFFER,
-      windowsHide: true,
-      signal
-    })
+    const { stdout } = await execGit(repoPath, args, filterOverrides, signal)
     return stdout
   } catch (err) {
     const message = err instanceof Error ? err.message.split('\n')[0] : String(err)
     console.error(`[git-diff] git ${args.join(' ')} failed: ${message}`)
     return null
   }
+}
+
+/**
+ * Turns `git config --show-scope --name-only --get-regexp ^(filter|lfs)\.`
+ * output into `-c` options that switch off every filter driver defined
+ * anywhere but the person's own global or system config. The trusted Git
+ * LFS driver is switched off too when the repo defines LFS extension
+ * commands (lfs.extension.<name>.clean/smudge), because git-lfs runs those
+ * from the repo's config; other lfs.* settings don't run programs. Returns
+ * null (fail closed) when a line can't be parsed or a driver name can't be
+ * passed safely with -c.
+ */
+export function filterOverridesFromConfig(output: string): string[] | null {
+  const drivers = new Set<string>()
+  for (const line of output.split(/\r?\n/)) {
+    if (!line) continue
+    const tab = line.indexOf('\t')
+    const key = line.slice(tab + 1)
+    if (tab === -1 || !/^(filter|lfs)\./.test(key)) return null
+    if (TRUSTED_CONFIG_SCOPES.has(line.slice(0, tab))) continue
+    if (key.startsWith('lfs.')) {
+      // git-lfs reads its config keys case-insensitively.
+      if (key.toLowerCase().startsWith('lfs.extension.')) drivers.add('lfs')
+      continue
+    }
+    // Driver names may contain dots: filter.a.b.clean is driver "a.b".
+    const name = key.slice('filter.'.length, key.lastIndexOf('.'))
+    if (!name || /[=\r\n]/.test(name)) return null
+    drivers.add(name)
+  }
+  return [...drivers].flatMap((name) => [
+    ...FILTER_COMMANDS.flatMap((command) => ['-c', `filter.${name}.${command}=`]),
+    '-c',
+    `filter.${name}.required=false`
+  ])
+}
+
+/**
+ * Lists the repo's filter drivers (reading config never runs a program) and
+ * returns the -c options that blank them, or null if that can't be done
+ * safely, in which case the caller shows no diff rather than run git
+ * unprotected.
+ */
+async function repoFilterOverrides(
+  repoPath: string,
+  signal?: AbortSignal
+): Promise<string[] | null> {
+  const args = [
+    'config',
+    '--includes',
+    '--show-scope',
+    '--name-only',
+    '--get-regexp',
+    '^(filter|lfs)\\.'
+  ]
+  try {
+    const { stdout } = await execGit(repoPath, args, [], signal)
+    const overrides = filterOverridesFromConfig(stdout)
+    if (!overrides) console.error('[git-diff] refusing to diff: unsafe filter driver config')
+    return overrides
+  } catch (err) {
+    // Exit 1 with no output is git's "no matching keys".
+    const { code, stdout } = err as { code?: unknown; stdout?: unknown }
+    if (code === 1 && !stdout) return []
+    const message = err instanceof Error ? err.message.split('\n')[0] : String(err)
+    console.error(`[git-diff] git ${args.join(' ')} failed: ${message}`)
+    return null
+  }
+}
+
+/**
+ * True unless the repo's config points git at a working folder other than
+ * the project (core.worktree), which would make the diff read files outside
+ * it under names that look like the project's own. Normal repos never set
+ * core.worktree; a submodule's git dir sets it to that same submodule
+ * folder, which passes.
+ */
+async function worktreeIsProject(repoPath: string, signal?: AbortSignal): Promise<boolean> {
+  const args = ['config', '--get', 'core.worktree']
+  try {
+    await execGit(repoPath, args, [], signal)
+  } catch (err) {
+    // Exit 1 with no output is git's "not set".
+    const { code, stdout } = err as { code?: unknown; stdout?: unknown }
+    if (code === 1 && !stdout) return true
+    const message = err instanceof Error ? err.message.split('\n')[0] : String(err)
+    console.error(`[git-diff] git ${args.join(' ')} failed: ${message}`)
+    return false
+  }
+
+  const toplevel = (await runGit(repoPath, ['rev-parse', '--show-toplevel'], [], signal))?.trim()
+  if (toplevel) {
+    const [realTop, realRepo] = await Promise.all([
+      realpath(toplevel).catch(() => null),
+      realpath(repoPath).catch(() => null)
+    ])
+    const fold = (p: string): string => (process.platform === 'win32' ? p.toLowerCase() : p)
+    if (realTop && realRepo && fold(realTop) === fold(realRepo)) return true
+  }
+  console.error('[git-diff] refusing to diff: core.worktree points outside the project')
+  return false
+}
+
+/**
+ * The one guard every content-reading git call passes first: the worktree
+ * must be the project itself, and the repo's filter drivers get blanked.
+ * Returns the filter overrides, or null when git must not run at all.
+ */
+async function repoGuard(repoPath: string, signal?: AbortSignal): Promise<string[] | null> {
+  if (!(await worktreeIsProject(repoPath, signal))) return null
+  return repoFilterOverrides(repoPath, signal)
+}
+
+/**
+ * Whether repoPath is in a git repository: 'repo' when git says so (with or
+ * without commits), 'unknown' when git can't tell but a `.git` entry sits in
+ * repoPath or a folder above it (a malformed config, say), and 'none' only
+ * when there is no `.git` anywhere. That last check uses the file system,
+ * so repo config can't fake it and it doesn't depend on git's language.
+ * rev-parse reads no file contents, so it needs no guard.
+ */
+export async function isGitRepository(repoPath: string): Promise<'repo' | 'none' | 'unknown'> {
+  const stdout = await runGit(repoPath, ['rev-parse', '--is-inside-work-tree'], [])
+  if (stdout?.trim() === 'true') return 'repo'
+  for (let dir = path.resolve(repoPath); ; dir = path.dirname(dir)) {
+    if (await pathExists(path.join(dir, '.git'))) return 'unknown'
+    if (path.dirname(dir) === dir) return 'none'
+  }
+}
+
+/** True when something (file, folder or link) exists at `target`. */
+async function pathExists(target: string): Promise<boolean> {
+  return lstat(target).then(
+    () => true,
+    () => false
+  )
 }
 
 /**
@@ -190,7 +401,8 @@ function summarize(files: DiffFileStat[]): DiffSummary {
 }
 
 export async function captureGitBaseline(repoPath: string): Promise<string | null> {
-  const stdout = await runGit(repoPath, ['rev-parse', 'HEAD'])
+  // rev-parse HEAD never reads working-tree files, so no filter overrides.
+  const stdout = await runGit(repoPath, ['rev-parse', 'HEAD'], [])
   const sha = stdout?.trim()
   return sha || null
 }
@@ -203,10 +415,22 @@ export async function computeDiffSummary(
   const deadline = setTimeout(() => abortController.abort(), GIT_TIMEOUT_MS)
 
   try {
+    const overrides = await repoGuard(repoPath, abortController.signal)
+    if (overrides === null) return null
+
     if (baselineSha) {
       const numstat = await runGit(
         repoPath,
-        ['diff', '--numstat', baselineSha],
+        [
+          'diff',
+          '--numstat',
+          '--no-ext-diff',
+          '--no-textconv',
+          '--ignore-submodules=dirty',
+          '--submodule=short',
+          baselineSha
+        ],
+        overrides,
         abortController.signal
       )
       if (numstat === null) return null
@@ -215,7 +439,8 @@ export async function computeDiffSummary(
       // `?? dir/` row instead of listing the files inside it individually.
       const status = await runGit(
         repoPath,
-        ['status', '--porcelain', '-uall'],
+        ['status', '--porcelain', '-uall', '--ignore-submodules=dirty'],
+        overrides,
         abortController.signal
       )
       if (status === null) return null
@@ -233,13 +458,15 @@ export async function computeDiffSummary(
     const isGitRepo = await runGit(
       repoPath,
       ['rev-parse', '--is-inside-work-tree'],
+      overrides,
       abortController.signal
     )
     if (isGitRepo?.trim() !== 'true') return null
 
     const status = await runGit(
       repoPath,
-      ['status', '--porcelain', '-uall'],
+      ['status', '--porcelain', '-uall', '--ignore-submodules=dirty'],
+      overrides,
       abortController.signal
     )
     if (status === null) return null
@@ -328,8 +555,16 @@ async function synthesizeAddedPatch(repoPath: string, filePath: string): Promise
   return { path: filePath, binary: false, truncated, hunks }
 }
 
-async function isUntracked(repoPath: string, filePath: string): Promise<boolean> {
-  const status = await runGit(repoPath, ['status', '--porcelain', '-uall', '--', filePath])
+async function isUntracked(
+  repoPath: string,
+  filePath: string,
+  filterOverrides: readonly string[]
+): Promise<boolean> {
+  const status = await runGit(
+    repoPath,
+    ['status', '--porcelain', '-uall', '--ignore-submodules=dirty', '--', filePath],
+    filterOverrides
+  )
   if (status === null) return false
   return status.split(/\r?\n/).some((row) => row.startsWith('?? ') && row.slice(3) === filePath)
 }
@@ -350,20 +585,30 @@ export async function readFilePatch(
   const resolved = await resolveInRepo(repoPath, filePath)
   if (!resolved) return null
 
-  if (await isUntracked(repoPath, filePath)) {
+  const overrides = await repoGuard(repoPath)
+  if (overrides === null) return null
+
+  if (await isUntracked(repoPath, filePath, overrides)) {
     return synthesizeAddedPatch(repoPath, filePath)
   }
 
   const revision = baselineSha ?? 'HEAD'
-  const diffText = await runGit(repoPath, [
-    'diff',
-    '--no-color',
-    '--no-ext-diff',
-    '--unified=3',
-    revision,
-    '--',
-    filePath
-  ])
+  const diffText = await runGit(
+    repoPath,
+    [
+      'diff',
+      '--no-color',
+      '--no-ext-diff',
+      '--no-textconv',
+      '--ignore-submodules=dirty',
+      '--submodule=short',
+      '--unified=3',
+      revision,
+      '--',
+      filePath
+    ],
+    overrides
+  )
   if (diffText === null) return null
 
   return patchFromGitDiff(filePath, diffText)
