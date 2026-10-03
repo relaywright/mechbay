@@ -454,7 +454,7 @@ describe('task text is redacted where it is stored, never where it runs', () => 
     const queued = await start(`Rotate away from ${STORED_KEY}`, mate.id)
     expect(queued.status).toBe('queued')
 
-    // The user replaces the stored key before the queued mission starts.
+    // The pilot replaces the stored key before the queued mission starts.
     storedKey = REPLACED_KEY
     finishFirst(0)
 

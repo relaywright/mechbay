@@ -223,6 +223,7 @@ input {
   color: var(--dim);
 }
 .bay-viewport {
+  --map-halo: 0 0 3px #0b0f09, 0 0 6px #0b0f09, 0 1px 2px #0b0f09;
   position: relative;
   flex: 1;
   min-height: 200px;
@@ -267,6 +268,8 @@ input {
   align-items: center;
   gap: 8px;
   pointer-events: none;
+  /* The bay canvas fills the panel, so zoomed in the floor runs under these. */
+  text-shadow: var(--map-halo);
 }
 .map-top-left {
   left: 20px;
@@ -287,6 +290,7 @@ input {
   align-items: center;
   gap: 14px;
   pointer-events: none;
+  text-shadow: var(--map-halo);
 }
 .map-readout > div {
   min-width: 0;
@@ -2192,12 +2196,21 @@ input {
   }
 }
 /* Narrow cards: the portrait covers the header row, so drop the tag and
-   let the top strip and status line carry the deployed state. */
+   let the top strip and status line carry the deployed state. The tag ends
+   about 148px into the card and the portrait starts about 70px left of the
+   content's right edge, so they meet below a 218px content width. */
 .crew-card {
   container-type: inline-size;
 }
-@container (max-width: 150px) {
+@container (max-width: 224px) {
   .crew-deployed-tag {
+    display: none;
+  }
+}
+/* A narrow card whose status is longer than "Ready" leaves the stat line a
+   sliver ("N."); drop it there. The mech panel shows the full record. */
+@container (max-width: 180px) {
+  .crew-foot:has(.crew-status:not(.ready)) .crew-stat-line {
     display: none;
   }
 }

@@ -282,8 +282,8 @@ describe('LogStore', () => {
       }
     ]
     const store = new LogStore({ dir })
-    expect(store.importLegacy(legacy)).toBe(2)
-    expect(store.importLegacy(legacy)).toBe(0)
+    expect(store.importLegacy(legacy).lines).toBe(2)
+    expect(store.importLegacy(legacy).lines).toBe(0)
     const history = await store.history(ID)
     expect(history.map((e) => [e.seq, e.text, e.thoughtKind])).toEqual([
       [1, 'old line 1', undefined],
@@ -300,7 +300,7 @@ describe('LogStore', () => {
       stream: 'stdout' as const,
       text: 'x'
     }
-    expect(store.importLegacy([bad])).toBe(0)
+    expect(store.importLegacy([bad]).lines).toBe(0)
     expect(readdirSync(dir)).toEqual([])
   })
 
@@ -315,7 +315,7 @@ describe('LogStore', () => {
     }
     const store = new LogStore({ dir, fs: fs as never })
     const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
-    expect(store.importLegacy([chunk])).toBe(1)
+    expect(store.importLegacy([chunk]).lines).toBe(1)
     expect(writes.map((f) => path.basename(f))).toEqual([`${ID}.jsonl.tmp`])
     expect(readdirSync(dir)).toEqual([`${ID}.jsonl`])
   })
@@ -329,9 +329,93 @@ describe('LogStore', () => {
     }
     const store = new LogStore({ dir, fs: fs as never })
     const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
-    expect(store.importLegacy([chunk])).toBe(1)
+    expect(store.importLegacy([chunk]).lines).toBe(1)
     expect(readdirSync(dir)).toEqual([`${ID}.jsonl`])
     expect((await store.history(ID)).map((e) => e.text)).toEqual(['x'])
+  })
+
+  it('removes a half-written log when the rename is refused and the direct write runs out of space', () => {
+    const fs = {
+      ...realFs,
+      renameSync: vi.fn(() => {
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      }),
+      writeFileSync: vi.fn(
+        (file: realFs.PathOrFileDescriptor, data: string, options?: realFs.WriteFileOptions) => {
+          if (typeof file === 'number') {
+            // The direct write to the opened log: the disk fills partway
+            // through, so a prefix lands, then the write throws.
+            realFs.writeSync(file, data.slice(0, 20))
+            throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+          }
+          realFs.writeFileSync(file, data, options)
+        }
+      )
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    expect(store.importLegacy([chunk])).toEqual({ lines: 0, failed: 1 })
+    // No partial log a later import would skip as finished, and no stray temporary copy.
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('never removes a log that appeared while the rename was refused', () => {
+    const fs = {
+      ...realFs,
+      renameSync: vi.fn((_tmp: string, file: string) => {
+        realFs.writeFileSync(file, '{"seq":1}\n') // another writer got there first
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      })
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    expect(store.importLegacy([chunk]).failed).toBe(1)
+    expect(realFs.readFileSync(path.join(dir, `${ID}.jsonl`), 'utf8')).toBe('{"seq":1}\n')
+  })
+
+  it('never removes a log another writer made when opening it for the direct write fails', () => {
+    const fs = {
+      ...realFs,
+      renameSync: vi.fn(() => {
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      }),
+      openSync: vi.fn((file: realFs.PathLike) => {
+        realFs.writeFileSync(file, '{"seq":1}\n') // a complete log appears meanwhile
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      })
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    expect(store.importLegacy([chunk]).failed).toBe(1)
+    expect(realFs.readFileSync(path.join(dir, `${ID}.jsonl`), 'utf8')).toBe('{"seq":1}\n')
+  })
+
+  it('counts a mission whose old log could not be written, and keeps importing the rest', () => {
+    const OTHER = '01HV0000000000000000000002'
+    const fs = {
+      ...realFs,
+      writeFileSync: vi.fn((file: realFs.PathOrFileDescriptor, data: string) => {
+        if (String(file).includes(ID)) throw new Error('ENOSPC: no space left on device')
+        realFs.writeFileSync(file, data)
+      })
+    }
+    const store = new LogStore({ dir, fs: fs as never })
+    const chunks = [
+      { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'lost' },
+      { id: 'u2', deploymentId: OTHER, timestamp: 1, stream: 'stdout' as const, text: 'kept' }
+    ]
+    expect(store.importLegacy(chunks)).toEqual({ lines: 1, failed: 1 })
+    expect(readdirSync(dir)).toEqual([`${OTHER}.jsonl`])
+  })
+
+  it('counts a mission whose old lines could not be redacted, and writes none of them', () => {
+    const store = new LogStore({ dir })
+    const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'x' }
+    const broken = (): string => {
+      throw new Error('secret list unavailable')
+    }
+    expect(store.importLegacy([chunk], broken)).toEqual({ lines: 0, failed: 1 })
+    expect(readdirSync(dir)).toEqual([])
   })
 
   it('shortens huge imported lines and drops an unknown thought kind', async () => {
@@ -344,7 +428,7 @@ describe('LogStore', () => {
       text: 'y'.repeat(100_000),
       thoughtKind: 5
     }
-    expect(store.importLegacy([chunk as never])).toBe(1)
+    expect(store.importLegacy([chunk as never]).lines).toBe(1)
     const [entry] = await store.history(ID)
     expect(entry.text.endsWith('[line shortened]')).toBe(true)
     expect(entry).not.toHaveProperty('thoughtKind')
@@ -354,7 +438,7 @@ describe('LogStore', () => {
     const store = new LogStore({ dir })
     const good = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout' as const, text: 'ok' }
     const chunks = [null, 'text', { deploymentId: 5 }, { deploymentId: ID, text: 7 }, good]
-    expect(store.importLegacy(chunks as never)).toBe(1)
+    expect(store.importLegacy(chunks as never).lines).toBe(1)
     expect((await store.history(ID)).map((e) => e.text)).toEqual(['ok'])
   })
 
@@ -433,6 +517,34 @@ describe('log folders and startup', () => {
         takeLegacyLogChunks: () => []
       } as never)
       expect(existsSync(path.join(dir, `${ID}.jsonl`))).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('tells the saved bay when old logs could not be moved, and only then', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'mechbay-logs-'))
+    try {
+      const chunk = { id: 'u1', deploymentId: ID, timestamp: 1, stream: 'stdout', text: 'x' }
+      const run = (fs: typeof realFs): number => {
+        const noteLegacyLogsNotMoved = vi.fn()
+        prepareLogStore(new LogStore({ dir, fs: fs as never }), {
+          getHealth: () => ({ ok: true }),
+          getState: () => ({ deployments: [] }),
+          startedFresh: () => false,
+          takeLegacyLogChunks: () => [chunk],
+          noteLegacyLogsNotMoved
+        } as never)
+        return noteLegacyLogsNotMoved.mock.calls.length
+      }
+      const full = {
+        ...realFs,
+        writeFileSync: () => {
+          throw new Error('ENOSPC: no space left on device')
+        }
+      }
+      expect(run(full as never)).toBe(1)
+      expect(run(realFs)).toBe(0)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

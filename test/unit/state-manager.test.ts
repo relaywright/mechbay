@@ -60,7 +60,11 @@ describe('StateManager', () => {
     expect(state.version).toBe(3)
     expect(state.companions).toHaveLength(5)
     expect(state.facilities).toHaveLength(6)
-    expect(sm.getHealth()).toMatchObject({ ok: true, notice: expect.stringContaining('fresh') })
+    expect(sm.getHealth()).toMatchObject({
+      ok: true,
+      notice: expect.stringContaining('fresh'),
+      freshBay: true
+    })
   })
 
   it('seeds canonical mech-class mapping per spec §6', () => {

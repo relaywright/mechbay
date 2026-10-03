@@ -1,9 +1,9 @@
 {
   "name": "mechbay",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "A BattleTech-inspired command bay for AI coding agents: deploy Claude Code, Codex and other CLI agents as mechs into your real project folders",
   "main": "./out/main/index.js",
-  "author": "relaywright",
+  "author": "relaywright <220244294+relaywright@users.noreply.github.com>",
   "homepage": "https://github.com/relaywright/mechbay",
   "license": "MIT",
   "repository": {

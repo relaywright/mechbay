@@ -26,7 +26,11 @@ export function StateRecoveryModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [onDismiss])
 
-  const title = health.ok ? 'Started a fresh bay' : TITLES[health.reason]
+  const title = !health.ok
+    ? TITLES[health.reason]
+    : health.freshBay
+      ? 'Started a fresh bay'
+      : 'Upgraded your saved bay'
   const body = health.ok ? health.notice : health.message
   return (
     <div style={backdropStyle}>

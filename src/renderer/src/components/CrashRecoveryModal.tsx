@@ -7,7 +7,7 @@ import { colors, fontSize } from '../theme'
  * Shown once on boot when the main process finds missions left open by a
  * previous run (force-quit, crash, etc.). Purely informational: the sweep
  * already marked running missions failed and cancelled queued ones; this
- * modal is a dismissible receipt so the user knows what got cleaned up.
+ * modal is a dismissible receipt so the pilot knows what got cleaned up.
  */
 export function CrashRecoveryModal(props: {
   zombies: Deployment[]

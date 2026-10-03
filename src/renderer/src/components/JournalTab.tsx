@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { SOUL_NOT_FOUND } from '../../../shared/defaults'
 import { colors, fontSize } from '../theme'
+import { ipcErrorMessage } from '../../../shared/bridge-errors'
 
 type JournalSubTab = 'soul' | 'memory'
 
@@ -56,7 +57,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
       },
       (e: unknown) => {
         if (cancelled) return
-        setLoadError({ key, message: e instanceof Error ? e.message : String(e) })
+        setLoadError({ key, message: ipcErrorMessage(e) })
         setLoadedKey(key)
       }
     )
@@ -77,7 +78,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
         setActionError(result.error)
       }
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e))
+      setActionError(ipcErrorMessage(e))
     }
   }, [companionId, soulContent])
 
@@ -90,7 +91,7 @@ export function JournalTab({ companionId }: JournalTabProps): React.JSX.Element 
       if (result.ok) setMemoryContent(result.content)
       else setActionError(result.error)
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e))
+      setActionError(ipcErrorMessage(e))
     } finally {
       setRefreshing(false)
     }

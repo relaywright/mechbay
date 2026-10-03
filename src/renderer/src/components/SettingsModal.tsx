@@ -438,7 +438,7 @@ function MechSettingsRow({
       setKeyValue('')
       await refreshStatus()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(ipcErrorMessage(err))
     } finally {
       setPending(null)
     }

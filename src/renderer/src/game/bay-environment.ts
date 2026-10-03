@@ -109,6 +109,22 @@ export function panBounds(userZoom: number, baseViewW = 1100, baseViewH = 640): 
   }
 }
 
+/**
+ * The pan that keeps one world point under the same screen point while the
+ * camera zoom changes. `offset` is that screen point's distance from the
+ * middle of the view, in canvas pixels; the world point there is
+ * center + offset / zoom, so the center moves by offset × (1/from − 1/to).
+ */
+export function panToKeepPoint(
+  pan: TileCoord,
+  offset: TileCoord,
+  fromZoom: number,
+  toZoom: number
+): TileCoord {
+  const shift = 1 / fromZoom - 1 / toZoom
+  return { x: pan.x + offset.x * shift, y: pan.y + offset.y * shift }
+}
+
 /** Clamp a pan offset within the given bounds (rectangular, symmetric around 0). */
 export function clampPan(pan: TileCoord, bounds: PanBounds): TileCoord {
   return {

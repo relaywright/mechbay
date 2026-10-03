@@ -1,4 +1,4 @@
-appId: com.relaywright.mechbay
+appId: io.github.relaywright.mechbay
 productName: MechBay
 directories:
   buildResources: build
@@ -46,6 +46,9 @@ win:
   # Revisit once MechBay goes beyond personal use.
 nsis:
   oneClick: false
+  # Installs up to v1.4.3 derived this GUID from the previous appId.
+  # Keep it so new installers upgrade them instead of adding a second MechBay.
+  guid: 5046ab0a-889b-59aa-921f-20e31c899a46
   allowToChangeInstallationDirectory: true
   artifactName: ${productName}-${version}-setup.${ext}
   shortcutName: ${productName}

@@ -31,9 +31,11 @@ export interface MissionLogSink {
 type LogFs = Pick<
   typeof nodeFs,
   | 'appendFileSync'
+  | 'closeSync'
   | 'existsSync'
   | 'lstatSync'
   | 'mkdirSync'
+  | 'openSync'
   | 'readFileSync'
   | 'readdirSync'
   | 'renameSync'
@@ -210,9 +212,13 @@ export class LogStore implements MissionLogSink {
    * Move schema 2 log chunks into files. Skips a mission whose file already
    * exists, and any chunk a hand-edited or damaged save left malformed.
    * v1.4.0 saved lines before redaction existed, so each one goes through
-   * `redact` on the way in.
+   * `redact` on the way in. Returns the lines written and the number of
+   * missions whose log could not be written.
    */
-  importLegacy(chunks: LogChunkV2[], redact: (text: string) => string = (text) => text): number {
+  importLegacy(
+    chunks: LogChunkV2[],
+    redact: (text: string) => string = (text) => text
+  ): { lines: number; failed: number } {
     const byMission = new Map<string, LogChunkV2[]>()
     for (const chunk of chunks as unknown[]) {
       if (!isLegacyChunk(chunk)) continue
@@ -221,23 +227,24 @@ export class LogStore implements MissionLogSink {
       byMission.set(chunk.deploymentId, list)
     }
     let imported = 0
+    let failed = 0
     for (const [missionId, list] of byMission) {
       const file = this.fileFor(missionId)
       if (this.fs.existsSync(file)) continue
-      const lines = [...list]
-        .sort((a, b) => a.timestamp - b.timestamp)
-        .map((c, i): LogChunk => ({
-          id: `${missionId}:${i + 1}`,
-          deploymentId: missionId,
-          seq: i + 1,
-          timestamp: c.timestamp,
-          stream: c.stream,
-          text: capLine(redact(c.text)),
-          ...(c.thoughtKind === 'intent' || c.thoughtKind === 'findings'
-            ? { thoughtKind: c.thoughtKind }
-            : {})
-        }))
       try {
+        const lines = [...list]
+          .sort((a, b) => a.timestamp - b.timestamp)
+          .map((c, i): LogChunk => ({
+            id: `${missionId}:${i + 1}`,
+            deploymentId: missionId,
+            seq: i + 1,
+            timestamp: c.timestamp,
+            stream: c.stream,
+            text: capLine(redact(c.text)),
+            ...(c.thoughtKind === 'intent' || c.thoughtKind === 'findings'
+              ? { thoughtKind: c.thoughtKind }
+              : {})
+          }))
         this.ensureDir()
         // Write aside, then rename: a crash mid-import leaves only a .tmp
         // file, never a half log that the existence check above would
@@ -252,19 +259,34 @@ export class LogStore implements MissionLogSink {
           // Windows. Write the log directly instead ('wx': never over a log
           // that appeared meanwhile) and drop the temporary copy.
           console.warn(`[log-store] rename refused for ${missionId}; writing directly:`, err)
-          this.fs.writeFileSync(file, data, { flag: 'wx' })
           try {
-            this.fs.unlinkSync(tmp)
-          } catch (unlinkErr) {
-            console.warn(`[log-store] could not remove ${path.basename(tmp)}:`, unlinkErr)
+            // Open first: once 'wx' succeeds the file is this import's own,
+            // so only a failure after that point may remove it.
+            const fd = this.fs.openSync(file, 'wx')
+            let written = false
+            try {
+              this.fs.writeFileSync(fd, data)
+              written = true
+            } finally {
+              try {
+                this.fs.closeSync(fd)
+              } finally {
+                // A write cut short (disk full) leaves a prefix that the
+                // existence check above would later skip as a finished import.
+                if (!written) this.removeQuietly(file)
+              }
+            }
+          } finally {
+            this.removeQuietly(tmp)
           }
         }
         imported += lines.length
       } catch (err) {
+        failed += 1
         console.warn(`[log-store] could not import logs for ${missionId}:`, err)
       }
     }
-    return imported
+    return { lines: imported, failed }
   }
 
   private mission(missionId: string): MissionBuffer {
@@ -407,6 +429,15 @@ export class LogStore implements MissionLogSink {
   private ensureDir(): void {
     this.fs.mkdirSync(this.dir, { recursive: true })
   }
+
+  /** Deletes a file this store wrote, if it is there. A failure only warns. */
+  private removeQuietly(file: string): void {
+    try {
+      if (this.fs.existsSync(file)) this.fs.unlinkSync(file)
+    } catch (err) {
+      console.warn(`[log-store] could not remove ${path.basename(file)}:`, err)
+    }
+  }
 }
 
 /**
@@ -420,14 +451,17 @@ export class LogStore implements MissionLogSink {
  */
 export function prepareLogStore(
   logs: LogStore,
-  state: Pick<StateManager, 'getHealth' | 'getState' | 'startedFresh' | 'takeLegacyLogChunks'>,
+  state: Pick<
+    StateManager,
+    'getHealth' | 'getState' | 'startedFresh' | 'takeLegacyLogChunks' | 'noteLegacyLogsNotMoved'
+  >,
   options: { redact?: (text: string) => string } = {}
 ): void {
   const legacy = state.takeLegacyLogChunks()
   if (legacy.length) {
-    console.info(
-      `[log-store] moved ${logs.importLegacy(legacy, options.redact)} saved log lines out of the state file`
-    )
+    const { lines, failed } = logs.importLegacy(legacy, options.redact)
+    console.info(`[log-store] moved ${lines} saved log lines out of the state file`)
+    if (failed) state.noteLegacyLogsNotMoved()
   }
   if (!state.getHealth().ok || state.startedFresh()) return
   const deployments = state.getState().deployments

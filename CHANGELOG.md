@@ -1,15 +1,61 @@
 # Changelog
 
-## Unreleased
+## v1.4.3 - 2026-10-03
+
+Polish on top of v1.4.2: the bay fills its panel, crew cards stay tidy,
+and error messages read like sentences.
+
+### Fixed
+
+- **The whole bay shows, at any zoom.** The bay was drawn on a
+  fixed-shape canvas centered in the wider panel. On a wide window that
+  clipped the tip of the deck next to Foundry, and zooming in cut the floor
+  off along straight vertical edges. The canvas now fills the panel: the
+  bay stays the same size, a wide window shows more hangar around it, and
+  the radar minimap sits in the panel's top-right corner.
+- **The mouse wheel zooms toward the cursor.** Zooming in always drifted
+  toward Foundry, wherever the cursor was. The building under the cursor
+  now stays under it.
+- **Crew cards never overlap.** On narrow cards the mech's status ran into
+  its stat line. The two now share one row, and a card too narrow for both
+  hides the stat line while the mech is busy. The DEPLOYED tag on a card
+  is hidden whenever the card is too narrow to show it clear of the
+  portrait, instead of being cut off as "DEPLOYE".
+- **Facility names stay on top.** A mech working at a facility used to
+  stand over the facility's name. Names now draw above every mech and
+  building, and the map's corner labels have a dark halo so the floor
+  running under them no longer washes them out.
+- **No false "lance at capacity" warning.** Deploying with a free slot
+  briefly showed LANCE AT CAPACITY and a "holding position" radio line
+  before the mech set off. Both now appear only when the mission really
+  waits, and a holding line still waiting its turn on screen is dropped if
+  the mission sets off first. Atlas's working line, which also sounded
+  like a queue warning, now says "Digging in at ...".
+- **Plain error messages.** A failed action showed Electron's wrapper text
+  ("Error invoking remote method ...") in front of the real reason. Every
+  panel now shows only the reason, in full, even when it names a folder
+  with brackets in its name.
+- **Old logs that fail to move are no longer silent.** When upgrading a
+  v1.4.0 bay, if a mission's log could not be written to its new file (a
+  full disk, a locked folder), MechBay now says so at startup and names the
+  backup that still holds every line. A log cut short by a full disk is
+  removed, so it is never mistaken for a complete one.
+- The Read only hint now says exactly what it promises: the agent can look
+  through the project, and the CLI blocks any change to project files.
 
 ### Changed
 
-- **New home.** MechBay is published as relaywright. The landing page
-  lives at `mechbay.relaywright.workers.dev`, and downloads and updates
-  come from `github.com/relaywright/mechbay`.
-- **New app ID** (`com.relaywright.mechbay`). Windows treats this version
-  as a new app, so uninstall the old MechBay from Settings > Apps before
-  installing it. Your bay and journals stay where they are.
+- Development dependencies: Vitest 5, Prettier 3.9.9, and newer
+  checkout and secret-scan actions in CI.
+- The project now lives at github.com/relaywright/mechbay, and the
+  landing page at mechbay.relaywright.workers.dev. Installers, links and
+  the "please report this" messages point there.
+- MechBay has a new internal app ID. Your saved bay, logs and keys stay
+  where they are, and the installer upgrades your existing copy. On
+  Windows, a MechBay pinned to the taskbar may open as a second icon:
+  unpin it and pin it again. On macOS, you may be asked once to let
+  MechBay use its saved keys (choose Always Allow) or to grant
+  permissions again.
 
 ## v1.4.2 - 2026-10-02
 

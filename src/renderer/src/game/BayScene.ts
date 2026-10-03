@@ -14,11 +14,19 @@ import {
 } from './bay-animation'
 import { canvasPointToPage } from './bay-layout'
 import { computeDeploymentActions } from './deployment-transitions'
-import { deckTile, conduitPath, clampZoom, clampPan, panBounds } from './bay-environment'
+import {
+  deckTile,
+  conduitPath,
+  clampZoom,
+  clampPan,
+  panBounds,
+  panToKeepPoint
+} from './bay-environment'
 import { FX, generateFxTextures } from './fx-textures'
 import { Minimap, type MinimapBlip } from './minimap'
 import { headingFromDelta } from '../cockpit'
 import { textResolutionForZoom } from './text-resolution'
+import { BASE_VIEW_H, BASE_VIEW_W, renderScaleFor } from './render-resolution'
 
 import atlasSheetUrl from '../../../../assets/mechs/sheets/atlas.png?url'
 import marauderSheetUrl from '../../../../assets/mechs/sheets/marauder.png?url'
@@ -55,14 +63,12 @@ declare global {
 }
 
 /**
- * Logical design viewport the camera framing was tuned against, and the
- * camera zoom at that framing. The Phaser game is actually created at
- * (BASE_VIEW × renderScale) so the canvas renders at the window's true
- * device-pixel resolution (see applyResolution) — the zoom scales by the
- * same factor so the world framing stays put while gaining sharpness.
+ * Camera zoom at the logical design viewport (BASE_VIEW, render-resolution.ts)
+ * the framing was tuned against. The Phaser game is actually created at the
+ * bay panel's true device-pixel size (see applyResolution), and the zoom
+ * scales by renderScale so the world framing stays put while gaining
+ * sharpness.
  */
-const BASE_VIEW_W = 1100
-const BASE_VIEW_H = 640
 // Tuned up from 0.52 (Wave 7) so the diamond fills more of the frame — all
 // six seeded facilities (including the outermost, (13,3)/(3,13)/(13,13))
 // plus their labels still fit comfortably inside the default framing.
@@ -157,6 +163,12 @@ const FACILITY_SOURCE_H = 896
 
 /** Depth for overlays that must read above every mech and building. */
 const OVERLAY_DEPTH = 5000
+/**
+ * Facility names draw above every mech and building (those sort by screen y,
+ * up to about 1200) so a mech working at a facility never hides its name,
+ * and below the HUD overlays.
+ */
+const FACILITY_LABEL_DEPTH = 2000
 
 const hex = (value: string): number => Phaser.Display.Color.HexStringToColor(value).color
 const AMBER = hex(colors.amber)
@@ -515,13 +527,14 @@ export class BayScene extends Phaser.Scene {
 
   /**
    * Keep the world framing identical across displays while rendering at the
-   * canvas's true device-pixel resolution. The Phaser game is created at
-   * (BASE_VIEW × renderScale), so the WebGL backing store matches the real
-   * pixels of a large or HiDPI window instead of a fixed 1100×640 raster that
-   * Scale.FIT then upscales into blur. Because the viewport grew by
-   * renderScale, the camera zoom grows by the same factor to show the exact
-   * same slice of the world — text and sprites gain resolution, the framing
-   * does not move.
+   * canvas's true device-pixel resolution. The Phaser game is created at the
+   * bay panel's own aspect and device-pixel size, so the WebGL backing store
+   * matches the real pixels of a large or HiDPI window instead of a fixed
+   * 1100×640 raster that Scale.FIT then upscales into blur (or letterboxes
+   * inside the wide panel). renderScale is how far the base view grew to fit
+   * inside it, and the camera zoom grows by the same factor to show at least
+   * the same slice of the world — text and sprites gain resolution, the
+   * framing does not move.
    */
   private applyResolution(): void {
     this.applyCameraTransform()
@@ -536,7 +549,7 @@ export class BayScene extends Phaser.Scene {
    * the two never fight over the camera transform.
    */
   private applyCameraTransform(): void {
-    const renderScale = this.scale.gameSize.width / BASE_VIEW_W
+    const renderScale = renderScaleFor(this.scale.gameSize.width, this.scale.gameSize.height)
     const zoom = BASE_ZOOM * renderScale * this.userZoom
     this.cameras.main.setZoom(zoom)
     this.syncLabelResolution(zoom)
@@ -578,19 +591,18 @@ export class BayScene extends Phaser.Scene {
       'wheel',
       (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => {
         const camera = this.cameras.main
-        const before = camera.getWorldPoint(pointer.x, pointer.y)
         const nextZoom = clampZoom(this.userZoom - Math.sign(dy) * 0.1)
         if (nextZoom === this.userZoom) return
+        const fromZoom = camera.zoom
         this.userZoom = nextZoom
-        this.userPan = clampPan(this.userPan, panBounds(this.userZoom, BASE_VIEW_W, BASE_VIEW_H))
         this.applyCameraTransform()
-
-        // Re-derive the world point under the cursor at the new zoom and
-        // nudge pan by the difference, so the point the user was hovering
-        // stays fixed on screen instead of the zoom recentering on the diamond.
-        const after = camera.getWorldPoint(pointer.x, pointer.y)
+        // Keep the point the user was hovering fixed on screen. Worked out
+        // from the zoom, not camera.getWorldPoint: Phaser rebuilds the camera
+        // matrix only before it draws, so a second read here still sees the
+        // old zoom and the correction comes out as zero.
+        const offset = { x: pointer.x - camera.width / 2, y: pointer.y - camera.height / 2 }
         this.userPan = clampPan(
-          { x: this.userPan.x + (before.x - after.x), y: this.userPan.y + (before.y - after.y) },
+          panToKeepPoint(this.userPan, offset, fromZoom, camera.zoom),
           panBounds(this.userZoom, BASE_VIEW_W, BASE_VIEW_H)
         )
         this.applyCameraTransform()
@@ -1343,7 +1355,7 @@ export class BayScene extends Phaser.Scene {
         resolution: textResolutionForZoom(this.cameras.main.zoom)
       })
       .setOrigin(0.5)
-      .setDepth(500)
+      .setDepth(FACILITY_LABEL_DEPTH)
     this.facilityLabels.set(facilityId, label)
     this.buildFacilityFoundation(facilityId, tile)
   }

@@ -5,7 +5,8 @@ import {
   compassPoint,
   computeCallouts,
   headingFromDelta,
-  lanceHeat
+  lanceHeat,
+  dropStaleHolding
 } from '../../src/renderer/src/cockpit'
 
 function deployment(id: string, status: Deployment['status'], companionId = 'c1'): Deployment {
@@ -60,8 +61,20 @@ describe('computeCallouts', () => {
     expect(out).toEqual([])
   })
 
+  it('stays quiet about a new mission that a free slot is about to start', () => {
+    // Every mission is saved as queued first; the scheduler starts it a moment
+    // later. With 1 of 3 mechs out, nothing is holding.
+    const lane = [deployment('d1', 'working')]
+    const out = computeCallouts(state(lane), state([...lane, deployment('d2', 'queued', 'c2')]))
+    expect(out).toEqual([])
+  })
+
   it('warns on a queued launch and on input requests', () => {
-    const queued = computeCallouts(state([]), state([deployment('d2', 'queued', 'c2')]))
+    const full = [deployment('d1', 'working')]
+    const queued = computeCallouts(
+      state(full, true, 1),
+      state([...full, deployment('d2', 'queued', 'c2')], true, 1)
+    )
     expect(queued[0]).toMatchObject({
       text: 'LANCE AT CAPACITY · RAVEN-PRIME HOLDING',
       tone: 'warning'
@@ -96,6 +109,51 @@ describe('computeCallouts', () => {
     expect(out).toEqual([
       { id: 'f1:linked', text: 'NAV POINT ONLINE · RESEARCH LAB', tone: 'nominal' }
     ])
+  })
+})
+
+describe('dropStaleHolding', () => {
+  // A full lane (cap 1): d2 really waits, and its HOLDING line is queued
+  // behind another callout that is still on screen.
+  const full = [deployment('d1', 'working')]
+  const waitingState = state([...full, deployment('d2', 'queued', 'c2')], true, 1)
+  const holding = computeCallouts(state(full, true, 1), waitingState)
+  const onScreen = {
+    id: 'd0:complete',
+    text: 'OBJECTIVE COMPLETE · RESEARCH LAB',
+    tone: 'nominal' as const
+  }
+
+  it('keeps a waiting HOLDING line while the mission is still in line', () => {
+    const queue = [onScreen, ...holding]
+    expect(dropStaleHolding(queue, waitingState, onScreen.id)).toEqual(queue)
+  })
+
+  it('drops a waiting HOLDING line once its mission has launched', () => {
+    const launched = state(
+      [deployment('d1', 'completed'), deployment('d2', 'walking-to', 'c2')],
+      true,
+      1
+    )
+    expect(dropStaleHolding([onScreen, ...holding], launched, onScreen.id)).toEqual([onScreen])
+  })
+
+  it('lets a HOLDING line already on screen play out', () => {
+    const launched = state(
+      [deployment('d1', 'completed'), deployment('d2', 'walking-to', 'c2')],
+      true,
+      1
+    )
+    expect(dropStaleHolding(holding, launched, holding[0].id)).toEqual(holding)
+  })
+
+  it('drops a HOLDING line first in line that was never drawn', () => {
+    const launched = state(
+      [deployment('d1', 'completed'), deployment('d2', 'walking-to', 'c2')],
+      true,
+      1
+    )
+    expect(dropStaleHolding(holding, launched, null)).toEqual([])
   })
 })
 

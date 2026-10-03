@@ -49,6 +49,90 @@ try {
   )
   assert.deepEqual(crewOverlaps, [], 'crew card status runs into its stat line')
 
+  // A deployed mech's card adds a DEPLOYED tag to its header row; where the
+  // portrait would cover it, the tag must be hidden. Probe every card at its
+  // own width, plus the first card forced to just above and just below the
+  // 224px content width where command.css starts hiding the tag.
+  const tagProbe = await page.evaluate(() => {
+    const probe = (
+      card: HTMLElement,
+      contentWidth?: number
+    ): { shown: boolean; clear: boolean } => {
+      const saved = card.getAttribute('style')
+      if (contentWidth !== undefined) {
+        card.style.boxSizing = 'content-box'
+        card.style.width = `${contentWidth}px`
+        card.style.minWidth = '0'
+        card.style.maxWidth = 'none'
+      }
+      const tag = document.createElement('b')
+      tag.className = 'crew-deployed-tag'
+      tag.textContent = 'DEPLOYED'
+      card.querySelector('.crew-number')?.appendChild(tag)
+      const box = tag.getBoundingClientRect()
+      const portrait = card.querySelector('.crew-portrait')?.getBoundingClientRect()
+      tag.remove()
+      if (saved === null) card.removeAttribute('style')
+      else card.setAttribute('style', saved)
+      return { shown: box.width > 0, clear: !portrait || box.right <= portrait.left }
+    }
+    const cards = [...document.querySelectorAll<HTMLElement>('.crew-card')]
+    return {
+      underPortrait: cards
+        .filter((card) => {
+          const r = probe(card)
+          return r.shown && !r.clear
+        })
+        .map((card) => card.querySelector('.crew-name')?.textContent ?? '?'),
+      above: probe(cards[0], 225),
+      below: probe(cards[0], 223)
+    }
+  })
+  assert.deepEqual(tagProbe.underPortrait, [], 'a crew card DEPLOYED tag runs under the portrait')
+  assert.deepEqual(
+    tagProbe.above,
+    { shown: true, clear: true },
+    'at 225px a card shows the DEPLOYED tag clear of the portrait'
+  )
+  assert.equal(tagProbe.below.shown, false, 'below 224px a card hides the DEPLOYED tag')
+
+  // Wheel zoom keeps the world point under the cursor in place (demo mode
+  // exposes the scene). v1.4.2 read a stale camera matrix here and drifted.
+  if (demo) {
+    const box = await page.locator('.bay-canvas canvas').first().boundingBox()
+    assert.ok(box, 'the bay canvas must be on screen')
+    const cursor = { x: box.x + box.width * 0.35, y: box.y + box.height * 0.45 }
+    const worldUnderCursor = (): Promise<{ x: number; y: number }> =>
+      page.evaluate(
+        ({ cursor, box }) => {
+          type Scene = {
+            scale: { gameSize: { width: number; height: number } }
+            cameras: {
+              main: { getWorldPoint: (x: number, y: number) => { x: number; y: number } }
+            }
+          }
+          const scene = (window as unknown as { __mechbayScene: Scene }).__mechbayScene
+          const gx = ((cursor.x - box.x) / box.width) * scene.scale.gameSize.width
+          const gy = ((cursor.y - box.y) / box.height) * scene.scale.gameSize.height
+          const point = scene.cameras.main.getWorldPoint(gx, gy)
+          return { x: point.x, y: point.y }
+        },
+        { cursor, box }
+      )
+    const before = await worldUnderCursor()
+    await page.mouse.move(cursor.x, cursor.y)
+    await page.mouse.wheel(0, -240)
+    await page.waitForTimeout(300)
+    const after = await worldUnderCursor()
+    const drift = Math.hypot(after.x - before.x, after.y - before.y)
+    assert.ok(
+      drift < 2,
+      `wheel zoom moved the point under the cursor by ${drift.toFixed(1)} world px`
+    )
+    await page.mouse.wheel(0, 240)
+    await page.waitForTimeout(300)
+  }
+
   const sceneExposed = await page.evaluate(() => '__mechbayScene' in window)
   assert.equal(sceneExposed, demo, 'the scene hook must exist only in demo mode')
   assert.equal(

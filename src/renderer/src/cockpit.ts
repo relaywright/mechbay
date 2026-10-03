@@ -7,7 +7,7 @@
  * terse, all caps, one line at a time — about the lance as a whole.
  */
 import type { AppState, Deployment } from '../../shared/types'
-import { concurrencyCap } from '../../shared/mission-queue'
+import { concurrencyCap, waitingInLine } from '../../shared/mission-queue'
 
 export type CalloutTone = 'nominal' | 'warning' | 'critical'
 
@@ -16,6 +16,8 @@ export interface Callout {
   id: string
   text: string
   tone: CalloutTone
+  /** For a LANCE AT CAPACITY line: the mission it says is holding. */
+  holding?: string
 }
 
 const ACTIVE: ReadonlySet<Deployment['status']> = new Set([
@@ -40,6 +42,7 @@ export function computeCallouts(prev: AppState | null, next: AppState): Callout[
   const facility = (id: string): string =>
     upper(next.facilities.find((f) => f.id === id)?.name, 'OBJECTIVE')
   const before = new Map(prev.deployments.map((d) => [d.id, d.status]))
+  const waiting = waitingInLine(next)
 
   for (const d of next.deployments) {
     const was = before.get(d.id)
@@ -53,11 +56,12 @@ export function computeCallouts(prev: AppState | null, next: AppState): Callout[
         text: `TARGET LOCKED · ${facility(d.facilityId)}`,
         tone: 'nominal'
       })
-    } else if (d.status === 'queued' && was === undefined) {
+    } else if (d.status === 'queued' && was === undefined && waiting.has(d.id)) {
       callouts.push({
         id: `${d.id}:queued`,
         text: `LANCE AT CAPACITY · ${mech(d.companionId)} HOLDING`,
-        tone: 'warning'
+        tone: 'warning',
+        holding: d.id
       })
     } else if (d.status === 'awaiting-input') {
       callouts.push({
@@ -105,6 +109,24 @@ export function computeCallouts(prev: AppState | null, next: AppState): Callout[
     })
   }
   return callouts
+}
+
+/**
+ * Callouts wait their turn on screen, so a HOLDING line can come up after
+ * its mission already launched. Drops every HOLDING line not yet drawn whose
+ * mission is no longer in line; the callout on screen (`shownId`) plays out.
+ * The first in line is not always on screen: it may have arrived in the same
+ * render as the launch.
+ */
+export function dropStaleHolding(
+  queue: Callout[],
+  next: Pick<AppState, 'deployments' | 'settings'>,
+  shownId: string | null
+): Callout[] {
+  const pending = (c: Callout): boolean => Boolean(c.holding) && c.id !== shownId
+  if (!queue.some(pending)) return queue
+  const waiting = waitingInLine(next)
+  return queue.filter((c) => c.id === shownId || !c.holding || waiting.has(c.holding))
 }
 
 export interface LanceHeat {

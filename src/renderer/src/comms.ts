@@ -6,6 +6,7 @@ import type {
   Facility,
   MechClass
 } from '../../shared/types'
+import { waitingInLine } from '../../shared/mission-queue'
 
 /**
  * Radio comms: RTS-style unit acknowledgements derived purely from real
@@ -101,7 +102,7 @@ export const BARKS: Record<MechClass, Record<CommsEvent, readonly string[]>> = {
     working: [
       'On station. Breaking ground at {facility}.',
       'In position. Commencing work.',
-      'Holding the line at {facility}.'
+      'Digging in at {facility}.'
     ],
     resumed: ['Orders received. Resuming.', 'Copy. Pressing forward.', 'Understood. Back to work.'],
     'awaiting-input': [
@@ -304,11 +305,14 @@ export function pickBark(
  * Which radio events a deployment's status change implies. Like the scene's
  * transition diff, a deployment first seen already 'working' (from nothing
  * or from 'queued') also gets its order acknowledgement: the main process can
- * flip walking-to → working faster than the renderer observes it.
+ * flip walking-to → working faster than the renderer observes it. A new
+ * queued mission reports holding only when it is in `waiting` (see
+ * waitingInLine); without that set every new queued mission does.
  */
 export function computeCommsTransitions(
   prevDeployments: Deployment[],
-  nextDeployments: Deployment[]
+  nextDeployments: Deployment[],
+  waiting?: ReadonlySet<string>
 ): CommsTransition[] {
   const previousStatuses = new Map<string, DeploymentStatus>(
     prevDeployments.map((deployment) => [deployment.id, deployment.status])
@@ -323,7 +327,8 @@ export function computeCommsTransitions(
     if (prevStatus === deployment.status) continue
     switch (deployment.status) {
       case 'queued':
-        if (prevStatus === undefined) push('queued', deployment)
+        if (prevStatus === undefined && (!waiting || waiting.has(deployment.id)))
+          push('queued', deployment)
         break
       case 'walking-to':
         push('acknowledged', deployment)
@@ -391,9 +396,29 @@ export function buildCommsMessage(
 
 export function computeCommsMessages(
   prevDeployments: Deployment[],
-  nextState: Pick<AppState, 'deployments' | 'companions' | 'facilities'>
+  nextState: Pick<AppState, 'deployments' | 'companions' | 'facilities' | 'settings'>
 ): CommsMessage[] {
-  return computeCommsTransitions(prevDeployments, nextState.deployments)
+  return computeCommsTransitions(prevDeployments, nextState.deployments, waitingInLine(nextState))
     .map((transition) => buildCommsMessage(transition, nextState.companions, nextState.facilities))
     .filter((message): message is CommsMessage => message !== null)
+}
+
+/**
+ * Radio lines reveal one after another, so a holding line can be scheduled
+ * to show after its mission already launched. Drops every holding line not
+ * yet on screen whose mission is no longer in line. `shown` holds the keys of
+ * the lines the feed has actually drawn: a reveal time that has passed is not
+ * enough (the feed's timer can run late, or the reveal and the launch can
+ * land in the same render).
+ */
+export function dropStaleHolding<T extends Pick<CommsMessage, 'event' | 'deploymentId'>>(
+  items: Array<T & { key: string }>,
+  nextState: Pick<AppState, 'deployments' | 'settings'>,
+  shown: ReadonlySet<string>
+): Array<T & { key: string }> {
+  const pending = (item: T & { key: string }): boolean =>
+    item.event === 'queued' && !shown.has(item.key)
+  if (!items.some(pending)) return items
+  const waiting = waitingInLine(nextState)
+  return items.filter((item) => !pending(item) || waiting.has(item.deploymentId))
 }

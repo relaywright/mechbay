@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type {
+  AppState,
   Companion,
   Deployment,
   DeploymentStatus,
@@ -12,6 +13,7 @@ import {
   commsDetail,
   computeCommsMessages,
   computeCommsTransitions,
+  dropStaleHolding,
   pickBark,
   RADIO_RATE,
   type CommsEvent
@@ -111,10 +113,61 @@ describe('buildCommsMessage', () => {
     const [message] = computeCommsMessages([], {
       deployments: [deployment('walking-to', { companionId: 'raven-1' })],
       companions,
-      facilities
+      facilities,
+      settings: { concurrencyCap: 3 } as AppState['settings']
     })
     expect(message.channel).toBe('CH 02 · ORDERS')
     expect(message.callsign).toBe('Raven-Prime')
+  })
+
+  it('reports holding only when the lane is full, not for the moment before a mission starts', () => {
+    const out = deployment('working', { id: 'deployment-0' })
+    const fresh = deployment('queued', { companionId: 'raven-1' })
+    const radio = (cap: number): string[] =>
+      computeCommsMessages([out], {
+        deployments: [out, fresh],
+        companions,
+        facilities,
+        settings: { concurrencyCap: cap } as AppState['settings']
+      }).map((m) => m.event)
+    expect(radio(3)).toEqual([])
+    expect(radio(1)).toEqual(['queued'])
+  })
+})
+
+describe('dropStaleHolding', () => {
+  const settings = { concurrencyCap: 1 } as AppState['settings']
+  const out = deployment('working', { id: 'deployment-0' })
+  const held = deployment('queued', { companionId: 'raven-1' })
+  const [holding] = computeCommsMessages([out], {
+    deployments: [out, held],
+    companions,
+    facilities,
+    settings
+  })
+  const pending = { ...holding, key: 'holding:2' }
+  const shown = { ...holding, key: 'holding:1' }
+  const DRAWN: ReadonlySet<string> = new Set([shown.key])
+  const launched = {
+    deployments: [
+      deployment('completed', { id: 'deployment-0' }),
+      deployment('walking-to', { companionId: 'raven-1' })
+    ],
+    settings
+  }
+
+  it('keeps a holding line that has not shown yet while its mission still waits', () => {
+    expect(dropStaleHolding([pending], { deployments: [out, held], settings }, DRAWN)).toEqual([
+      pending
+    ])
+  })
+
+  it('drops a holding line that has not shown yet once its mission launched', () => {
+    expect(dropStaleHolding([pending], launched, DRAWN)).toEqual([])
+  })
+
+  it('leaves a holding line already on screen alone', () => {
+    expect(dropStaleHolding([shown], launched, DRAWN)).toEqual([shown])
   })
 })
 

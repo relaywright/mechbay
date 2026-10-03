@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Deployment, MechClass } from '../../../shared/types'
 import { sfx } from '../audio/sfx'
-import { computeCommsMessages, type CommsMessage } from '../comms'
+import { computeCommsMessages, dropStaleHolding, type CommsMessage } from '../comms'
 import { CREW } from '../crew'
 import { useTypewriter } from '../motion'
 
@@ -57,6 +57,15 @@ export function CommsFeed(): React.JSX.Element {
   const previousRef = useRef<Deployment[] | null>(null)
   const lastRevealRef = useRef(0)
   const sequenceRef = useRef(0)
+  // Keys of the lines in the last render React committed. The state's own
+  // clock can run ahead of what was drawn when a reveal and a state change
+  // are batched into one render.
+  const shownRef = useRef<ReadonlySet<string>>(new Set())
+  useLayoutEffect(() => {
+    shownRef.current = new Set(
+      feed.items.filter((item) => item.revealAt <= feed.clock).map((item) => item.key)
+    )
+  }, [feed])
 
   useEffect(() => {
     let disposed = false
@@ -72,8 +81,14 @@ export function CommsFeed(): React.JSX.Element {
       previousRef.current = next.deployments
       if (!previous) return
       const messages = computeCommsMessages(previous, next)
-      if (messages.length === 0) return
       const now = Date.now()
+      if (messages.length === 0) {
+        setFeed((current) => {
+          const items = dropStaleHolding(current.items, next, shownRef.current)
+          return items === current.items ? current : { items, clock: now }
+        })
+        return
+      }
       const scheduled = messages.map((message) => {
         const revealAt = Math.max(now, lastRevealRef.current + REVEAL_GAP_MS)
         lastRevealRef.current = revealAt
@@ -85,7 +100,12 @@ export function CommsFeed(): React.JSX.Element {
         }
       })
       setFeed((current) => ({
-        items: [...current.items.filter((item) => item.expireAt > now), ...scheduled],
+        items: [
+          ...dropStaleHolding(current.items, next, shownRef.current).filter(
+            (item) => item.expireAt > now
+          ),
+          ...scheduled
+        ],
         clock: now
       }))
     })

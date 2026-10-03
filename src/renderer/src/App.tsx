@@ -4,6 +4,7 @@ import type { AppState, Deployment, StateHealth } from '../../shared/types'
 import { ipcErrorMessage } from '../../shared/bridge-errors'
 import { isOpen } from '../../shared/mission-queue'
 import { BayScene } from './game/BayScene'
+import { gameSizeFor } from './game/render-resolution'
 import { bus } from './bus'
 import { DeployModal } from './components/DeployModal'
 import { CrashRecoveryModal } from './components/CrashRecoveryModal'
@@ -134,18 +135,14 @@ function App(): React.JSX.Element {
     // Render the canvas at the window's true device-pixel resolution instead
     // of a fixed 1100×640 raster. On a maximized 4K window that fixed raster
     // was being CSS-upscaled ~3× by Scale.FIT, turning text and sprites to
-    // mush. We create the game at (base × renderScale) where renderScale
-    // covers the displayed width at full device DPR; BayScene scales the
-    // camera zoom by the same factor so the framing is unchanged, just sharp.
-    const BASE_W = 1100
-    const BASE_H = 640
-    const computeRenderScale = (): number => {
-      const dpr = window.devicePixelRatio || 1
-      const cssW = parent.clientWidth || window.innerWidth
-      // Cap at 4× so an enormous display can't blow up the GPU backing store.
-      return Math.min(Math.max((cssW * dpr) / BASE_W, 1), 4)
-    }
-    const initialScale = computeRenderScale()
+    // mush. The game also takes the panel's own aspect ratio, so Scale.FIT
+    // fills the panel: a 1100:640 canvas was letterboxed inside the wide
+    // panel, and zooming in cut the deck off at the canvas edges. BayScene
+    // derives its camera zoom from the game size (render-resolution.ts), so
+    // the framing is unchanged, just sharp.
+    const computeGameSize = (): { width: number; height: number } =>
+      gameSizeFor(parent.clientWidth, parent.clientHeight, window.devicePixelRatio)
+    const initialSize = computeGameSize()
 
     gameRef.current = new Phaser.Game({
       type: Phaser.AUTO,
@@ -158,8 +155,8 @@ function App(): React.JSX.Element {
       scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: Math.round(BASE_W * initialScale),
-        height: Math.round(BASE_H * initialScale)
+        width: initialSize.width,
+        height: initialSize.height
       }
     })
 
@@ -173,9 +170,9 @@ function App(): React.JSX.Element {
       resizeRaf = requestAnimationFrame(() => {
         const game = gameRef.current
         if (!game) return
-        const scale = computeRenderScale()
+        const size = computeGameSize()
         game.scale.setParentSize(parent.clientWidth, parent.clientHeight)
-        game.scale.setGameSize(Math.round(BASE_W * scale), Math.round(BASE_H * scale))
+        game.scale.setGameSize(size.width, size.height)
       })
     })
     resizeObserver.observe(parent)
@@ -405,7 +402,7 @@ function App(): React.JSX.Element {
                 style={{
                   pointerEvents: 'auto',
                   marginLeft: 12,
-                  background: 'transparent',
+                  background: '#10150dcc',
                   color: '#9ea991',
                   border: '1px solid #404b36',
                   padding: '2px 7px',

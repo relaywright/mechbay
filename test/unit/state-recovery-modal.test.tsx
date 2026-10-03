@@ -28,12 +28,26 @@ describe('StateRecoveryModal', () => {
   it('shows a one-time notice with a plain OK', () => {
     render(
       <StateRecoveryModal
-        health={{ ok: true, notice: 'MechBay started a fresh one.' }}
+        health={{ ok: true, notice: 'MechBay started a fresh one.', freshBay: true }}
         onDismiss={() => {}}
       />
     )
     expect(screen.getByRole('alertdialog', { name: 'Started a fresh bay' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'OK' })).toBeTruthy()
     expect(document.body.textContent).not.toContain('\u2014')
+  })
+
+  it('does not call an upgraded bay a fresh one', () => {
+    render(
+      <StateRecoveryModal
+        health={{
+          ok: true,
+          notice: 'MechBay could not move some mission logs out of your old save.'
+        }}
+        onDismiss={() => {}}
+      />
+    )
+    expect(screen.getByRole('alertdialog', { name: 'Upgraded your saved bay' })).toBeTruthy()
+    expect(document.body.textContent).not.toContain('fresh')
   })
 })

@@ -200,6 +200,8 @@ export class StateManager extends EventEmitter {
   private readOnly = false
   private health: StateHealth = { ok: true }
   private legacyLogChunks: LogChunkV2[] = []
+  private legacyBackupPath: string | undefined
+  private legacyLogsNoted = false
   private freshBay = false
 
   constructor(
@@ -233,7 +235,7 @@ export class StateManager extends EventEmitter {
     if (!hasExisting) {
       this.freshBay = true
       this.persist(this.cache)
-      this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
+      this.health = this.loadedHealth(notices)
       return
     }
 
@@ -247,8 +249,10 @@ export class StateManager extends EventEmitter {
         // saved state before the log store has written them. Without a
         // backup the save is left as it is (stale lines kept, nothing lost).
         const { logChunks, ...current } = outcome.state as AppState & { logChunks?: unknown }
-        if (Array.isArray(logChunks) && this.backup('v3-logs', copyFile).ok) {
+        const backup = Array.isArray(logChunks) ? this.backup('v3-logs', copyFile) : undefined
+        if (backup?.ok) {
           this.legacyLogChunks = logChunks as LogChunkV2[]
+          this.legacyBackupPath = backup.path
           this.cache = this.repairAndPersist(current, true)
         } else {
           this.cache = this.repairAndPersist(outcome.state, false)
@@ -268,6 +272,7 @@ export class StateManager extends EventEmitter {
           `[state-manager] Upgraded saved bay from schema ${outcome.from} to ${CURRENT_SCHEMA_VERSION}${backup.path ? `; backup at ${backup.path}` : ''}`
         )
         if (isAppStateV2(raw)) this.legacyLogChunks = raw.logChunks
+        this.legacyBackupPath = backup.path
         this.cache = this.repairAndPersist(outcome.state, true)
         break
       }
@@ -303,7 +308,14 @@ export class StateManager extends EventEmitter {
         break
       }
     }
-    this.health = notices.length ? { ok: true, notice: notices.join(' ') } : { ok: true }
+    this.health = this.loadedHealth(notices)
+  }
+
+  private loadedHealth(notices: string[]): StateHealth {
+    if (!notices.length) return { ok: true }
+    return this.freshBay
+      ? { ok: true, notice: notices.join(' '), freshBay: true }
+      : { ok: true, notice: notices.join(' ') }
   }
 
   /**
@@ -319,6 +331,24 @@ export class StateManager extends EventEmitter {
     const chunks = this.legacyLogChunks
     this.legacyLogChunks = []
     return chunks
+  }
+
+  /**
+   * The log store could not write some of the lines takeLegacyLogChunks
+   * handed over. They already left the saved file, so tell the player where
+   * the backup that still holds them is. Says it once per session.
+   */
+  noteLegacyLogsNotMoved(): void {
+    if (!this.health.ok || this.legacyLogsNoted) return
+    this.legacyLogsNoted = true
+    const where = this.legacyBackupPath
+      ? ` Every line is still in the backup at ${this.legacyBackupPath}.`
+      : ''
+    const notice = `MechBay could not move some mission logs out of your old save, so those missions show no console history.${where}`
+    this.health = {
+      ...this.health,
+      notice: this.health.notice ? `${this.health.notice} ${notice}` : notice
+    }
   }
 
   /** How the saved bay loaded. Not ok means this session never writes the saved file. */

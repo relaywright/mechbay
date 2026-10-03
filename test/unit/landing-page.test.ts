@@ -79,7 +79,13 @@ describe('landing page funnel', () => {
   })
 
   it('names and links the builder without a pronoun', () => {
-    expect(SITE).toContain('href="https://github.com/relaywright"')
+    const builder = SITE.slice(
+      SITE.indexOf('<aside class="builder-strip"'),
+      SITE.indexOf('</aside>')
+    )
+    expect(builder).toContain('Designed and built by <strong>relaywright</strong>')
+    expect(builder).toContain('href="https://github.com/relaywright"')
+    expect(SITE).toContain('Built by <strong>relaywright</strong>')
     expect(SITE).not.toMatch(/\b(his|her) own\b/i)
   })
 
