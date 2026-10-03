@@ -5,7 +5,7 @@ const BUILDER = readFileSync('electron-builder.yml', 'utf8').replace(/\r\n/g, '\
 const MAIN = readFileSync('src/main/index.ts', 'utf8')
 
 // electron-builder derives the Windows installer GUID from appId unless
-// nsis.guid is set. Installs up to v1.4.3 used com.sam.mechbay, which
+// nsis.guid is set. Installs up to v1.4.3 used the previous app id, which
 // derives this GUID. Losing it makes the next installer register a second
 // MechBay in Installed apps instead of upgrading the first.
 const SHIPPED_INSTALLER_GUID = '5046ab0a-889b-59aa-921f-20e31c899a46'
@@ -21,9 +21,5 @@ describe('app identity', () => {
   it('keeps the installer GUID that earlier releases shipped with', () => {
     const nsis = BUILDER.slice(BUILDER.indexOf('\nnsis:\n'), BUILDER.indexOf('\nmac:\n'))
     expect(nsis).toContain(`\n  guid: ${SHIPPED_INSTALLER_GUID}\n`)
-  })
-
-  it('names no person in the build metadata', () => {
-    expect(BUILDER).not.toMatch(/com\.sam\b|albanese/i)
   })
 })

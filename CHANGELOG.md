@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.4.3 - 2026-10-02
+## v1.4.3 - 2026-10-03
 
 Polish on top of v1.4.2: the bay fills its panel, crew cards stay tidy,
 and error messages read like sentences.
