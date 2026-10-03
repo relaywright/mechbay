@@ -1,7 +1,7 @@
 # MechBay
 
-[![CI](https://github.com/samalbanese/mechbay/actions/workflows/ci.yml/badge.svg)](https://github.com/samalbanese/mechbay/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/samalbanese/mechbay?label=download)](https://github.com/samalbanese/mechbay/releases/latest)
+[![CI](https://github.com/relaywright/mechbay/actions/workflows/ci.yml/badge.svg)](https://github.com/relaywright/mechbay/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/relaywright/mechbay?label=download)](https://github.com/relaywright/mechbay/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-efc36d.svg)](LICENSE)
 
 _A BattleTech-inspired command bay for AI coding agents._
@@ -20,7 +20,7 @@ The bay now puts the whole crew and mission loop in view: a selectable five-mech
 
 ## Download
 
-Grab the installer for your platform from the [latest release](https://github.com/samalbanese/mechbay/releases/latest):
+Grab the installer for your platform from the [latest release](https://github.com/relaywright/mechbay/releases/latest):
 
 | Platform | File                                                                                 |
 | -------- | ------------------------------------------------------------------------------------ |
@@ -41,7 +41,7 @@ Prefer to build it yourself? The next section runs it from source.
 You don't need any agent CLI installed to feel the loop:
 
 ```bash
-git clone https://github.com/samalbanese/mechbay.git
+git clone https://github.com/relaywright/mechbay.git
 cd mechbay
 npm install
 npm run demo
@@ -117,7 +117,7 @@ explicit in-app choice.
 Requirements: Node.js 22+, npm, and git on `PATH` (git powers Mission Debrief). MechBay runs on Windows, macOS, and Linux; it is developed on Windows. Install at least one runtime from the table above.
 
 ```bash
-git clone https://github.com/samalbanese/mechbay.git
+git clone https://github.com/relaywright/mechbay.git
 cd mechbay
 npm install
 npm run dev

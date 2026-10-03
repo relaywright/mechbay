@@ -5,7 +5,7 @@ import { runInNewContext } from 'vm'
 import { describe, expect, it } from 'vitest'
 
 const SITE = readFileSync('site/index.html', 'utf8')
-const ORIGIN = 'https://mechbay.samalbanese.com/'
+const ORIGIN = 'https://mechbay.relaywright.workers.dev/'
 const heroStart = SITE.indexOf('<section class="hero"')
 const HERO = SITE.slice(heroStart, SITE.indexOf('</section>', heroStart))
 const meta = (attr: 'property' | 'name', key: string): string | undefined =>
@@ -73,13 +73,13 @@ describe('landing page funnel', () => {
   })
 
   it('offers a download that works without JavaScript and never sends the hero visitor to git clone', () => {
-    expect(HERO).toContain('href="https://github.com/samalbanese/mechbay/releases/latest"')
+    expect(HERO).toContain('href="https://github.com/relaywright/mechbay/releases/latest"')
     expect(HERO).not.toMatch(/quickstart|git clone/i)
     expect(SITE).toContain('<script type="module" src="download.js"></script>')
   })
 
   it('names and links the builder without a pronoun', () => {
-    expect(SITE).toContain('href="https://samalbanese.com"')
+    expect(SITE).toContain('href="https://github.com/relaywright"')
     expect(SITE).not.toMatch(/\b(his|her) own\b/i)
   })
 

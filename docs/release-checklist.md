@@ -21,8 +21,8 @@ Run this for every tagged release. The goal is zero claim drift: every public st
 | Simulation label                          | README, HUD                                      | `HudHeader.tsx` (`SIMULATION ONLINE`)             | Read both before release                                            |
 | Concurrency and queue                     | README, landing tech panel                       | Main-process deployment queue                     | No order claim until queue order is fixed                           |
 | "Approve"                                 | Nowhere yet                                      | Approve controls (P1-08 web, P2-08 real missions) | `public-claims.test.ts`                                             |
-| Landing URL and link previews             | Portfolio card, README, `og:` tags               | `https://mechbay.samalbanese.com/`                | `landing-page.test.ts`; paste the URL into a link-preview validator |
-| Portfolio card copy                       | samalbanese.com                                  | Portfolio site source (separate repo)             | Read it against this table                                          |
+| Landing URL and link previews             | Portfolio card, README, `og:` tags               | `https://mechbay.relaywright.workers.dev/`        | `landing-page.test.ts`; paste the URL into a link-preview validator |
+| Portfolio card copy                       | Portfolio site                                   | Portfolio site source (separate repo)             | Read it against this table                                          |
 
 ## Publish
 

@@ -106,7 +106,7 @@ app.on('second-instance', () => {
 
 app.whenReady().then(() => {
   if (!gotSingleInstanceLock) return
-  electronApp.setAppUserModelId('com.sam.mechbay')
+  electronApp.setAppUserModelId('com.relaywright.mechbay')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

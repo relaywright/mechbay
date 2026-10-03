@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **New home.** MechBay is published as relaywright. The landing page
+  lives at `mechbay.relaywright.workers.dev`, and downloads and updates
+  come from `github.com/relaywright/mechbay`.
+- **New app ID** (`com.relaywright.mechbay`). Windows treats this version
+  as a new app, so uninstall the old MechBay from Settings > Apps before
+  installing it. Your bay and journals stay where they are.
+
 ## v1.4.2 - 2026-10-02
 
 A release about trust in the hangar: your bay survives upgrades, missions
@@ -130,8 +141,8 @@ and reading a mission's project no longer runs that project's programs.
 
 - **Landing page** written for people who don't write code: what MechBay
   does in one sentence, a Download button for your system, what the project
-  demonstrates, and link previews for LinkedIn and Slack. New address:
-  `mechbay.samalbanese.com`.
+  demonstrates, and link previews for LinkedIn and Slack, on its own
+  address.
 - **Honest runtime labels.** Kimi, Gemini and bring-your-own-agent mechs say
   "not verified by the author" in the app, the README and the landing page.
 

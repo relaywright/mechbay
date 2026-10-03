@@ -1,4 +1,4 @@
-appId: com.sam.mechbay
+appId: com.relaywright.mechbay
 productName: MechBay
 directories:
   buildResources: build
@@ -31,7 +31,7 @@ asarUnpack:
   - scripts/kimi_fireworks.py
 publish:
   provider: github
-  owner: samalbanese
+  owner: relaywright
   repo: mechbay
   releaseType: draft
 win:
@@ -69,7 +69,7 @@ dmg:
 linux:
   target:
     - AppImage
-  maintainer: Sam Albanese <samalbanesedev@gmail.com>
+  maintainer: relaywright <220244294+relaywright@users.noreply.github.com>
   category: Development
   desktop:
     entry:

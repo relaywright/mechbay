@@ -280,7 +280,7 @@ export class StateManager extends EventEmitter {
       case 'failed':
         this.refuse(
           'migration-failed',
-          `MechBay could not upgrade your saved bay from schema ${outcome.from} (${outcome.error}). The file is untouched. Anything you do in this session will not be saved. Please report this at github.com/samalbanese/mechbay/issues.`
+          `MechBay could not upgrade your saved bay from schema ${outcome.from} (${outcome.error}). The file is untouched. Anything you do in this session will not be saved. Please report this at github.com/relaywright/mechbay/issues.`
         )
         return
       case 'unreadable': {
