@@ -37,12 +37,12 @@ The bay already sells weight through code: per-chassis gaits, footfall dust and 
 
 Shared suffix for every prompt: _isometric 3/4 view, facing front-right, full body with feet visible, dark gunmetal armour with worn edges, orange hazard stripes, cyan status lights, crisp high-detail pixel art with a clean dark outline, lit from the upper left, no ground shadow, transparent background._
 
-| Mech     | Chassis                                                                                   | Walk feel                                  |
-| -------- | ----------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Atlas    | 100-ton assault mech: huge rounded shoulders, skull-like visor with amber eyes, fists     | Slow, heavy strides, torso barely rotates  |
-| Marauder | 75-ton heavy mech: angular torso with a vented chest, long gun barrels on both forearms   | Measured, deliberate, guns held level      |
-| Catapult | 65-ton support mech: squat body, two boxy missile racks as shoulders, bird-like legs      | Rolling waddle, racks bob with each step   |
-| Raven    | 35-ton recon mech: tall reverse-jointed legs, amber sensor head, antenna masts            | Quick, springy, head stays level           |
-| Locust   | 20-ton scout: small cockpit pod with yellow eyes, spindly reverse-jointed legs            | Fast skitter, short steps                  |
+| Mech     | Chassis                                                                                 | Walk feel                                 |
+| -------- | --------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Atlas    | 100-ton assault mech: huge rounded shoulders, skull-like visor with amber eyes, fists   | Slow, heavy strides, torso barely rotates |
+| Marauder | 75-ton heavy mech: angular torso with a vented chest, long gun barrels on both forearms | Measured, deliberate, guns held level     |
+| Catapult | 65-ton support mech: squat body, two boxy missile racks as shoulders, bird-like legs    | Rolling waddle, racks bob with each step  |
+| Raven    | 35-ton recon mech: tall reverse-jointed legs, amber sensor head, antenna masts          | Quick, springy, head stays level          |
+| Locust   | 20-ton scout: small cockpit pod with yellow eyes, spindly reverse-jointed legs          | Fast skitter, short steps                 |
 
 For a walk strip, add: _8-frame walk cycle, horizontal sprite strip, frames evenly spaced in square cells, first and fifth frames are foot-contact poses._

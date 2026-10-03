@@ -4,3 +4,9 @@ pnpm-lock.yaml
 LICENSE.md
 tsconfig.json
 tsconfig.*.json
+# Hand-written, compact landing page; landing-page.test.ts checks its content.
+site/index.html
+# Written by scripts/export-portfolio.ts.
+site/capture-manifest.json
+# A real v1.4.0 save, kept byte for byte.
+test/fixtures/state/

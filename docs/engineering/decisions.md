@@ -480,7 +480,7 @@ only: under `-p --permission-mode plan`, Claude refused to create the
 file and reported no denial (so no `ExitPlanMode` entry reaches the
 debrief). Plan mode does save Claude's plan under `~/.claude/plans`,
 outside the project, so the Read only hint promises no change to
-*project* files. Codex `workspace-write` network blocking on Windows is
+_project_ files. Codex `workspace-write` network blocking on Windows is
 still unchecked.
 
 **Source:** internal Track B plan (2026-10-02, Task 5); flags confirmed
