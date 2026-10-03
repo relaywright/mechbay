@@ -20,7 +20,7 @@ Requires Node 22.18+ (or another version supporting TypeScript stripping), git, 
 
 ```powershell
 npm run capture:portfolio
-node --experimental-strip-types scripts/export-portfolio.ts --portfolio C:\Users\Sam\Projects\SamAlbaneseConsulting
+node --experimental-strip-types scripts/export-portfolio.ts --portfolio <portfolio site checkout>
 ```
 
 The first command builds, runs the real app in an isolated simulation profile, verifies a mission and its file-change report, captures 1600×1000 screenshots, and encodes the project media. The second copies the verified media into the portfolio checkout. It does not deploy either site.

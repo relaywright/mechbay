@@ -13,7 +13,7 @@ const recording = JSON.parse(readFileSync(join(output, 'recording.json'), 'utf8'
 const portfolioArgument = process.argv.indexOf('--portfolio')
 const portfolio = portfolioArgument >= 0 ? resolve(process.argv[portfolioArgument + 1]) : null
 if (portfolio && !existsSync(join(portfolio, 'src', 'pages', 'portfolio.astro')))
-  throw new Error('Expected a SamAlbaneseConsulting checkout')
+  throw new Error('Expected a portfolio site checkout (src/pages/portfolio.astro)')
 if (!existsSync(join(output, 'verification.json')))
   throw new Error('Run the capture verification before exporting')
 const ffmpeg = (args: string[]): void => {

@@ -73,13 +73,19 @@ describe('landing page funnel', () => {
   })
 
   it('offers a download that works without JavaScript and never sends the hero visitor to git clone', () => {
-    expect(HERO).toContain('href="https://github.com/samalbanese/mechbay/releases/latest"')
+    expect(HERO).toContain('href="https://github.com/relaywright/mechbay/releases/latest"')
     expect(HERO).not.toMatch(/quickstart|git clone/i)
     expect(SITE).toContain('<script type="module" src="download.js"></script>')
   })
 
   it('names and links the builder without a pronoun', () => {
-    expect(SITE).toContain('href="https://samalbanese.com"')
+    const builder = SITE.slice(
+      SITE.indexOf('<aside class="builder-strip"'),
+      SITE.indexOf('</aside>')
+    )
+    expect(builder).toContain('Designed and built by <strong>relaywright</strong>')
+    expect(builder).toContain('href="https://github.com/relaywright"')
+    expect(SITE).toContain('Built by <strong>relaywright</strong>')
     expect(SITE).not.toMatch(/\b(his|her) own\b/i)
   })
 

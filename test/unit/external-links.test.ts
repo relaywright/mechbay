@@ -3,7 +3,7 @@ import { hasSameOrigin, isOpenableExternalUrl } from '../../src/main/external-li
 
 describe('isOpenableExternalUrl', () => {
   it('opens https links in the browser', () => {
-    expect(isOpenableExternalUrl('https://github.com/samalbanese/mechbay')).toBe(true)
+    expect(isOpenableExternalUrl('https://github.com/relaywright/mechbay')).toBe(true)
   })
 
   it.each([

@@ -47,6 +47,8 @@ and error messages read like sentences.
 
 - Development dependencies: Vitest 5, Prettier 3.9.9, and newer
   checkout and secret-scan actions in CI.
+- The project now lives at github.com/relaywright/mechbay. Installers,
+  links and the "please report this" messages point there.
 
 ## v1.4.2 - 2026-10-02
 

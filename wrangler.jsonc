@@ -7,7 +7,7 @@
   "assets": {
     "directory": "./site"
   },
-  // Custom domain on the samalbanese.com zone (same Cloudflare account).
+  // Custom domain on a zone in the same Cloudflare account.
   // workers.dev stays on so older links keep working.
   "routes": [{ "pattern": "mechbay.samalbanese.com", "custom_domain": true }],
   "workers_dev": true

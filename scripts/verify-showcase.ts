@@ -5,6 +5,8 @@ import { join, resolve } from 'node:path'
 import assert from 'node:assert/strict'
 
 const output = resolve(import.meta.dirname, '../artifacts/portfolio')
+const portfolioRoot = process.env.MECHBAY_PORTFOLIO
+if (!portfolioRoot) throw new Error('Set MECHBAY_PORTFOLIO to the portfolio site checkout')
 const browser = await chromium.launch({
   executablePath: join(
     process.env.LOCALAPPDATA!,
@@ -145,7 +147,7 @@ try {
   checks.push({ noJavaScript: 'Gallery and image links work' })
   await noJs.close()
   assert.deepEqual(errors, [])
-  const portfolioOutput = resolve(rootPortfolio(), 'output/mechbay-refresh')
+  const portfolioOutput = resolve(portfolioRoot, 'output/mechbay-refresh')
   mkdirSync(portfolioOutput, { recursive: true })
   for (const width of [390, 1440])
     copyFileSync(
@@ -159,8 +161,4 @@ try {
   console.log(JSON.stringify(checks, null, 2))
 } finally {
   await browser.close()
-}
-
-function rootPortfolio(): string {
-  return resolve(import.meta.dirname, '../../SamAlbaneseConsulting')
 }

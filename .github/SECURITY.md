@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Please report security issues privately using GitHub's private vulnerability reporting: open the repo's Security tab and click "Report a vulnerability" (or go to https://github.com/samalbanese/mechbay/security/advisories/new). Don't open a public issue for anything you believe is exploitable.
+Please report security issues privately using GitHub's private vulnerability reporting: open the repo's Security tab and click "Report a vulnerability" (or go to https://github.com/relaywright/mechbay/security/advisories/new). Don't open a public issue for anything you believe is exploitable.
 
 We'll acknowledge reports as soon as we can and follow up with next steps.
 
