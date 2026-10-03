@@ -49,6 +49,12 @@ and error messages read like sentences.
   checkout and secret-scan actions in CI.
 - The project now lives at github.com/relaywright/mechbay. Installers,
   links and the "please report this" messages point there.
+- MechBay has a new internal app ID. Your saved bay, logs and keys stay
+  where they are, and the installer upgrades your existing copy. On
+  Windows, a MechBay pinned to the taskbar may open as a second icon:
+  unpin it and pin it again. On macOS, you may be asked once to let
+  MechBay use its saved keys (choose Always Allow) or to grant
+  permissions again.
 
 ## v1.4.2 - 2026-10-02
 
