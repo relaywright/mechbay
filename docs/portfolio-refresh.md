@@ -20,10 +20,9 @@ Requires Node 22.18+ (or another version supporting TypeScript stripping), git, 
 
 ```powershell
 npm run capture:portfolio
-node --experimental-strip-types scripts/export-portfolio.ts --portfolio <portfolio site checkout>
 ```
 
-The first command builds, runs the real app in an isolated simulation profile, verifies a mission and its file-change report, captures 1600×1000 screenshots, and encodes the project media. The second copies the verified media into the portfolio checkout. It does not deploy either site.
+The command builds, runs the real app in an isolated simulation profile, verifies a mission and its file-change report, captures 1600×1000 screenshots, and encodes the project media. It does not deploy the site.
 
 Raw screenshots, verification evidence, and frame sequences are in ignored `artifacts/portfolio`. Generated public media includes a capture manifest with date, simulation provenance, dimensions, video size, and playback speed. MP4 and WebM are each capped at 700 KiB. The demo GIF is capped at 15 MiB.
 
@@ -32,8 +31,7 @@ Raw screenshots, verification evidence, and frame sequences are in ignored `arti
 - On 2026-09-16 the full suite passed (305 tests across 42 suites). The initial concurrent test/capture run exposed timing-sensitive test failures; the full suite passed with capture finished.
 - Electron production build and type checks passed. The updated command components, operations helpers, and capture/export utilities passed a scoped lint check.
 - The recorded app completed a simulation mission with two actual changed files. Opening the resulting debrief again, changing crew, opening Journal, browsing a linked project, and resizing to a laptop window were verified without renderer errors.
-- The consulting site reported zero errors, warnings, or hints and built successfully.
-- Both sites passed overflow and media checks at 320, 390, 768, 1024, and 1440px. The portfolio gallery also works without JavaScript. Desktop and phone screenshots are in the portfolio checkout's `output/mechbay-refresh` directory.
+- The landing page passed overflow and media checks at 320, 390, 768, 1024, and 1440px.
 - MP4: 608,548 bytes. WebM: 420,214 bytes. Both are 24-second recordings; screenshots are 1600×1000.
 
 ## Browser playback correction

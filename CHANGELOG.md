@@ -47,8 +47,9 @@ and error messages read like sentences.
 
 - Development dependencies: Vitest 5, Prettier 3.9.9, and newer
   checkout and secret-scan actions in CI.
-- The project now lives at github.com/relaywright/mechbay. Installers,
-  links and the "please report this" messages point there.
+- The project now lives at github.com/relaywright/mechbay, and the
+  landing page at mechbay.relaywright.workers.dev. Installers, links and
+  the "please report this" messages point there.
 - MechBay has a new internal app ID. Your saved bay, logs and keys stay
   where they are, and the installer upgrades your existing copy. On
   Windows, a MechBay pinned to the taskbar may open as a second icon:
@@ -186,8 +187,8 @@ and reading a mission's project no longer runs that project's programs.
 
 - **Landing page** written for people who don't write code: what MechBay
   does in one sentence, a Download button for your system, what the project
-  demonstrates, and link previews for LinkedIn and Slack. New address:
-  `mechbay.samalbanese.com`.
+  demonstrates, and link previews for LinkedIn and Slack, on its own
+  address.
 - **Honest runtime labels.** Kimi, Gemini and bring-your-own-agent mechs say
   "not verified by the author" in the app, the README and the landing page.
 

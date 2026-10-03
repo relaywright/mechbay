@@ -5,7 +5,7 @@ import { runInNewContext } from 'vm'
 import { describe, expect, it } from 'vitest'
 
 const SITE = readFileSync('site/index.html', 'utf8')
-const ORIGIN = 'https://mechbay.samalbanese.com/'
+const ORIGIN = 'https://mechbay.relaywright.workers.dev/'
 const heroStart = SITE.indexOf('<section class="hero"')
 const HERO = SITE.slice(heroStart, SITE.indexOf('</section>', heroStart))
 const meta = (attr: 'property' | 'name', key: string): string | undefined =>
