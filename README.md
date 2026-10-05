@@ -8,9 +8,9 @@ _A BattleTech-inspired command bay for AI coding agents._
 
 MechBay is an Electron desktop app for deploying real coding agents as mech-class companions. Drag a mech onto an isometric facility that represents a real project directory, give it a task, and follow the live output in the command-bay HUD.
 
-![MechBay Command Edition: prepare a mission, deploy, watch the live log, and inspect the debrief](docs/demo.gif)
+https://github.com/user-attachments/assets/c58885c0-5c88-4163-8e68-b06259d608d0
 
-_Recorded from the real desktop app in isolated simulation mode. The agent process is scripted; the file edits and git-backed Mission Debrief are real. Accelerated to a 24-second walkthrough with `npm run capture:portfolio`._
+_MechBay Sortie: a 24-second trailer (with sound) cut from recordings of the real desktop app in isolated simulation mode. The agent process is scripted; the file edits and git-backed Mission Debrief are real._
 
 ## Command Edition
 
