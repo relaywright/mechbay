@@ -6,11 +6,29 @@
 
 _A BattleTech-inspired command bay for AI coding agents._
 
-MechBay is an Electron desktop app for deploying real coding agents as mech-class companions. Drag a mech onto an isometric facility that represents a real project directory, give it a task, and follow the live output in the command-bay HUD.
+MechBay is an Electron desktop app for deploying real coding agents as mech-class companions. Drag a mech onto an isometric facility that represents a real project directory, give it a task, and follow the live output in the command-bay HUD. When the mech returns, you read the exact diff it produced and can carry it anywhere as a patch.
 
 https://github.com/user-attachments/assets/c58885c0-5c88-4163-8e68-b06259d608d0
 
 _MechBay Sortie: a 24-second trailer (with sound) cut from recordings of the real desktop app in isolated simulation mode. The agent process is scripted; the file edits and git-backed Mission Debrief are real._
+
+**Landing page:** [mechbay.samalbanese.com](https://mechbay.samalbanese.com/) · **Engineering log:** [decisions](docs/engineering/decisions.md) and [post-mortems](docs/engineering/postmortems.md) · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+
+## Contents
+
+- [Command Edition](#command-edition)
+- [Download](#download)
+- [Try it in 60 seconds (no API keys)](#try-it-in-60-seconds-no-api-keys)
+- [What it does](#what-it-does)
+- [The mechs](#the-mechs)
+- [Any mech, any runtime](#any-mech-any-runtime-bring-your-own-key)
+- [Quickstart (real agents)](#quickstart-real-agents)
+- [How it's built](#how-its-built)
+- [Engineering notes](#engineering-notes)
+- [Configuring runtimes](#configuring-runtimes)
+- [Mission Debrief, souls, and memory](#mission-debrief-souls-and-memory)
+- [Project structure](#project-structure)
+- [Development](#development)
 
 ## Command Edition
 
@@ -59,7 +77,7 @@ Have a real agent CLI installed? `npm run dev` and deploy for real.
 - Runs up to three deployments at once. Missions you send while every slot is busy wait in line and start in the order you sent them.
 - Lets you cancel a waiting mission or recall a running one at any time. Recall ends the agent and every program it started, and closing MechBay does the same for every mission.
 - Lets you choose how much each mech may do: Read only, Edit files, or Full. Claude Code and Codex enforce the level through their own permission flags; a level a runtime cannot enforce is shown disabled, never faked.
-- Captures a Mission Debrief after every run: changed files, insertions, deletions, and a built-in diff viewer. Click any changed file to read the exact lines the agent added and removed, new files included.
+- Captures a Mission Debrief after every run: changed files, insertions, deletions, and a built-in diff viewer. Click any changed file to read the exact lines the agent added and removed, new files included. Copy the whole mission as one patch, or save it as a `.patch` file that `git apply` accepts, to carry the changes to another checkout or attach them to a review.
 - Renders a living bay: a hangar deck with hazard-striped landing pads, power conduits pulsing data between linked facilities, a radar sweep from the command center, drifting haze, sweeping searchlights, and a clickable minimap. Scroll to zoom, drag empty ground or the minimap to pan, and hit **RECENTER** to snap back.
 - Moves like an RTS: each mech walks with its own gait (the Atlas stomps and shakes the camera, the Locust skitters), with footfall dust, landing squash, and contact shadows. Hover and selection glows, unit plates with callsign, rank, and live status, and markers for mechs awaiting input or queued all come from real state.
 - Plays deploy cinematics: drop-target lock-on while you drag, a target reticle and marching route line for the walk, a hologram ring, weld sparks, and a data link while the mech works, a light pillar and shockwave when it succeeds, and an explosion and a smoking hull when it goes down.
@@ -155,9 +173,20 @@ flowchart LR
 
 One `Runner` interface is the entire boundary between MechBay and the outside world. Claude Code, Codex, Gemini, Kimi, a bring-your-own CLI, and the demo-mode simulator are each a drop-in implementation of it. Everything crossing the Electron IPC boundary is a serializable type declared in one shared registry, and every channel name lives in a single constants file. Unit and integration tests cover the runners, the IPC layer, state, and the bay's pure helpers. CI type-checks the app and the tests, lints, runs the tests on Windows and Linux, and builds the app on every pull request, and the same checks gate every release.
 
+## Engineering notes
+
+The parts of this project that are easiest to miss from the screenshots:
+
+- **[Engineering decisions](docs/engineering/decisions.md).** Fourteen dated entries with the context, the alternatives turned down, and what each choice cost: why one `Runner` interface is the only boundary to agent runtimes, why prompts go to agents through stdin and never argv, why a mission's project (and the window that draws the bay) is treated as untrusted input, why stopping a mission ends the agent's whole process tree, and why Autonomy is a capability matrix rather than an approximation.
+- **[Post-mortems](docs/engineering/postmortems.md).** Root-cause write-ups of the bugs worth learning from, each with the test that stops a repeat: the mechs that never walked for three releases, the Codex and Gemini mechs that died on deploy on Windows, and the facility labels that blurred on 4K screens.
+- **[Design system](docs/design-system.md)** and **[art brief](docs/art-brief.md).** The visual direction (aerospace instruments meet an industrial strategy-game command deck), the MechWarrior-style cockpit layer, the rules for bay motion and runtime-synthesized sound, and the spec for new mech frames.
+- **[Release checklist](docs/release-checklist.md).** Every public claim in the README and the landing page is tied to its source of truth in the code. A unit test fails the build if the README hand-types a test count, claims a feature that does not exist yet, or drops the "not verified by the author" label from a runtime the author has not run.
+- **Security posture.** Everything the agent can touch is treated as hostile: git runs with hooks, filters and transport disabled; the diff viewer and the patch exporter read only paths the mission itself reported and refuse anything that escapes the project, including through symlinks; the renderer reaches the main process only through the typed bridge; API keys are OS-encrypted and injected only into that mech's process. See [SECURITY.md](.github/SECURITY.md).
+- **Quality gates.** Type checks for the app and the tests, a zero-warning lint, the Vitest suite on Windows and Linux, and a production build run on every push and pull request. Beyond CI, `npm run smoke:electron` boots the built app in an isolated profile and checks the sandbox, the bridge and the layout, and `npm run verify:missions` drives real missions through the built app and saves screenshots as evidence.
+
 ## Status
 
-**Command Edition: a complete deployment and review experience, built on the v1.3 runtime architecture.**
+**Command Edition (v1.4): a complete deployment and review experience, built on the v1.3 runtime architecture.** See the [changelog](CHANGELOG.md) for what each release shipped.
 
 ## Configuring runtimes
 
@@ -187,7 +216,9 @@ $env:MECHBAY_HERMES_CMD = "opencode {PROMPT}"
 
 When a mech returns, MechBay runs a git diff in that facility and opens a **MISSION DEBRIEF** modal with file-level change stats. Select any file in the delta table to open its patch inline: added and removed lines with old and new line numbers, including files the agent created from scratch. A check-mark speech bubble appears over the returning mech, and the outcome is written to that mech's `memory.md` and counted toward its service record.
 
-The diff viewer only reads files the mission itself reported as changed, and it refuses paths that escape the project, including through symlinks.
+**COPY PATCH** puts the whole mission on the clipboard as one unified diff, and **SAVE PATCH…** writes it to a `.patch` file named after the mech, the project and the time. The file opens with a plain-text header (mech, project, task, baseline commit, completion time) that `git apply` and `patch -p1` skip, then one `diff --git` section per changed file. New files are marked as created from `/dev/null`, binary files get git's own marker, and a file too large to export in full is named in the header so you know the patch is partial.
+
+The diff viewer and the exporter only read files the mission itself reported as changed, and they refuse paths that escape the project, including through symlinks.
 
 Each companion also has a `soul.md`: its persona and working voice. Both files are included in the next deployment's context. Use the Journal tab to read or edit them without leaving the app.
 
@@ -200,13 +231,17 @@ src/
   preload/           Safe window.mechbay bridge between Electron and the renderer
   renderer/
     src/             React command-bay UI, Phaser scene, HUD, modals, Journal, and File Browser
-  shared/            Serializable types, defaults, IDs, and the single IPC channel registry
+  shared/            Serializable types, defaults, IDs, the IPC channel registry, diff parsing and rendering
 test/
-  unit/              Unit coverage for runners, state, log narration, filesystem access, and UI helpers
+  unit/              Unit coverage for runners, state, IPC, log narration, filesystem access, and UI
   integration/       Deployment lifecycle coverage
-assets/              Mech and facility sprites
-scripts/             Kimi Fireworks wrapper and chromakey utility
-docs/                Demo gif and screenshots
+  acceptance/        Opt-in runs against a real Claude Code CLI
+assets/              Mech and facility sprites, walk strips, portraits, and schematics
+build/               Installer icons and macOS entitlements
+docs/                Design system, art brief, release checklist, engineering log, demo media
+  engineering/       Decisions and post-mortems
+scripts/             Kimi Fireworks wrapper, sprite forge, chromakey, smoke and verification drivers, media capture
+site/                The landing page, deployed as static assets to mechbay.samalbanese.com
 ```
 
 ## Development
@@ -214,9 +249,12 @@ docs/                Demo gif and screenshots
 ```bash
 npm run dev          # start Electron with hot reload
 npm run demo         # start in demo mode: every mech deployable, no API keys
+npm run smoke:electron    # build, boot the app in an isolated profile, check sandbox and layout
+npm run verify:missions   # build, then drive real missions through the app and save screenshots
 npm run capture:demo # record docs/demo.gif automatically (Playwright + ffmpeg)
 npm run capture:portfolio # build, verify the mission loop, capture screenshots, and refresh all project media
-npm run typecheck    # type-check main and renderer code
+npm run render:social     # re-render the link-preview card from the current screenshot and fonts
+npm run typecheck    # type-check main, renderer, and test code
 npm test             # run the Vitest suite
 npm run test:watch   # run Vitest in watch mode
 npm run build        # type-check and build to out/
@@ -224,6 +262,7 @@ npm run build:win    # build a Windows installer
 npm run build:mac    # build a macOS package
 npm run build:linux  # build a Linux package
 npm run chromakey    # process mech and facility sprites
+npm run forge:sprites     # trace walk strips and wireframe schematics from the mech art
 ```
 
 ### Cutting a release

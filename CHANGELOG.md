@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Take the diff with you.** The Mission Debrief can copy the whole
+  mission as one unified patch or save it as a `.patch` file (named after
+  the mech, the project and the time). `git apply` accepts it, so a
+  mission's changes can be carried to another checkout or attached to a
+  review. New files, binary files and truncated patches are marked in the
+  file's plain-text header, and every path goes through the same
+  containment checks as the diff viewer.
+- **Reproducible link preview.** `npm run render:social` renders the
+  social-preview card from an HTML template inside the app's own Electron,
+  from the current bay screenshot, the mech portraits and the bundled fonts.
+
+### Changed
+
+- **The engineering log is linked from the README** (decisions,
+  post-mortems, the design system, the art brief and the release
+  checklist), with a short map of the quality gates.
+- **Every link points at the repository's current home**,
+  `github.com/relaywright/mechbay`: the package metadata, the release
+  publisher, the security policy, the issue templates, the in-app
+  upgrade-failure message, the landing page and the preview card.
+
+### Fixed
+
+- The "unreadable directory" scanner test is skipped when the suite runs
+  as root (root can read a mode-000 directory, so the test could only fail
+  for the wrong reason).
+
 ## v1.4.2 - 2026-10-02
 
 A release about trust in the hangar: your bay survives upgrades, missions
