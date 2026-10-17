@@ -174,10 +174,12 @@ describe('IPC.DIFF_PATCH_EXPORT', { timeout: 20_000 }, () => {
     tempDirs.push(patchFile)
     await writeFile(patchFile, text)
     await runGit(repoPath, ['apply', patchFile])
-    expect(await readFile(path.join(repoPath, 'tracked.txt'), 'utf8')).toBe(
-      'line one\nupdated line\n'
-    )
-    expect(await readFile(path.join(repoPath, 'notes.md'), 'utf8')).toBe('# Notes\n')
+    // git apply writes through the working-tree conversion, so a runner with
+    // core.autocrlf on (the Windows CI image) hands back CRLF. Compare content.
+    const applied = async (name: string): Promise<string> =>
+      (await readFile(path.join(repoPath, name), 'utf8')).replace(/\r\n/g, '\n')
+    expect(await applied('tracked.txt')).toBe('line one\nupdated line\n')
+    expect(await applied('notes.md')).toBe('# Notes\n')
   })
 
   it('saves through the OS dialog with a mission-named default, and reports a cancel', async () => {
