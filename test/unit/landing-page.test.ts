@@ -73,7 +73,7 @@ describe('landing page funnel', () => {
   })
 
   it('offers a download that works without JavaScript and never sends the hero visitor to git clone', () => {
-    expect(HERO).toContain('href="https://github.com/samalbanese/mechbay/releases/latest"')
+    expect(HERO).toContain('href="https://github.com/relaywright/mechbay/releases/latest"')
     expect(HERO).not.toMatch(/quickstart|git clone/i)
     expect(SITE).toContain('<script type="module" src="download.js"></script>')
   })

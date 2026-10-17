@@ -182,7 +182,7 @@
   <header class="hud-bar">
     <div class="shell">
       <div class="status"><span class="led" aria-hidden="true"></span><span>MECHBAY // OPEN SOURCE</span></div>
-      <a class="hud-link" href="https://github.com/samalbanese/mechbay">GitHub ↗</a>
+      <a class="hud-link" href="https://github.com/relaywright/mechbay">GitHub ↗</a>
     </div>
   </header>
   <main>
@@ -193,8 +193,8 @@
         <p class="tagline">Assign AI agents to real projects. Watch them work. Review exactly what they changed.</p>
         <p class="subline">A BattleTech-style command bay: five mechs, each one a real AI coding agent.</p>
         <div class="actions">
-          <a class="button" id="download" href="https://github.com/samalbanese/mechbay/releases/latest">▸ DOWNLOAD FOR DESKTOP</a>
-          <a class="button ghost" href="https://github.com/samalbanese/mechbay">▸ VIEW THE SOURCE</a>
+          <a class="button" id="download" href="https://github.com/relaywright/mechbay/releases/latest">▸ DOWNLOAD FOR DESKTOP</a>
+          <a class="button ghost" href="https://github.com/relaywright/mechbay">▸ VIEW THE SOURCE</a>
         </div>
         <p class="download-note">The installers are not code-signed yet. On first launch, Windows shows a SmartScreen prompt (choose More info, then Run anyway) and macOS asks you to allow the app under System Settings, Privacy &amp; Security. Real missions use an agent you already have, such as Claude Code or Codex.</p>
         <figure class="bezel">
@@ -260,7 +260,7 @@
           </article>
           <article class="step">
             <div class="step-top"><span class="step-num">STEP 03</span><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 6h19l7 7v29H12zM31 6v8h7M18 23h14M18 29h14M18 35h9"/><path d="m5 25 3 3 6-7"/></svg></div>
-            <h3>DEBRIEF</h3><p>The mech returns with a Mission Debrief, a real git diff, and new mission history written to memory.</p>
+            <h3>DEBRIEF</h3><p>The mech returns with a Mission Debrief, a real git diff you can read file by file or save as a patch, and new mission history written to memory.</p>
           </article>
         </div>
       </div>
@@ -341,6 +341,7 @@
             <div class="tech-item"><dt>License</dt><dd>Open source under MIT. Inspect it, extend it, bring your own agent.</dd></div>
           </dl>
         </div>
+        <p class="dev-note tech-note">How it got this way: the <a href="https://github.com/relaywright/mechbay/blob/main/docs/engineering/decisions.md">engineering decisions</a>, the <a href="https://github.com/relaywright/mechbay/blob/main/docs/engineering/postmortems.md">post-mortems</a> and the <a href="https://github.com/relaywright/mechbay/blob/main/CHANGELOG.md">changelog</a> are public.</p>
       </div>
     </section>
     <section id="quickstart" aria-labelledby="quickstart-title">
@@ -353,7 +354,7 @@
         <div>
           <div class="code-wrap">
             <div class="code-head"><span>PowerShell / Terminal</span><button class="copy-button" type="button" data-copy aria-label="Copy quickstart commands">Copy</button></div>
-            <pre><code id="quickstart-code">git clone https://github.com/samalbanese/mechbay.git
+            <pre><code id="quickstart-code">git clone https://github.com/relaywright/mechbay.git
 cd mechbay
 npm install
 npm run demo</code></pre>

@@ -5,7 +5,7 @@ Thanks for helping build MechBay. Keep changes focused, explain the player-facin
 ## Development setup
 
 ```bash
-git clone https://github.com/samalbanese/mechbay.git
+git clone https://github.com/relaywright/mechbay.git
 cd mechbay
 npm install
 npm run dev

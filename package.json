@@ -4,11 +4,11 @@
   "description": "A BattleTech-inspired command bay for AI coding agents: deploy Claude Code, Codex and other CLI agents as mechs into your real project folders",
   "main": "./out/main/index.js",
   "author": "Sam Albanese <samalbanesedev@gmail.com>",
-  "homepage": "https://github.com/samalbanese/mechbay",
+  "homepage": "https://github.com/relaywright/mechbay",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/samalbanese/mechbay.git"
+    "url": "git+https://github.com/relaywright/mechbay.git"
   },
   "scripts": {
     "format": "prettier --write .",
@@ -33,6 +33,7 @@
     "verify:missions": "npm run build && node --experimental-strip-types scripts/verify-missions.ts",
     "capture:demo": "node scripts/capture-demo.mjs",
     "capture:portfolio": "npm run build && node --experimental-strip-types scripts/capture-portfolio.ts && node --experimental-strip-types scripts/export-portfolio.ts",
+    "render:social": "electron scripts/render-social-preview.mjs",
     "chromakey": "node --experimental-strip-types scripts/chromakey.ts assets/mechs && node --experimental-strip-types scripts/chromakey.ts assets/facilities",
     "forge:sprites": "node --experimental-strip-types scripts/sprite-forge.ts"
   },

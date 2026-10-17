@@ -31,7 +31,7 @@ asarUnpack:
   - scripts/kimi_fireworks.py
 publish:
   provider: github
-  owner: samalbanese
+  owner: relaywright
   repo: mechbay
   releaseType: draft
 win:
