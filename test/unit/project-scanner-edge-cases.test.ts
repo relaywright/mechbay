@@ -59,6 +59,11 @@ describe('scanProjects — edge cases', () => {
     if (process.platform === 'win32') {
       return
     }
+    // Root reads a mode-000 directory regardless, so the scan cannot be
+    // refused and the assertion would fail for the wrong reason.
+    if (process.getuid?.() === 0) {
+      return
+    }
 
     // Remove read permission
     await fs.chmod(unreadableDir, 0o000)
