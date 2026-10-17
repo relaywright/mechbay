@@ -36,6 +36,14 @@ describe('MechbayBridge preload', () => {
     bridge = electron.exposed.mechbay as MechbayBridge
   })
 
+  it('exposes patchExport over the DIFF_PATCH_EXPORT channel', async () => {
+    await bridge.patchExport('01J9Z1D0EP000000000000005', 'file')
+    expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(IPC.DIFF_PATCH_EXPORT, {
+      deploymentId: '01J9Z1D0EP000000000000005',
+      target: 'file'
+    })
+  })
+
   it('exposes logs.history over the LOG_HISTORY channel', async () => {
     await bridge.logs.history('01J9Z1D0EP000000000000005', 40)
     expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DebriefModal } from '../../src/renderer/src/components/DebriefModal'
 import type { Companion, Deployment, Facility } from '../../src/shared/types'
 
@@ -111,5 +111,77 @@ describe('DebriefModal for a recalled mission', () => {
     expect(screen.getByRole('heading', { name: 'Mission recalled.' })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Objective complete.' })).toBeNull()
     expect(container.querySelector('.debrief-check')).toBeNull()
+  })
+})
+
+describe('DebriefModal patch export', () => {
+  function renderWithFiles(): void {
+    const deployment = {
+      id: 'dep-4',
+      companionId: 'atlas',
+      facilityId: 'reactor',
+      taskPrompt: 'Update the notes',
+      status: 'completed',
+      startedAt: 0,
+      completedAt: 1000,
+      exitCode: 0,
+      summary: 'Completed.',
+      diffStats: { filesChanged: 1, insertions: 1, deletions: 1 },
+      diffFiles: [{ path: 'tracked.txt', insertions: 1, deletions: 1 }]
+    } as Deployment
+    render(
+      <DebriefModal
+        deployment={deployment}
+        companion={{ id: 'atlas', name: 'Atlas-Prime' } as Companion}
+        facility={{ id: 'reactor', name: 'Reactor Control' } as Facility}
+        onDismiss={() => {}}
+      />
+    )
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('offers no export when the mission changed no files', () => {
+    renderDebrief('Completed.')
+    expect(screen.queryByRole('button', { name: 'COPY PATCH' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'SAVE PATCH…' })).toBeNull()
+  })
+
+  it('copies the mission patch and reports it', async () => {
+    const patchExport = vi.fn().mockResolvedValue({ ok: true, outcome: 'copied' })
+    vi.stubGlobal('mechbay', { patchExport, diffFileGet: vi.fn(() => new Promise(() => {})) })
+    renderWithFiles()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'COPY PATCH' }))
+    })
+
+    expect(patchExport).toHaveBeenCalledWith('dep-4', 'clipboard')
+    const note = screen.getByText('Patch copied to the clipboard.')
+    expect(note.getAttribute('role')).toBe('status')
+  })
+
+  it('shows where a saved patch went, and surfaces an export error as an alert', async () => {
+    const patchExport = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, outcome: 'saved', path: '/tmp/mission.patch' })
+      .mockResolvedValueOnce({ ok: false, error: 'Facility is missing or unlinked' })
+    vi.stubGlobal('mechbay', { patchExport, diffFileGet: vi.fn(() => new Promise(() => {})) })
+    renderWithFiles()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'SAVE PATCH…' }))
+    })
+    expect(patchExport).toHaveBeenCalledWith('dep-4', 'file')
+    expect(screen.getByText('Patch saved to /tmp/mission.patch').getAttribute('role')).toBe(
+      'status'
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'SAVE PATCH…' }))
+    })
+    expect(screen.getByRole('alert').textContent).toBe('Facility is missing or unlinked')
   })
 })

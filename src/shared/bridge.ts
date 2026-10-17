@@ -8,6 +8,8 @@ import type {
   Deployment,
   DeploymentStatus,
   DiffFileGetResult,
+  PatchExportResult,
+  PatchExportTarget,
   DiscoveredProject,
   Facility,
   FsNode,
@@ -94,6 +96,8 @@ export interface MechbayBridge {
   bulkImportRun(selectedPaths: string[]): Promise<BulkImportRunResult>
   updateSettings(patch: SettingsPatch): Promise<SimpleActionResult>
   diffFileGet(deploymentId: string, path: string): Promise<DiffFileGetResult>
+  /** The whole mission diff as one unified patch, copied or saved as a .patch file. */
+  patchExport(deploymentId: string, target: PatchExportTarget): Promise<PatchExportResult>
   onRecoveryZombies(cb: (zombies: Deployment[]) => void): () => void
   fsReadDir(path: string): Promise<FsNode[]>
   fsReadFile(path: string): Promise<string>

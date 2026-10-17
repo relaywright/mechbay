@@ -107,6 +107,22 @@ export interface DiffFileGetPayload {
 /** Result for DIFF_FILE_GET IPC call. */
 export type DiffFileGetResult = { ok: true; patch: FilePatch } | { ok: false; error: string }
 
+/** Where DIFF_PATCH_EXPORT sends a mission's patch. */
+export type PatchExportTarget = 'clipboard' | 'file'
+
+/** Payload for DIFF_PATCH_EXPORT IPC call. */
+export interface PatchExportPayload {
+  deploymentId: string
+  target: PatchExportTarget
+}
+
+/** Result for DIFF_PATCH_EXPORT IPC call. `cancelled` is the person closing the save dialog. */
+export type PatchExportResult =
+  | { ok: true; outcome: 'copied' }
+  | { ok: true; outcome: 'saved'; path: string }
+  | { ok: true; outcome: 'cancelled' }
+  | { ok: false; error: string }
+
 export interface Deployment {
   id: string
   companionId: string

@@ -892,6 +892,32 @@ input {
   padding: 12px;
   font-size: 24px;
 }
+/* Debrief export: the patch buttons sit left of ACKNOWLEDGED with the outcome beside them. */
+.debrief-export {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-right: auto;
+}
+.debrief-export .secondary-action {
+  padding: 8px 12px;
+  font: 600 var(--fs-small) var(--mono);
+  letter-spacing: 0.1em;
+}
+.debrief-export .secondary-action:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.debrief-export-note {
+  color: var(--phosphor);
+  font: 500 var(--fs-small) var(--mono);
+  overflow-wrap: anywhere;
+}
+.debrief-export-note.is-error {
+  color: #ff6b6b;
+}
 .debrief-note {
   font: var(--fs-small)/1.6 var(--body);
   color: #a9b49f;

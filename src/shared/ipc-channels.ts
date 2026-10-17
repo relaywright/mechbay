@@ -29,7 +29,8 @@ export const IPC = {
   SECRETS_SET: 'mechbay:secrets:set',
   SECRETS_STATUS: 'mechbay:secrets:status',
   SETTINGS_UPDATE: 'mechbay:settings:update',
-  DIFF_FILE_GET: 'mechbay:diff:fileGet'
+  DIFF_FILE_GET: 'mechbay:diff:fileGet',
+  DIFF_PATCH_EXPORT: 'mechbay:diff:patchExport'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

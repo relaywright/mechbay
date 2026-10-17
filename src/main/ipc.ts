@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow, dialog } from 'electron'
+import { app, clipboard, ipcMain, BrowserWindow, dialog } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { IPC } from '../shared/ipc-channels'
@@ -21,6 +21,9 @@ import type {
   CompanionConfigurePayload,
   CompanionConfigureResult,
   DiffFileGetResult,
+  FilePatch,
+  PatchExportPayload,
+  PatchExportResult,
   SimpleActionResult,
   StateHealth
 } from '../shared/types'
@@ -48,6 +51,7 @@ import {
   resolveInRepo
 } from './git-diff'
 import { redactSecrets } from './redact'
+import { missionPatchFileName, renderMissionPatch } from '../shared/patch-render'
 import type { MissionLogSink } from './log-store'
 import type { MissionRegistry } from './mission-registry'
 import { readUntilExitDrained } from './drain-output'
@@ -314,6 +318,92 @@ export function registerIpc(opts: IpcDeps): void {
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) }
       }
+    }
+  )
+
+  // The whole mission diff as one patch, copied to the clipboard or saved
+  // through the OS save dialog. Reuses readFilePatch per file, so every path
+  // goes through the same diffFiles allowlist and realpath containment check
+  // as the diff viewer; the renderer never names a path here.
+  ipcMain.handle(
+    IPC.DIFF_PATCH_EXPORT,
+    async (_e, args: PatchExportPayload): Promise<PatchExportResult> => {
+      if (
+        typeof args?.deploymentId !== 'string' ||
+        args.deploymentId.length === 0 ||
+        (args?.target !== 'clipboard' && args?.target !== 'file')
+      ) {
+        return { ok: false, error: 'Invalid patch export request' }
+      }
+
+      const s = state.getState()
+      const deployment = s.deployments.find((d) => d.id === args.deploymentId)
+      if (!deployment) {
+        return { ok: false, error: `Deployment not found: ${args.deploymentId}` }
+      }
+      if (!deployment.diffFiles || deployment.diffFiles.length === 0) {
+        return { ok: false, error: 'This mission has no file changes to export' }
+      }
+      const facility = s.facilities.find((f) => f.id === deployment.facilityId)
+      if (!facility || !facility.path) {
+        return { ok: false, error: 'Facility is missing or unlinked' }
+      }
+      const companion = s.companions.find((c) => c.id === deployment.companionId)
+      const mech = companion?.name ?? 'Unknown mech'
+
+      const patches: FilePatch[] = []
+      const unreadable: string[] = []
+      try {
+        for (const file of deployment.diffFiles) {
+          const patch = await readFilePatch(
+            facility.path,
+            deployment.baselineSha ?? null,
+            file.path
+          )
+          if (patch) patches.push(patch)
+          else unreadable.push(file.path)
+        }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+      if (patches.length === 0) {
+        return { ok: false, error: 'None of the changed files could be read' }
+      }
+
+      const completedAt = deployment.completedAt ?? Date.now()
+      const text = renderMissionPatch(
+        {
+          mech,
+          project: facility.name,
+          task: deployment.taskPrompt,
+          baselineSha: deployment.baselineSha,
+          completedAt,
+          unreadable
+        },
+        patches
+      )
+
+      if (args.target === 'clipboard') {
+        clipboard.writeText(text)
+        return { ok: true, outcome: 'copied' }
+      }
+
+      const fileName = missionPatchFileName(mech, facility.name, completedAt)
+      const result = await dialog.showSaveDialog(win, {
+        title: 'Save mission patch',
+        defaultPath: path.join(app.getPath('documents'), fileName),
+        filters: [
+          { name: 'Patch files', extensions: ['patch', 'diff'] },
+          { name: 'All files', extensions: ['*'] }
+        ]
+      })
+      if (result.canceled || !result.filePath) return { ok: true, outcome: 'cancelled' }
+      try {
+        await fs.promises.writeFile(result.filePath, text, 'utf8')
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+      return { ok: true, outcome: 'saved', path: result.filePath }
     }
   )
 

@@ -23,6 +23,8 @@ import type {
   AgentFamily,
   SimpleActionResult,
   DiffFileGetResult,
+  PatchExportResult,
+  PatchExportTarget,
   StateHealth
 } from '../shared/types'
 
@@ -91,7 +93,9 @@ const mechbayApi = {
   updateSettings: (patch: SettingsPatch): Promise<SimpleActionResult> =>
     ipcRenderer.invoke(IPC.SETTINGS_UPDATE, patch),
   diffFileGet: (deploymentId: string, path: string): Promise<DiffFileGetResult> =>
-    ipcRenderer.invoke(IPC.DIFF_FILE_GET, { deploymentId, path })
+    ipcRenderer.invoke(IPC.DIFF_FILE_GET, { deploymentId, path }),
+  patchExport: (deploymentId: string, target: PatchExportTarget): Promise<PatchExportResult> =>
+    ipcRenderer.invoke(IPC.DIFF_PATCH_EXPORT, { deploymentId, target })
 } satisfies MechbayBridge
 
 // scripts/smoke-electron.ts types `window.mechbay` through this name.

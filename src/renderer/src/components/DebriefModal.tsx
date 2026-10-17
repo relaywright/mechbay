@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Companion, Deployment, Facility } from '../../../shared/types'
+import type { Companion, Deployment, Facility, PatchExportTarget } from '../../../shared/types'
 import { AUTONOMY_LABELS } from '../../../shared/autonomy'
 import { sfx } from '../audio/sfx'
 import { useCountUp } from '../motion'
@@ -75,6 +75,31 @@ export function DebriefModal(props: {
   )
   const [selectedPath, setSelectedPath] = useState<string | null>(
     visibleFiles.length > 0 ? visibleFiles[0].path : null
+  )
+
+  // Copy or save the whole mission as a .patch. One request at a time; the
+  // status line reports where the patch went, or why it could not go there.
+  const [exporting, setExporting] = useState<PatchExportTarget | null>(null)
+  const [exportNote, setExportNote] = useState<{ text: string; error: boolean } | null>(null)
+  const exportPatch = useCallback(
+    async (target: PatchExportTarget) => {
+      sfx.play('ui-click')
+      setExporting(target)
+      setExportNote(null)
+      try {
+        const result = await window.mechbay.patchExport(deployment.id, target)
+        if (!result.ok) setExportNote({ text: result.error, error: true })
+        else if (result.outcome === 'copied')
+          setExportNote({ text: 'Patch copied to the clipboard.', error: false })
+        else if (result.outcome === 'saved')
+          setExportNote({ text: `Patch saved to ${result.path}`, error: false })
+      } catch (err) {
+        setExportNote({ text: err instanceof Error ? err.message : String(err), error: true })
+      } finally {
+        setExporting(null)
+      }
+    },
+    [deployment.id]
   )
 
   const { onDismiss } = props
@@ -256,6 +281,34 @@ export function DebriefModal(props: {
           tracked and new text files; binary files are counted without line totals.
         </p>
         <div style={actionRowStyle}>
+          {visibleFiles.length > 0 && (
+            <div className="debrief-export">
+              <button
+                type="button"
+                className="secondary-action"
+                disabled={exporting !== null}
+                onClick={() => void exportPatch('clipboard')}
+              >
+                {exporting === 'clipboard' ? 'COPYING…' : 'COPY PATCH'}
+              </button>
+              <button
+                type="button"
+                className="secondary-action"
+                disabled={exporting !== null}
+                onClick={() => void exportPatch('file')}
+              >
+                {exporting === 'file' ? 'SAVING…' : 'SAVE PATCH…'}
+              </button>
+              {exportNote && (
+                <span
+                  role={exportNote.error ? 'alert' : 'status'}
+                  className={`debrief-export-note${exportNote.error ? ' is-error' : ''}`}
+                >
+                  {exportNote.text}
+                </span>
+              )}
+            </div>
+          )}
           <button
             ref={dismissButtonRef}
             type="button"
@@ -439,7 +492,10 @@ const moreFilesStyle: React.CSSProperties = {
 
 const actionRowStyle: React.CSSProperties = {
   display: 'flex',
-  justifyContent: 'flex-end',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 16,
+  flexWrap: 'wrap',
   marginTop: 20
 }
 
