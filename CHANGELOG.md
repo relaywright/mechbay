@@ -31,6 +31,16 @@
   as root (root can read a mode-000 directory, so the test could only fail
   for the wrong reason).
 
+### Security
+
+- Updated `react` and `react-dom` from 19.3.0 to 19.3.1, the fix for the React Server Components
+  remote code execution and Server Functions denial of service advisories (GHSA-xqc2-xf4c-x3h3,
+  GHSA-h3gv-c5rc-p453). The app does not use the affected server packages; the bump keeps React on the patched release.
+- Updated the build-time `undici` (pulled in by `node-gyp`) from 6.28.1 to 6.29.1, the fix for the
+  October 2026 undici advisories (TLS validation bypass, cache poisoning, denial of service), and
+  `http-cache-semantics` to 4.3.0.
+- Electron stays on 39.8.10, which is end of life. A major Electron upgrade is still needed.
+
 ## v1.4.2 - 2026-10-02
 
 A release about trust in the hangar: your bay survives upgrades, missions
